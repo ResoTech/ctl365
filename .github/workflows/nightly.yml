@@ -10,8 +10,6 @@ jobs:
     name: "Nightly validation"
     runs-on: self-hosted
     timeout-minutes: 30
-    env:
-      PATH: /home/runner/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin:/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin:/home/runner/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -19,15 +17,11 @@ jobs:
       - name: Verify Environment
         run: |
           set -euo pipefail
+          source "$HOME/.cargo/env"
           echo "=== Nightly Build $(date -u +%Y-%m-%d) ==="
           rustc --version
           cargo --version
-
-      - name: Install Nightly Toolchain
-        run: |
-          rustup install nightly --profile minimal
-          rustup component add clippy --toolchain nightly
-          rustup run nightly rustc --version
+          rustup --version
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
@@ -35,13 +29,18 @@ jobs:
           key: ctl365-nightly
 
       - name: Full build
-        run: cargo build --release
+        run: |
+          source "$HOME/.cargo/env"
+          cargo build --release
 
       - name: Full test sweep (nightly)
-        run: rustup run nightly cargo test
+        run: |
+          source "$HOME/.cargo/env"
+          rustup run nightly cargo test
 
       - name: Clippy strict
         run: |
+          source "$HOME/.cargo/env"
           cargo clippy --release -- \
             -W clippy::all \
             -W clippy::pedantic \
@@ -56,7 +55,9 @@ jobs:
             -A clippy::struct-excessive-bools
 
       - name: Format check
-        run: cargo fmt --check
+        run: |
+          source "$HOME/.cargo/env"
+          cargo fmt --check
 
       - name: Extended CLI Tests
         run: |

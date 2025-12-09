@@ -11,8 +11,6 @@ jobs:
     runs-on: self-hosted
     name: Build & Test (nv-osmium)
     timeout-minutes: 20
-    env:
-      PATH: /home/runner/.cargo/bin:/home/runner/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin:/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -20,17 +18,11 @@ jobs:
       - name: Verify Environment
         run: |
           set -euo pipefail
+          source "$HOME/.cargo/env"
           echo "=== Rust Toolchain ==="
           rustc --version
           cargo --version
-          echo ""
-          echo "=== Nightly Toolchain ==="
-          rustup run nightly rustc --version || echo "Nightly not installed, will install"
-
-      - name: Install Nightly Toolchain
-        run: |
-          rustup install nightly --profile minimal
-          rustup component add clippy --toolchain nightly
+          rustup --version
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
@@ -38,17 +30,24 @@ jobs:
           key: ctl365-ci
 
       - name: Build Release
-        run: cargo build --release
+        run: |
+          source "$HOME/.cargo/env"
+          cargo build --release
 
       - name: Clippy (zero warnings policy)
         run: |
+          source "$HOME/.cargo/env"
           cargo clippy --release -- -D warnings
 
       - name: Format Check
-        run: cargo fmt --check || echo "::warning::Format issues found"
+        run: |
+          source "$HOME/.cargo/env"
+          cargo fmt --check || echo "::warning::Format issues found"
 
       - name: Unit Tests (nightly for wiremock)
-        run: rustup run nightly cargo test
+        run: |
+          source "$HOME/.cargo/env"
+          rustup run nightly cargo test
 
       - name: CLI Smoke Test
         run: |
@@ -117,6 +116,7 @@ jobs:
 
       - name: Build Summary
         run: |
+          source "$HOME/.cargo/env"
           echo "### Build Complete ✅" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Item | Value |" >> $GITHUB_STEP_SUMMARY
