@@ -9,81 +9,10 @@ permissions:
   contents: write
 
 jobs:
-  # Job 1: Linux build on nv-osmium
-  release-linux:
-    runs-on: self-hosted
-    name: Build Linux (nv-osmium)
-    timeout-minutes: 20
-    env:
-      PATH: /home/runner/.cargo/bin:/home/runner/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin:/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Verify Environment
-        run: |
-          set -euo pipefail
-          source "$HOME/.cargo/env" || true
-          echo "=== Linux Release Build ==="
-          echo "Tag: ${{ github.ref_name }}"
-          rustc --version
-          cargo --version
-
-      - name: Install Nightly Toolchain
-        run: |
-          source "$HOME/.cargo/env" || true
-          rustup install nightly --profile minimal
-
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
-        with:
-          key: ctl365-release-linux
-
-      - name: Build Release
-        run: |
-          source "$HOME/.cargo/env" || true
-          cargo build --release
-
-      - name: Run Tests
-        run: |
-          source "$HOME/.cargo/env" || true
-          rustup run nightly cargo test
-          CTL365=$(find target -path "*/release/ctl365" -type f -executable | head -1)
-          $CTL365 --version
-          $CTL365 baseline list || true
-
-      - name: Create Linux Archive
-        run: |
-          set -euo pipefail
-          VERSION="${{ github.ref_name }}"
-          ARCHIVE_DIR="ctl365-${VERSION}"
-          CTL365=$(find target -path "*/release/ctl365" -type f -executable | head -1)
-
-          mkdir -p "$ARCHIVE_DIR"
-          cp "$CTL365" "$ARCHIVE_DIR/ctl365"
-          cp README.md "$ARCHIVE_DIR/" 2>/dev/null || true
-          cp LICENSE "$ARCHIVE_DIR/" 2>/dev/null || true
-          cp COMMANDS.md "$ARCHIVE_DIR/" 2>/dev/null || true
-
-          tar -czf "ctl365-${VERSION}-linux-x86_64.tar.gz" "$ARCHIVE_DIR"
-
-          echo "=== Linux Archive Contents ==="
-          tar -tvf "ctl365-${VERSION}-linux-x86_64.tar.gz"
-          ls -lh "ctl365-${VERSION}-linux-x86_64.tar.gz"
-
-      - name: Upload Linux artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ctl365-linux
-          path: ctl365-${{ github.ref_name }}-linux-x86_64.tar.gz
-
-  # Job 2: Windows cross-compile on nv-osmium
   release-windows:
     runs-on: self-hosted
-    name: Build Windows (cross-compile)
+    name: Build Windows Release
     timeout-minutes: 30
-    env:
-      PATH: /home/runner/.cargo/bin:/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -91,27 +20,26 @@ jobs:
       - name: Verify Environment
         run: |
           set -euo pipefail
-          source "$HOME/.cargo/env" || true
+          source "$HOME/.cargo/env"
           echo "=== Windows Cross-Compile Build ==="
           echo "Tag: ${{ github.ref_name }}"
           rustc --version
           cargo --version
-
-      - name: Install Windows Target
-        run: |
-          source "$HOME/.cargo/env" || true
-          rustup target add x86_64-pc-windows-gnu
-          # Verify mingw-w64 is available
-          which x86_64-w64-mingw32-gcc || echo "::warning::mingw-w64 not found, install with: apt install mingw-w64"
+          rustup target list --installed
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
           key: ctl365-release-windows
 
+      - name: Run Tests (nightly)
+        run: |
+          source "$HOME/.cargo/env"
+          rustup run nightly cargo test
+
       - name: Build Windows Release
         run: |
-          source "$HOME/.cargo/env" || true
+          source "$HOME/.cargo/env"
           cargo build --release --target x86_64-pc-windows-gnu
 
       - name: Create Windows Archive
@@ -129,45 +57,16 @@ jobs:
           cp release/windows/install.ps1 "$ARCHIVE_DIR/" 2>/dev/null || true
           cp release/windows/uninstall.ps1 "$ARCHIVE_DIR/" 2>/dev/null || true
 
-          # Create ZIP
           zip -r "ctl365-${VERSION}-windows-x86_64.zip" "$ARCHIVE_DIR"
 
           echo "=== Windows Archive Contents ==="
           unzip -l "ctl365-${VERSION}-windows-x86_64.zip"
           ls -lh "ctl365-${VERSION}-windows-x86_64.zip"
 
-      - name: Upload Windows artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ctl365-windows
-          path: ctl365-${{ github.ref_name }}-windows-x86_64.zip
-
-  # Job 3: Create GitHub Release with both artifacts
-  publish:
-    runs-on: self-hosted
-    name: Publish Release
-    needs: [release-linux, release-windows]
-    steps:
-      - name: Download Linux artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: ctl365-linux
-
-      - name: Download Windows artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: ctl365-windows
-
-      - name: List artifacts
-        run: |
-          ls -lh *.tar.gz *.zip
-
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            ctl365-${{ github.ref_name }}-linux-x86_64.tar.gz
-            ctl365-${{ github.ref_name }}-windows-x86_64.zip
+          files: ctl365-${{ github.ref_name }}-windows-x86_64.zip
           draft: false
           prerelease: ${{ contains(github.ref_name, 'rc') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') }}
           generate_release_notes: true
@@ -176,23 +75,14 @@ jobs:
 
             Enterprise-grade Microsoft 365 deployment automation CLI.
 
-            ### Downloads
+            ### Download
 
-            | Platform | File | Description |
-            |----------|------|-------------|
-            | **Linux** | `ctl365-${{ github.ref_name }}-linux-x86_64.tar.gz` | Linux x86_64 binary |
-            | **Windows** | `ctl365-${{ github.ref_name }}-windows-x86_64.zip` | Windows x86_64 executable |
+            | Platform | File |
+            |----------|------|
+            | **Windows** | `ctl365-${{ github.ref_name }}-windows-x86_64.zip` |
 
-            ### Quick Install
+            ### Quick Install (PowerShell)
 
-            **Linux:**
-            ```bash
-            tar -xzf ctl365-${{ github.ref_name }}-linux-x86_64.tar.gz
-            sudo cp ctl365-${{ github.ref_name }}/ctl365 /usr/local/bin/
-            ctl365 --version
-            ```
-
-            **Windows (PowerShell):**
             ```powershell
             Expand-Archive ctl365-${{ github.ref_name }}-windows-x86_64.zip -DestinationPath .
             .\ctl365-${{ github.ref_name }}-windows\ctl365.exe --version
@@ -201,9 +91,8 @@ jobs:
 
             ### Documentation
 
-            - [Getting Started](https://github.com/ResoTech/ctl365/blob/main/GETTING_STARTED.md)
-            - [Command Reference](https://github.com/ResoTech/ctl365/blob/main/COMMANDS.md)
-            - [App Registration](https://github.com/ResoTech/ctl365/blob/main/docs/APP_REGISTRATION.md)
+            - [Getting Started](https://github.com/resotech/ctl365/blob/main/GETTING_STARTED.md)
+            - [Command Reference](https://github.com/resotech/ctl365/blob/main/COMMANDS.md)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -213,5 +102,4 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Platform | Size |" >> $GITHUB_STEP_SUMMARY
           echo "|----------|------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Linux | $(ls -lh ctl365-${{ github.ref_name }}-linux-x86_64.tar.gz | awk '{print $5}') |" >> $GITHUB_STEP_SUMMARY
           echo "| Windows | $(ls -lh ctl365-${{ github.ref_name }}-windows-x86_64.zip | awk '{print $5}') |" >> $GITHUB_STEP_SUMMARY
