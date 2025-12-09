@@ -529,7 +529,9 @@ async fn run() -> error::Result<()> {
             VivaCommands::CommunityList(args) => cmd::viva::community_list(args).await?,
             VivaCommands::CommunityDelete(args) => cmd::viva::community_delete(args).await?,
             VivaCommands::CommunityAddMember(args) => cmd::viva::community_add_member(args).await?,
-            VivaCommands::CommunityRemoveMember(args) => cmd::viva::community_remove_member(args).await?,
+            VivaCommands::CommunityRemoveMember(args) => {
+                cmd::viva::community_remove_member(args).await?
+            }
             VivaCommands::RoleAssign(args) => cmd::viva::role_assign(args).await?,
             VivaCommands::RoleList(args) => cmd::viva::role_list(args).await?,
             VivaCommands::RoleRevoke(args) => cmd::viva::role_revoke(args).await?,
@@ -539,36 +541,39 @@ async fn run() -> error::Result<()> {
             CopilotCommands::AgentsList(args) => cmd::copilot::agents_list(args).await?,
             CopilotCommands::AgentsGet(args) => cmd::copilot::agents_get(args).await?,
             CopilotCommands::Search(args) => cmd::copilot::search(args).await?,
-            CopilotCommands::InteractionsExport(args) => cmd::copilot::interactions_export(args).await?,
+            CopilotCommands::InteractionsExport(args) => {
+                cmd::copilot::interactions_export(args).await?
+            }
             CopilotCommands::MeetingInsights(args) => cmd::copilot::meeting_insights(args).await?,
         },
-        Commands::Tui(tui_cmd) => {
-            match tui_cmd {
-                TuiCommands::Dashboard => tui::run_tui()?,
-                TuiCommands::Clients => tui::run_msp_menu().await?,
-                TuiCommands::Configure => tui::run_interactive_menu().await?,
-                TuiCommands::Quick => tui::quick_setting_change().await?,
-                TuiCommands::Defender | TuiCommands::Exchange | TuiCommands::SharePoint | TuiCommands::Teams => {
-                    let config = config::ConfigManager::load()?;
-                    let active_tenant = config
+        Commands::Tui(tui_cmd) => match tui_cmd {
+            TuiCommands::Dashboard => tui::run_tui()?,
+            TuiCommands::Clients => tui::run_msp_menu().await?,
+            TuiCommands::Configure => tui::run_interactive_menu().await?,
+            TuiCommands::Quick => tui::quick_setting_change().await?,
+            TuiCommands::Defender
+            | TuiCommands::Exchange
+            | TuiCommands::SharePoint
+            | TuiCommands::Teams => {
+                let config = config::ConfigManager::load()?;
+                let active_tenant = config
                         .get_active_tenant()?
                         .ok_or_else(|| error::Error::ConfigError("No active tenant. Run 'ctl365 tui clients' to add a client or 'ctl365 login' first.".into()))?;
 
-                    match tui_cmd {
-                        TuiCommands::Defender => {
-                            tui::configure_defender_interactive(&config, &active_tenant.name).await?;
-                        }
-                        TuiCommands::Exchange => {
-                            tui::configure_exchange_interactive(&config, &active_tenant.name).await?;
-                        }
-                        TuiCommands::SharePoint => {
-                            tui::configure_sharepoint_interactive(&config, &active_tenant.name).await?;
-                        }
-                        TuiCommands::Teams => {
-                            tui::configure_teams_interactive(&config, &active_tenant.name).await?;
-                        }
-                        _ => {}
+                match tui_cmd {
+                    TuiCommands::Defender => {
+                        tui::configure_defender_interactive(&config, &active_tenant.name).await?;
                     }
+                    TuiCommands::Exchange => {
+                        tui::configure_exchange_interactive(&config, &active_tenant.name).await?;
+                    }
+                    TuiCommands::SharePoint => {
+                        tui::configure_sharepoint_interactive(&config, &active_tenant.name).await?;
+                    }
+                    TuiCommands::Teams => {
+                        tui::configure_teams_interactive(&config, &active_tenant.name).await?;
+                    }
+                    _ => {}
                 }
             }
         },

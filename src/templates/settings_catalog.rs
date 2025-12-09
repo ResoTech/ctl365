@@ -6,7 +6,7 @@
 
 #![allow(dead_code)]
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 /// Settings Catalog policy type
 #[derive(Debug, Clone)]
@@ -200,11 +200,17 @@ impl ToString for Technologies {
 impl ToString for TemplateFamily {
     fn to_string(&self) -> String {
         match self {
-            TemplateFamily::EndpointSecurityDiskEncryption => "endpointSecurityDiskEncryption".to_string(),
+            TemplateFamily::EndpointSecurityDiskEncryption => {
+                "endpointSecurityDiskEncryption".to_string()
+            }
             TemplateFamily::EndpointSecurityAntivirus => "endpointSecurityAntivirus".to_string(),
             TemplateFamily::EndpointSecurityFirewall => "endpointSecurityFirewall".to_string(),
-            TemplateFamily::EndpointSecurityAttackSurfaceReduction => "endpointSecurityAttackSurfaceReduction".to_string(),
-            TemplateFamily::EndpointSecurityAccountProtection => "endpointSecurityAccountProtection".to_string(),
+            TemplateFamily::EndpointSecurityAttackSurfaceReduction => {
+                "endpointSecurityAttackSurfaceReduction".to_string()
+            }
+            TemplateFamily::EndpointSecurityAccountProtection => {
+                "endpointSecurityAccountProtection".to_string()
+            }
             TemplateFamily::None => "none".to_string(),
         }
     }
@@ -223,7 +229,11 @@ pub fn choice_setting(definition_id: &str, value: &str) -> Setting {
 }
 
 /// Helper to create a choice setting with children
-pub fn choice_setting_with_children(definition_id: &str, value: &str, children: Vec<Setting>) -> Setting {
+pub fn choice_setting_with_children(
+    definition_id: &str,
+    value: &str,
+    children: Vec<Setting>,
+) -> Setting {
     Setting {
         setting_definition_id: definition_id.to_string(),
         setting_instance: SettingInstance::Choice(ChoiceSettingInstance {
@@ -257,7 +267,10 @@ pub fn string_setting(definition_id: &str, value: &str) -> Setting {
 }
 
 /// Helper to create a group setting collection (for ASR rules, WHfB, etc.)
-pub fn group_collection_setting(definition_id: &str, collection_values: Vec<Vec<Setting>>) -> Setting {
+pub fn group_collection_setting(
+    definition_id: &str,
+    collection_values: Vec<Vec<Setting>>,
+) -> Setting {
     Setting {
         setting_definition_id: definition_id.to_string(),
         setting_instance: SettingInstance::GroupCollection(GroupSettingCollectionInstance {

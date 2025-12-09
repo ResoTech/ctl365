@@ -2,10 +2,10 @@
 name = "ctl365"
 version = "0.1.0"
 edition = "2024"
-authors = ["ctl365 Contributors"]
+authors = ["Resolve Technology LLC"]
 description = "Enterprise-grade Microsoft 365 deployment automation CLI"
-license = "MIT"
-repository = "https://github.com/yourusername/ctl365"
+license = "LicenseRef-Proprietary"
+repository = "https://github.com/resotech/ctl365"
 keywords = ["microsoft", "m365", "intune", "automation", "msp"]
 categories = ["command-line-utilities"]
 

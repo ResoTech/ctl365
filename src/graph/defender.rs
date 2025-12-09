@@ -6,7 +6,7 @@
 
 use crate::error::Result;
 use crate::graph::GraphClient;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 /// Get Defender for Endpoint onboarding package
 pub async fn get_onboarding_package(client: &GraphClient) -> Result<Value> {
@@ -211,7 +211,12 @@ pub async fn enable_defender_connector(client: &GraphClient) -> Result<Value> {
         "enableExpeditedTelemetryReporting": true
     });
 
-    client.post("deviceManagement/advancedThreatProtectionOnboardingStateSummary", &payload).await
+    client
+        .post(
+            "deviceManagement/advancedThreatProtectionOnboardingStateSummary",
+            &payload,
+        )
+        .await
 }
 
 /// Get Defender connector status
@@ -230,5 +235,10 @@ pub async fn configure_automatic_onboarding(client: &GraphClient, enable: bool) 
         "advancedThreatProtectionOffboardingBlob": ""
     });
 
-    client.patch("deviceManagement/advancedThreatProtectionOnboardingStateSummary", &payload).await
+    client
+        .patch(
+            "deviceManagement/advancedThreatProtectionOnboardingStateSummary",
+            &payload,
+        )
+        .await
 }

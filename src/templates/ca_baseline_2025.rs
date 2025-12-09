@@ -15,7 +15,7 @@
 
 #![allow(dead_code)]
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 pub struct CABaseline2025 {
     pub policies: Vec<CAPolicyTemplate>,
@@ -125,7 +125,8 @@ impl CABaseline2025 {
         vec![
             CAGroupTemplate {
                 display_name: "AAD_UA_ConAcc-Breakglass".to_string(),
-                description: "Emergency break-glass accounts - excluded from all CA policies".to_string(),
+                description: "Emergency break-glass accounts - excluded from all CA policies"
+                    .to_string(),
                 purpose: "breakglass".to_string(),
             },
             CAGroupTemplate {
@@ -218,8 +219,10 @@ impl CABaseline2025 {
     fn cap001_block_legacy_auth() -> CAPolicyTemplate {
         CAPolicyTemplate {
             id: "CAP001".to_string(),
-            display_name: "CAP001-All Block Legacy Authentication for All users when OtherClients".to_string(),
-            description: "Block legacy authentication protocols (IMAP, POP3, SMTP, etc.)".to_string(),
+            display_name: "CAP001-All Block Legacy Authentication for All users when OtherClients"
+                .to_string(),
+            description: "Block legacy authentication protocols (IMAP, POP3, SMTP, etc.)"
+                .to_string(),
             category: "Protocol".to_string(),
             state: "enabledForReportingButNotEnforced".to_string(),
             conditions: json!({
@@ -245,7 +248,8 @@ impl CABaseline2025 {
         CAPolicyTemplate {
             id: "CAU001".to_string(),
             display_name: "CAU001-All Require MFA for All users".to_string(),
-            description: "Require multi-factor authentication for all users accessing all apps".to_string(),
+            description: "Require multi-factor authentication for all users accessing all apps"
+                .to_string(),
             category: "User".to_string(),
             state: "enabledForReportingButNotEnforced".to_string(),
             conditions: json!({

@@ -69,7 +69,11 @@ pub async fn add(args: TenantAddArgs) -> Result<()> {
     config_manager.add_tenant(tenant)?;
 
     println!("{} Tenant '{}' added successfully", "✓".green(), args.name);
-    println!("\n{} Run {} to authenticate", "→".cyan(), format!("ctl365 login --tenant {}", args.name).bold());
+    println!(
+        "\n{} Run {} to authenticate",
+        "→".cyan(),
+        format!("ctl365 login --tenant {}", args.name).bold()
+    );
 
     Ok(())
 }
@@ -81,7 +85,11 @@ pub async fn list(args: TenantListArgs) -> Result<()> {
 
     if tenants.is_empty() {
         println!("{} No tenants configured", "!".yellow());
-        println!("\n{} Run {} to add a tenant", "→".cyan(), "ctl365 tenant add".bold());
+        println!(
+            "\n{} Run {} to add a tenant",
+            "→".cyan(),
+            "ctl365 tenant add".bold()
+        );
         return Ok(());
     }
 
@@ -90,7 +98,11 @@ pub async fn list(args: TenantListArgs) -> Result<()> {
 
     for tenant in &tenants {
         let is_current = config.current_tenant.as_ref() == Some(&tenant.name);
-        let marker = if is_current { "●".green() } else { "○".dimmed() };
+        let marker = if is_current {
+            "●".green()
+        } else {
+            "○".dimmed()
+        };
 
         println!("\n{} {}", marker, tenant.name.bold());
 
@@ -106,7 +118,11 @@ pub async fn list(args: TenantListArgs) -> Result<()> {
             // Check if authenticated
             match config_manager.load_token(&tenant.name) {
                 Ok(token) => {
-                    println!("  Status:       {} (expires: {})", "Authenticated".green(), token.expires_at.format("%Y-%m-%d %H:%M:%S UTC"));
+                    println!(
+                        "  Status:       {} (expires: {})",
+                        "Authenticated".green(),
+                        token.expires_at.format("%Y-%m-%d %H:%M:%S UTC")
+                    );
                 }
                 Err(_) => {
                     println!("  Status:       {}", "Not authenticated".yellow());

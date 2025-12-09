@@ -19,15 +19,16 @@ Write-Host "  ctl365 Installer" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
-# Find project root (parent of win folder)
+# Find project root (release/windows -> release -> project root)
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$projectRoot = Split-Path -Parent $scriptDir
+$releaseDir = Split-Path -Parent $scriptDir
+$projectRoot = Split-Path -Parent $releaseDir
 
 # Check we're in the right place
 $cargoPath = Join-Path $projectRoot "Cargo.toml"
 if (-not (Test-Path $cargoPath)) {
     Write-Host "[ERROR] Cargo.toml not found at $projectRoot" -ForegroundColor Red
-    Write-Host "        Make sure this script is in the win/ folder of the ctl365 project." -ForegroundColor Red
+    Write-Host "        Make sure this script is in the release/windows/ folder of the ctl365 project." -ForegroundColor Red
     exit 1
 }
 
@@ -178,9 +179,9 @@ if ($userPath -notlike "*$installDir*") {
     Write-Host "[OK] Added to PATH" -ForegroundColor Green
 }
 
-# Create config dir
-$configDir = "$env:USERPROFILE\.ctl365"
-New-Item -ItemType Directory -Path $configDir -Force -ErrorAction SilentlyContinue | Out-Null
+# Create config subdirectory (config stored alongside binary in %LOCALAPPDATA%\ctl365)
+$cacheDir = "$installDir\cache"
+New-Item -ItemType Directory -Path $cacheDir -Force -ErrorAction SilentlyContinue | Out-Null
 
 # Done
 Write-Host ""

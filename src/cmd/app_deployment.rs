@@ -7,13 +7,12 @@
 /// - Android apps (Managed Google Play)
 /// - Web links
 /// - Office 365 ProPlus
-
 use crate::config::ConfigManager;
 use crate::error::Result;
 use crate::graph::GraphClient;
 use clap::{Args, Subcommand};
 use colored::Colorize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::path::PathBuf;
 
 #[derive(Subcommand, Debug)]
@@ -285,7 +284,9 @@ async fn deploy_win32_app(client: &GraphClient, args: &DeployArgs) -> Result<()>
 /// Deploy Microsoft Store app
 async fn deploy_store_app(client: &GraphClient, args: &DeployArgs) -> Result<()> {
     let app_id = args.app_id.as_ref().ok_or_else(|| {
-        crate::error::Error::ConfigError("--app-id required for Store apps (e.g., 9WZDNCRFJ3Q2)".into())
+        crate::error::Error::ConfigError(
+            "--app-id required for Store apps (e.g., 9WZDNCRFJ3Q2)".into(),
+        )
     })?;
 
     println!("\n{} Microsoft Store app...", "→".cyan());
@@ -360,7 +361,8 @@ async fn deploy_ios_app(client: &GraphClient, args: &DeployArgs) -> Result<()> {
 async fn deploy_android_app(client: &GraphClient, args: &DeployArgs) -> Result<()> {
     let app_id = args.app_id.as_ref().ok_or_else(|| {
         crate::error::Error::ConfigError(
-            "--app-id required for Android apps (package name, e.g., com.microsoft.office.outlook)".into(),
+            "--app-id required for Android apps (package name, e.g., com.microsoft.office.outlook)"
+                .into(),
         )
     })?;
 
@@ -470,7 +472,11 @@ async fn assign_app(
 }
 
 /// Assign app to all users/devices
-async fn assign_app_to_all(client: &GraphClient, app_id: &str, assignment_type: &str) -> Result<()> {
+async fn assign_app_to_all(
+    client: &GraphClient,
+    app_id: &str,
+    assignment_type: &str,
+) -> Result<()> {
     println!("  {} Assigning to all users...", "→".cyan());
 
     let intent = match assignment_type {
@@ -504,10 +510,7 @@ async fn assign_app_to_all(client: &GraphClient, app_id: &str, assignment_type: 
 
 /// List deployed applications
 pub async fn list(args: ListArgs) -> Result<()> {
-    println!(
-        "{} deployed applications...",
-        "Listing".cyan().bold()
-    );
+    println!("{} deployed applications...", "Listing".cyan().bold());
 
     let config = ConfigManager::load()?;
     let active_tenant = config
@@ -516,9 +519,7 @@ pub async fn list(args: ListArgs) -> Result<()> {
 
     let graph = GraphClient::from_config(&config, &active_tenant.name).await?;
 
-    let apps: Value = graph
-        .get("deviceAppManagement/mobileApps")
-        .await?;
+    let apps: Value = graph.get("deviceAppManagement/mobileApps").await?;
 
     if let Some(app_list) = apps["value"].as_array() {
         println!("\n{} {} apps found", "→".cyan(), app_list.len());
@@ -696,7 +697,10 @@ pub async fn deploy_m365(args: DeployM365Args) -> Result<()> {
         assign_app_to_all(&graph, app_id, &args.assignment).await?;
     }
 
-    println!("\n{} Microsoft 365 Apps deployment configured", "✓".green().bold());
+    println!(
+        "\n{} Microsoft 365 Apps deployment configured",
+        "✓".green().bold()
+    );
 
     Ok(())
 }
@@ -717,7 +721,11 @@ fn generate_office_xml(args: &DeployM365Args, _included: &[&str], excluded: &[&s
   <Property Name="FORCEAPPSHUTDOWN" Value="TRUE" />
   <Property Name="SharedComputerLicensing" Value="0" />
 </Configuration>"#,
-        if args.architecture == "x64" { "64" } else { "32" },
+        if args.architecture == "x64" {
+            "64"
+        } else {
+            "32"
+        },
         excluded
             .iter()
             .map(|app| format!("      <ExcludeApp ID=\"{}\" />", capitalize_app_id(app)))
@@ -727,7 +735,7 @@ fn generate_office_xml(args: &DeployM365Args, _included: &[&str], excluded: &[&s
             "current" => "Current",
             "monthlyEnterprise" => "MonthlyEnterprise",
             "semiAnnual" => "SemiAnnual",
-            _ => "MonthlyEnterprise"
+            _ => "MonthlyEnterprise",
         }
     )
 }
@@ -752,7 +760,10 @@ fn capitalize_app_id(app: &str) -> String {
 pub async fn package(_args: PackageArgs) -> Result<()> {
     println!("{} Win32 app...", "Packaging".cyan().bold());
 
-    println!("\n{} This feature requires the Microsoft Win32 Content Prep Tool", "ℹ".yellow());
+    println!(
+        "\n{} This feature requires the Microsoft Win32 Content Prep Tool",
+        "ℹ".yellow()
+    );
     println!("Download from: https://github.com/Microsoft/Microsoft-Win32-Content-Prep-Tool");
     println!("\nManual steps:");
     println!("1. Download IntuneWinAppUtil.exe");

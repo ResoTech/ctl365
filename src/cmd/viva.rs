@@ -4,8 +4,8 @@
 
 use crate::config::ConfigManager;
 use crate::error::Result;
-use crate::graph::viva::{CommunityPrivacy, VivaClient, VivaRole};
 use crate::graph::GraphClient;
+use crate::graph::viva::{CommunityPrivacy, VivaClient, VivaRole};
 use clap::Args;
 use colored::Colorize;
 
@@ -204,9 +204,11 @@ pub async fn community_create(args: CommunityCreateArgs) -> Result<()> {
     }
 
     let config = ConfigManager::new()?;
-    let active_tenant = config
-        .get_active_tenant()?
-        .ok_or_else(|| crate::error::Ctl365Error::ConfigError("No active tenant. Run 'ctl365 tenant switch <name>' first.".into()))?;
+    let active_tenant = config.get_active_tenant()?.ok_or_else(|| {
+        crate::error::Ctl365Error::ConfigError(
+            "No active tenant. Run 'ctl365 tenant switch <name>' first.".into(),
+        )
+    })?;
     let client = GraphClient::from_config(&config, &active_tenant.name).await?;
     let viva_client = VivaClient::new(&client);
 
@@ -235,13 +237,18 @@ pub async fn community_create(args: CommunityCreateArgs) -> Result<()> {
 
 pub async fn community_list(args: CommunityListArgs) -> Result<()> {
     let config = ConfigManager::new()?;
-    let active_tenant = config
-        .get_active_tenant()?
-        .ok_or_else(|| crate::error::Ctl365Error::ConfigError("No active tenant. Run 'ctl365 tenant switch <name>' first.".into()))?;
+    let active_tenant = config.get_active_tenant()?.ok_or_else(|| {
+        crate::error::Ctl365Error::ConfigError(
+            "No active tenant. Run 'ctl365 tenant switch <name>' first.".into(),
+        )
+    })?;
     let client = GraphClient::from_config(&config, &active_tenant.name).await?;
     let viva_client = VivaClient::new(&client);
 
-    println!("{} Fetching Viva Engage communities...", "Viva".magenta().bold());
+    println!(
+        "{} Fetching Viva Engage communities...",
+        "Viva".magenta().bold()
+    );
 
     let communities = viva_client.list_communities().await?;
 
@@ -293,9 +300,11 @@ pub async fn community_delete(args: CommunityDeleteArgs) -> Result<()> {
     }
 
     let config = ConfigManager::new()?;
-    let active_tenant = config
-        .get_active_tenant()?
-        .ok_or_else(|| crate::error::Ctl365Error::ConfigError("No active tenant. Run 'ctl365 tenant switch <name>' first.".into()))?;
+    let active_tenant = config.get_active_tenant()?.ok_or_else(|| {
+        crate::error::Ctl365Error::ConfigError(
+            "No active tenant. Run 'ctl365 tenant switch <name>' first.".into(),
+        )
+    })?;
     let client = GraphClient::from_config(&config, &active_tenant.name).await?;
     let viva_client = VivaClient::new(&client);
 
@@ -316,9 +325,11 @@ pub async fn community_delete(args: CommunityDeleteArgs) -> Result<()> {
 
 pub async fn community_add_member(args: CommunityMemberArgs) -> Result<()> {
     let config = ConfigManager::new()?;
-    let active_tenant = config
-        .get_active_tenant()?
-        .ok_or_else(|| crate::error::Ctl365Error::ConfigError("No active tenant. Run 'ctl365 tenant switch <name>' first.".into()))?;
+    let active_tenant = config.get_active_tenant()?.ok_or_else(|| {
+        crate::error::Ctl365Error::ConfigError(
+            "No active tenant. Run 'ctl365 tenant switch <name>' first.".into(),
+        )
+    })?;
 
     println!("→ Active tenant: {}", active_tenant.name.cyan().bold());
 
@@ -333,7 +344,10 @@ pub async fn community_add_member(args: CommunityMemberArgs) -> Result<()> {
 
     // Confirmation prompt
     if !args.yes {
-        println!("\nThis will add user {} to community {}.", args.user_id, args.community_id);
+        println!(
+            "\nThis will add user {} to community {}.",
+            args.user_id, args.community_id
+        );
         print!("Continue? [y/N] ");
         let mut input = String::new();
         std::io::stdin().read_line(&mut input)?;
@@ -364,9 +378,11 @@ pub async fn community_add_member(args: CommunityMemberArgs) -> Result<()> {
 
 pub async fn community_remove_member(args: CommunityMemberArgs) -> Result<()> {
     let config = ConfigManager::new()?;
-    let active_tenant = config
-        .get_active_tenant()?
-        .ok_or_else(|| crate::error::Ctl365Error::ConfigError("No active tenant. Run 'ctl365 tenant switch <name>' first.".into()))?;
+    let active_tenant = config.get_active_tenant()?.ok_or_else(|| {
+        crate::error::Ctl365Error::ConfigError(
+            "No active tenant. Run 'ctl365 tenant switch <name>' first.".into(),
+        )
+    })?;
 
     println!("→ Active tenant: {}", active_tenant.name.cyan().bold());
 
@@ -381,7 +397,10 @@ pub async fn community_remove_member(args: CommunityMemberArgs) -> Result<()> {
 
     // Confirmation prompt
     if !args.yes {
-        println!("\nThis will remove user {} from community {}.", args.user_id, args.community_id);
+        println!(
+            "\nThis will remove user {} from community {}.",
+            args.user_id, args.community_id
+        );
         print!("Continue? [y/N] ");
         let mut input = String::new();
         std::io::stdin().read_line(&mut input)?;
@@ -424,9 +443,11 @@ pub async fn role_assign(args: RoleAssignArgs) -> Result<()> {
     };
 
     let config = ConfigManager::new()?;
-    let active_tenant = config
-        .get_active_tenant()?
-        .ok_or_else(|| crate::error::Ctl365Error::ConfigError("No active tenant. Run 'ctl365 tenant switch <name>' first.".into()))?;
+    let active_tenant = config.get_active_tenant()?.ok_or_else(|| {
+        crate::error::Ctl365Error::ConfigError(
+            "No active tenant. Run 'ctl365 tenant switch <name>' first.".into(),
+        )
+    })?;
 
     println!("→ Active tenant: {}", active_tenant.name.cyan().bold());
 
@@ -475,9 +496,11 @@ pub async fn role_assign(args: RoleAssignArgs) -> Result<()> {
 
 pub async fn role_list(args: RoleListArgs) -> Result<()> {
     let config = ConfigManager::new()?;
-    let active_tenant = config
-        .get_active_tenant()?
-        .ok_or_else(|| crate::error::Ctl365Error::ConfigError("No active tenant. Run 'ctl365 tenant switch <name>' first.".into()))?;
+    let active_tenant = config.get_active_tenant()?.ok_or_else(|| {
+        crate::error::Ctl365Error::ConfigError(
+            "No active tenant. Run 'ctl365 tenant switch <name>' first.".into(),
+        )
+    })?;
     let client = GraphClient::from_config(&config, &active_tenant.name).await?;
     let viva_client = VivaClient::new(&client);
 
@@ -538,16 +561,22 @@ pub async fn role_list(args: RoleListArgs) -> Result<()> {
 
 pub async fn role_revoke(args: RoleRevokeArgs) -> Result<()> {
     let config = ConfigManager::new()?;
-    let active_tenant = config
-        .get_active_tenant()?
-        .ok_or_else(|| crate::error::Ctl365Error::ConfigError("No active tenant. Run 'ctl365 tenant switch <name>' first.".into()))?;
+    let active_tenant = config.get_active_tenant()?.ok_or_else(|| {
+        crate::error::Ctl365Error::ConfigError(
+            "No active tenant. Run 'ctl365 tenant switch <name>' first.".into(),
+        )
+    })?;
 
     println!("→ Active tenant: {}", active_tenant.name.cyan().bold());
 
     // Dry run mode
     if args.dry_run {
         println!("\n{}", "DRY RUN - No changes will be made".yellow().bold());
-        println!("{} Would revoke assignment: {}", "→".cyan(), args.assignment_id);
+        println!(
+            "{} Would revoke assignment: {}",
+            "→".cyan(),
+            args.assignment_id
+        );
         return Ok(());
     }
 
@@ -583,9 +612,11 @@ pub async fn role_revoke(args: RoleRevokeArgs) -> Result<()> {
 
 pub async fn connections_home_site(args: ConnectionsHomeSiteArgs) -> Result<()> {
     let config = ConfigManager::new()?;
-    let active_tenant = config
-        .get_active_tenant()?
-        .ok_or_else(|| crate::error::Ctl365Error::ConfigError("No active tenant. Run 'ctl365 tenant switch <name>' first.".into()))?;
+    let active_tenant = config.get_active_tenant()?.ok_or_else(|| {
+        crate::error::Ctl365Error::ConfigError(
+            "No active tenant. Run 'ctl365 tenant switch <name>' first.".into(),
+        )
+    })?;
 
     println!("→ Active tenant: {}", active_tenant.name.cyan().bold());
 
@@ -599,7 +630,10 @@ pub async fn connections_home_site(args: ConnectionsHomeSiteArgs) -> Result<()> 
 
         // Confirmation prompt
         if !args.yes {
-            println!("\nThis will set the Viva Connections home site to: {}", site_url);
+            println!(
+                "\nThis will set the Viva Connections home site to: {}",
+                site_url
+            );
             print!("Continue? [y/N] ");
             let mut input = String::new();
             std::io::stdin().read_line(&mut input)?;
@@ -618,7 +652,10 @@ pub async fn connections_home_site(args: ConnectionsHomeSiteArgs) -> Result<()> 
             site_url
         );
         viva_client.set_home_site(&site_url).await?;
-        println!("{} Home site updated successfully!", "Success".green().bold());
+        println!(
+            "{} Home site updated successfully!",
+            "Success".green().bold()
+        );
     } else {
         let client = GraphClient::from_config(&config, &active_tenant.name).await?;
         let viva_client = VivaClient::new(&client);

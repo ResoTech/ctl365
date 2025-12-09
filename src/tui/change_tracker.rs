@@ -156,7 +156,8 @@ impl AuditEntry {
     /// Create a new audit entry
     pub fn new(action: AuditAction, category: &str, target: &str, tenant: &str) -> Self {
         let now = chrono::Local::now();
-        let session_id = SESSION_ID.lock()
+        let session_id = SESSION_ID
+            .lock()
             .map(|s| s.clone())
             .unwrap_or_else(|_| generate_session_id());
 
@@ -254,9 +255,14 @@ pub fn record_policy_deleted(category: &str, policy_name: &str, tenant: &str) {
 
 /// Record baseline deployment
 pub fn record_baseline_deployed(baseline_name: &str, policy_count: usize, tenant: &str) {
-    let entry = AuditEntry::new(AuditAction::BaselineDeployed, "Baseline", baseline_name, tenant)
-        .with_details(&format!("Deployed {} policies", policy_count))
-        .with_severity(AuditSeverity::Success);
+    let entry = AuditEntry::new(
+        AuditAction::BaselineDeployed,
+        "Baseline",
+        baseline_name,
+        tenant,
+    )
+    .with_details(&format!("Deployed {} policies", policy_count))
+    .with_severity(AuditSeverity::Success);
     record(entry);
 }
 
@@ -289,8 +295,7 @@ pub fn record_tenant_switch(from: Option<&str>, to: &str) {
 
 /// Record an error
 pub fn record_error(category: &str, target: &str, error: &str, tenant: &str) {
-    let entry = AuditEntry::new(AuditAction::Error, category, target, tenant)
-        .with_error(error);
+    let entry = AuditEntry::new(AuditAction::Error, category, target, tenant).with_error(error);
     record(entry);
 }
 
@@ -300,14 +305,16 @@ pub fn record_error(category: &str, target: &str, error: &str, tenant: &str) {
 
 /// Get current session entries
 pub fn get_session_entries() -> Vec<AuditEntry> {
-    SESSION_CHANGES.lock()
+    SESSION_CHANGES
+        .lock()
         .map(|e| e.clone())
         .unwrap_or_default()
 }
 
 /// Get current session ID
 pub fn get_session_id() -> String {
-    SESSION_ID.lock()
+    SESSION_ID
+        .lock()
         .map(|s| s.clone())
         .unwrap_or_else(|_| generate_session_id())
 }
@@ -338,8 +345,9 @@ pub fn get_session_summary() -> Vec<(String, usize)> {
 // =============================================================================
 
 fn get_audit_dir() -> Result<PathBuf> {
-    let base = directories::ProjectDirs::from("com", "ctl365", "ctl365")
-        .ok_or_else(|| crate::error::Error::ConfigError("Could not find config directory".into()))?;
+    let base = directories::ProjectDirs::from("com", "ctl365", "ctl365").ok_or_else(|| {
+        crate::error::Error::ConfigError("Could not find config directory".into())
+    })?;
 
     let audit_dir = base.config_dir().join("audit");
     std::fs::create_dir_all(&audit_dir)?;
@@ -498,7 +506,10 @@ impl From<AuditEntry> for ConfigChange {
 
 /// Legacy function - loads from session
 pub fn load_session_changes() -> Result<Vec<ConfigChange>> {
-    Ok(get_session_entries().into_iter().map(|e| e.into()).collect())
+    Ok(get_session_entries()
+        .into_iter()
+        .map(|e| e.into())
+        .collect())
 }
 
 /// Legacy function - get change summary
@@ -516,7 +527,7 @@ mod tests {
             AuditAction::SettingChanged,
             "Defender",
             "Safe Links",
-            "RESO"
+            "RESO",
         )
         .with_values(Some("false"), Some("true"))
         .success();

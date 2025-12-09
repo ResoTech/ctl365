@@ -18,7 +18,9 @@ pub async fn create_policy(
 ) -> Result<Value> {
     // Settings Catalog policies require the beta endpoint
     if odata_type == "#microsoft.graph.deviceManagementConfigurationPolicy" {
-        return client.post_beta("deviceManagement/configurationPolicies", policy).await;
+        return client
+            .post_beta("deviceManagement/configurationPolicies", policy)
+            .await;
     }
 
     // All other policies use v1.0 endpoint
@@ -26,9 +28,7 @@ pub async fn create_policy(
         "#microsoft.graph.windows10CompliancePolicy"
         | "#microsoft.graph.iosCompliancePolicy"
         | "#microsoft.graph.macOSCompliancePolicy"
-        | "#microsoft.graph.androidCompliancePolicy" => {
-            "deviceManagement/deviceCompliancePolicies"
-        }
+        | "#microsoft.graph.androidCompliancePolicy" => "deviceManagement/deviceCompliancePolicies",
 
         "#microsoft.graph.windows10EndpointProtectionConfiguration"
         | "#microsoft.graph.windows10CustomConfiguration"
@@ -42,7 +42,7 @@ pub async fn create_policy(
             return Err(Error::ConfigError(format!(
                 "Unknown policy type: {}",
                 odata_type
-            )))
+            )));
         }
     };
 
@@ -121,10 +121,7 @@ pub async fn update_compliance_policy(
 ) -> Result<Value> {
     client
         .patch(
-            &format!(
-                "deviceManagement/deviceCompliancePolicies/{}",
-                policy_id
-            ),
+            &format!("deviceManagement/deviceCompliancePolicies/{}", policy_id),
             policy,
         )
         .await
@@ -252,9 +249,7 @@ mod tests {
         assert!(is_compliance_policy(
             "#microsoft.graph.windows10CompliancePolicy"
         ));
-        assert!(is_compliance_policy(
-            "#microsoft.graph.iosCompliancePolicy"
-        ));
+        assert!(is_compliance_policy("#microsoft.graph.iosCompliancePolicy"));
         assert!(!is_compliance_policy(
             "#microsoft.graph.windows10EndpointProtectionConfiguration"
         ));

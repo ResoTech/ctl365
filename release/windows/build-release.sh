@@ -9,9 +9,9 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+PROJECT_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
 TARGET="x86_64-pc-windows-gnu"
-RELEASE_DIR="$PROJECT_ROOT/target/release-windows"
+OUTPUT_DIR="$PROJECT_ROOT/target/release-windows"
 
 echo "=== Building ctl365 for Windows ==="
 echo "Target: $TARGET"
@@ -35,23 +35,23 @@ echo "Building release binary..."
 cd "$PROJECT_ROOT"
 cargo build --release --target "$TARGET"
 
-# Create release directory
-mkdir -p "$RELEASE_DIR"
+# Create output directory
+mkdir -p "$OUTPUT_DIR"
 
 # Copy binary
 BINARY="$PROJECT_ROOT/target/$TARGET/release/ctl365.exe"
 if [[ -f "$BINARY" ]]; then
-    cp "$BINARY" "$RELEASE_DIR/"
-    echo "Binary: $RELEASE_DIR/ctl365.exe"
+    cp "$BINARY" "$OUTPUT_DIR/"
+    echo "Binary: $OUTPUT_DIR/ctl365.exe"
 else
     echo "Error: Binary not found at $BINARY"
     exit 1
 fi
 
 # Copy Windows scripts
-cp "$SCRIPT_DIR/install.ps1" "$RELEASE_DIR/"
-cp "$SCRIPT_DIR/uninstall.ps1" "$RELEASE_DIR/"
-cp "$SCRIPT_DIR/README.md" "$RELEASE_DIR/"
+cp "$SCRIPT_DIR/install.ps1" "$OUTPUT_DIR/"
+cp "$SCRIPT_DIR/uninstall.ps1" "$OUTPUT_DIR/"
+cp "$SCRIPT_DIR/README.md" "$OUTPUT_DIR/"
 
 # Create ZIP archive
 VERSION=$(grep '^version' "$PROJECT_ROOT/Cargo.toml" | head -1 | cut -d'"' -f2)
@@ -59,7 +59,7 @@ ZIP_NAME="ctl365-${VERSION}-windows-x86_64.zip"
 
 echo ""
 echo "Creating release archive: $ZIP_NAME"
-cd "$RELEASE_DIR"
+cd "$OUTPUT_DIR"
 zip -r "../$ZIP_NAME" .
 
 echo ""

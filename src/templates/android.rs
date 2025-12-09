@@ -13,7 +13,7 @@
 
 use crate::cmd::baseline::NewArgs;
 use crate::error::Result;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 /// Generate Android baseline with compliance + configuration + app protection
 pub fn generate_android_baseline(args: &NewArgs) -> Result<Value> {

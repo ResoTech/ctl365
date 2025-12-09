@@ -238,17 +238,18 @@ impl<'a> CopilotClient<'a> {
     ///
     /// Uses GET /copilot/admin/catalog/packages (GA December 2025)
     pub async fn list_agents(&self) -> Result<Vec<AgentPackage>> {
-        let response: AgentPackageListResponse = self
-            .client
-            .get("copilot/admin/catalog/packages")
-            .await?;
+        let response: AgentPackageListResponse =
+            self.client.get("copilot/admin/catalog/packages").await?;
         Ok(response.value)
     }
 
     /// List agents with filtering
     pub async fn list_agents_filtered(&self, filter: Option<&str>) -> Result<Vec<AgentPackage>> {
         let endpoint = match filter {
-            Some(f) => format!("copilot/admin/catalog/packages?$filter={}", urlencoding::encode(f)),
+            Some(f) => format!(
+                "copilot/admin/catalog/packages?$filter={}",
+                urlencoding::encode(f)
+            ),
             None => "copilot/admin/catalog/packages".to_string(),
         };
         let response: AgentPackageListResponse = self.client.get(&endpoint).await?;
@@ -265,17 +266,20 @@ impl<'a> CopilotClient<'a> {
 
     /// List Microsoft first-party agents
     pub async fn list_microsoft_agents(&self) -> Result<Vec<AgentPackage>> {
-        self.list_agents_filtered(Some("packageType eq 'microsoft'")).await
+        self.list_agents_filtered(Some("packageType eq 'microsoft'"))
+            .await
     }
 
     /// List custom (organization-built) agents
     pub async fn list_custom_agents(&self) -> Result<Vec<AgentPackage>> {
-        self.list_agents_filtered(Some("packageType eq 'custom'")).await
+        self.list_agents_filtered(Some("packageType eq 'custom'"))
+            .await
     }
 
     /// List external (third-party) agents
     pub async fn list_external_agents(&self) -> Result<Vec<AgentPackage>> {
-        self.list_agents_filtered(Some("packageType eq 'external'")).await
+        self.list_agents_filtered(Some("packageType eq 'external'"))
+            .await
     }
 
     // ========================================
@@ -371,10 +375,7 @@ impl<'a> CopilotClient<'a> {
         user_id: &str,
         meeting_id: &str,
     ) -> Result<MeetingInsight> {
-        let endpoint = format!(
-            "users/{}/onlineMeetings/{}/insights",
-            user_id, meeting_id
-        );
+        let endpoint = format!("users/{}/onlineMeetings/{}/insights", user_id, meeting_id);
         self.client.get_beta(&endpoint).await
     }
 
@@ -390,8 +391,7 @@ impl<'a> CopilotClient<'a> {
         webhook_url: &str,
         expiration_minutes: i32,
     ) -> Result<serde_json::Value> {
-        let expiration = chrono::Utc::now()
-            + chrono::Duration::minutes(expiration_minutes as i64);
+        let expiration = chrono::Utc::now() + chrono::Duration::minutes(expiration_minutes as i64);
 
         let subscription = serde_json::json!({
             "changeType": "created",

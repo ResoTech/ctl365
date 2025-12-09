@@ -1,8 +1,7 @@
 /// Conditional Access policy deployment commands
-
 use crate::config::ConfigManager;
 use crate::error::Result;
-use crate::graph::{conditional_access, GraphClient};
+use crate::graph::{GraphClient, conditional_access};
 use crate::tui::change_tracker;
 use clap::Args;
 use colored::Colorize;
@@ -55,7 +54,10 @@ pub struct DeployArgs {
 }
 
 pub async fn deploy(args: DeployArgs) -> Result<()> {
-    println!("{} Conditional Access policies...", "Deploying".cyan().bold());
+    println!(
+        "{} Conditional Access policies...",
+        "Deploying".cyan().bold()
+    );
 
     let config = ConfigManager::load()?;
     let active_tenant = config
@@ -64,7 +66,11 @@ pub async fn deploy(args: DeployArgs) -> Result<()> {
 
     println!("→ Active tenant: {}", active_tenant.name.cyan().bold());
 
-    let exclusion_groups = args.exclusion_group.clone().map(|g| vec![g]).unwrap_or_default();
+    let exclusion_groups = args
+        .exclusion_group
+        .clone()
+        .map(|g| vec![g])
+        .unwrap_or_default();
 
     // Collect policies to deploy
     let mut policies_to_deploy = Vec::new();
@@ -75,7 +81,8 @@ pub async fn deploy(args: DeployArgs) -> Result<()> {
         policies_to_deploy.push("Baseline - Block Access from Outside US/Canada");
     }
     if args.compliant_device || args.all {
-        policies_to_deploy.push("Baseline - Require Compliant Device (Windows, macOS, iOS, Android)");
+        policies_to_deploy
+            .push("Baseline - Require Compliant Device (Windows, macOS, iOS, Android)");
     }
     if args.block_legacy_auth || args.all {
         policies_to_deploy.push("Baseline - Block Legacy Authentication");
@@ -85,7 +92,10 @@ pub async fn deploy(args: DeployArgs) -> Result<()> {
     }
 
     if policies_to_deploy.is_empty() {
-        println!("\n{} No policies selected. Use --all or specific flags (--mfa, --geoip-block, etc.)", "ℹ".yellow());
+        println!(
+            "\n{} No policies selected. Use --all or specific flags (--mfa, --geoip-block, etc.)",
+            "ℹ".yellow()
+        );
         return Ok(());
     }
 
@@ -102,14 +112,23 @@ pub async fn deploy(args: DeployArgs) -> Result<()> {
         if !exclusion_groups.is_empty() {
             println!("\n{} Exclusion groups: {:?}", "→".cyan(), exclusion_groups);
         }
-        println!("\n{} Mode: {}", "→".cyan(), if args.enable { "enabled".green() } else { "report-only".yellow() });
+        println!(
+            "\n{} Mode: {}",
+            "→".cyan(),
+            if args.enable {
+                "enabled".green()
+            } else {
+                "report-only".yellow()
+            }
+        );
         return Ok(());
     }
 
     // Confirmation prompt
     if !args.yes {
         use std::io::{self, Write};
-        println!("\n{} This will deploy {} CA policies to tenant '{}'",
+        println!(
+            "\n{} This will deploy {} CA policies to tenant '{}'",
             "⚠".yellow().bold(),
             policies_to_deploy.len(),
             active_tenant.name
@@ -145,19 +164,25 @@ pub async fn deploy(args: DeployArgs) -> Result<()> {
     if args.mfa || args.all {
         println!("\n{} Deploying MFA enforcement policy...", "→".cyan());
         let policy_name = "Baseline - Require MFA for All Users";
-        let policy = conditional_access::generate_mfa_policy(
-            policy_name,
-            exclusion_groups.clone(),
-        );
+        let policy = conditional_access::generate_mfa_policy(policy_name, exclusion_groups.clone());
         match conditional_access::create_policy(&graph, &policy).await {
             Ok(result) => {
                 println!("  {} MFA policy created", "✓".green());
-                change_tracker::record_policy_created("Conditional Access", policy_name, &active_tenant.name);
+                change_tracker::record_policy_created(
+                    "Conditional Access",
+                    policy_name,
+                    &active_tenant.name,
+                );
                 deployed_policies.push(result);
             }
             Err(e) => {
                 println!("  {} Failed: {}", "✗".red(), e);
-                change_tracker::record_error("Conditional Access", policy_name, &e.to_string(), &active_tenant.name);
+                change_tracker::record_error(
+                    "Conditional Access",
+                    policy_name,
+                    &e.to_string(),
+                    &active_tenant.name,
+                );
             }
         }
     }
@@ -168,7 +193,8 @@ pub async fn deploy(args: DeployArgs) -> Result<()> {
         let policy_name = "Baseline - Block Access from Outside US/Canada";
 
         // First create the named location
-        let location = conditional_access::generate_us_canada_location("Allowed Countries - US and Canada");
+        let location =
+            conditional_access::generate_us_canada_location("Allowed Countries - US and Canada");
         match conditional_access::create_named_location(&graph, &location).await {
             Ok(location_result) => {
                 let location_id = location_result["id"].as_str().unwrap_or("");
@@ -183,18 +209,32 @@ pub async fn deploy(args: DeployArgs) -> Result<()> {
                 match conditional_access::create_policy(&graph, &policy).await {
                     Ok(result) => {
                         println!("  {} GeoIP block policy created", "✓".green());
-                        change_tracker::record_policy_created("Conditional Access", policy_name, &active_tenant.name);
+                        change_tracker::record_policy_created(
+                            "Conditional Access",
+                            policy_name,
+                            &active_tenant.name,
+                        );
                         deployed_policies.push(result);
                     }
                     Err(e) => {
                         println!("  {} Failed to create policy: {}", "✗".red(), e);
-                        change_tracker::record_error("Conditional Access", policy_name, &e.to_string(), &active_tenant.name);
+                        change_tracker::record_error(
+                            "Conditional Access",
+                            policy_name,
+                            &e.to_string(),
+                            &active_tenant.name,
+                        );
                     }
                 }
             }
             Err(e) => {
                 println!("  {} Failed to create Named Location: {}", "✗".red(), e);
-                change_tracker::record_error("Conditional Access", "Named Location", &e.to_string(), &active_tenant.name);
+                change_tracker::record_error(
+                    "Conditional Access",
+                    "Named Location",
+                    &e.to_string(),
+                    &active_tenant.name,
+                );
             }
         }
     }
@@ -204,7 +244,10 @@ pub async fn deploy(args: DeployArgs) -> Result<()> {
         println!("\n{} Deploying compliant device policies...", "→".cyan());
 
         for platform in &["windows", "macos", "ios", "android"] {
-            let policy_name = format!("Baseline - Require Compliant Device - {}", platform.to_uppercase());
+            let policy_name = format!(
+                "Baseline - Require Compliant Device - {}",
+                platform.to_uppercase()
+            );
             let policy = conditional_access::generate_compliant_device_policy(
                 &policy_name,
                 platform,
@@ -212,13 +255,26 @@ pub async fn deploy(args: DeployArgs) -> Result<()> {
             );
             match conditional_access::create_policy(&graph, &policy).await {
                 Ok(result) => {
-                    println!("  {} {} compliant device policy created", "✓".green(), platform);
-                    change_tracker::record_policy_created("Conditional Access", &policy_name, &active_tenant.name);
+                    println!(
+                        "  {} {} compliant device policy created",
+                        "✓".green(),
+                        platform
+                    );
+                    change_tracker::record_policy_created(
+                        "Conditional Access",
+                        &policy_name,
+                        &active_tenant.name,
+                    );
                     deployed_policies.push(result);
                 }
                 Err(e) => {
                     println!("  {} Failed {}: {}", "✗".red(), platform, e);
-                    change_tracker::record_error("Conditional Access", &policy_name, &e.to_string(), &active_tenant.name);
+                    change_tracker::record_error(
+                        "Conditional Access",
+                        &policy_name,
+                        &e.to_string(),
+                        &active_tenant.name,
+                    );
                 }
             }
         }
@@ -235,12 +291,21 @@ pub async fn deploy(args: DeployArgs) -> Result<()> {
         match conditional_access::create_policy(&graph, &policy).await {
             Ok(result) => {
                 println!("  {} Legacy auth block policy created", "✓".green());
-                change_tracker::record_policy_created("Conditional Access", policy_name, &active_tenant.name);
+                change_tracker::record_policy_created(
+                    "Conditional Access",
+                    policy_name,
+                    &active_tenant.name,
+                );
                 deployed_policies.push(result);
             }
             Err(e) => {
                 println!("  {} Failed: {}", "✗".red(), e);
-                change_tracker::record_error("Conditional Access", policy_name, &e.to_string(), &active_tenant.name);
+                change_tracker::record_error(
+                    "Conditional Access",
+                    policy_name,
+                    &e.to_string(),
+                    &active_tenant.name,
+                );
             }
         }
     }
@@ -253,12 +318,21 @@ pub async fn deploy(args: DeployArgs) -> Result<()> {
         match conditional_access::create_policy(&graph, &policy).await {
             Ok(result) => {
                 println!("  {} Admin MFA policy created", "✓".green());
-                change_tracker::record_policy_created("Conditional Access", policy_name, &active_tenant.name);
+                change_tracker::record_policy_created(
+                    "Conditional Access",
+                    policy_name,
+                    &active_tenant.name,
+                );
                 deployed_policies.push(result);
             }
             Err(e) => {
                 println!("  {} Failed: {}", "✗".red(), e);
-                change_tracker::record_error("Conditional Access", policy_name, &e.to_string(), &active_tenant.name);
+                change_tracker::record_error(
+                    "Conditional Access",
+                    policy_name,
+                    &e.to_string(),
+                    &active_tenant.name,
+                );
             }
         }
     }
@@ -276,11 +350,18 @@ pub async fn deploy(args: DeployArgs) -> Result<()> {
             }
         }
     } else if !deployed_policies.is_empty() {
-        println!("\n{} All policies created in REPORT-ONLY mode", "ℹ".yellow().bold());
+        println!(
+            "\n{} All policies created in REPORT-ONLY mode",
+            "ℹ".yellow().bold()
+        );
         println!("   Review sign-in logs before enabling with: ctl365 ca enable --policy <id>");
     }
 
-    println!("\n{} Successfully deployed {} CA policies", "✓".green().bold(), deployed_policies.len());
+    println!(
+        "\n{} Successfully deployed {} CA policies",
+        "✓".green().bold(),
+        deployed_policies.len()
+    );
 
     Ok(())
 }
@@ -320,11 +401,21 @@ pub async fn list(args: ListArgs) -> Result<()> {
                 }
 
                 // Count by state
-                let enabled = list.iter().filter(|p| p["state"].as_str() == Some("enabled")).count();
-                let report_only = list.iter().filter(|p| p["state"].as_str() == Some("enabledForReportingButNotEnforced")).count();
-                let disabled = list.iter().filter(|p| p["state"].as_str() == Some("disabled")).count();
+                let enabled = list
+                    .iter()
+                    .filter(|p| p["state"].as_str() == Some("enabled"))
+                    .count();
+                let report_only = list
+                    .iter()
+                    .filter(|p| p["state"].as_str() == Some("enabledForReportingButNotEnforced"))
+                    .count();
+                let disabled = list
+                    .iter()
+                    .filter(|p| p["state"].as_str() == Some("disabled"))
+                    .count();
 
-                println!("\n{} {} CA policies found ({} enabled, {} report-only, {} disabled)\n",
+                println!(
+                    "\n{} {} CA policies found ({} enabled, {} report-only, {} disabled)\n",
                     "→".cyan(),
                     list.len(),
                     enabled.to_string().green(),
@@ -340,13 +431,16 @@ pub async fn list(args: ListArgs) -> Result<()> {
                         "disabled" => "disabled",
                         _ => state_filter.as_str(),
                     };
-                    list.iter().filter(|p| p["state"].as_str() == Some(filter_state)).collect()
+                    list.iter()
+                        .filter(|p| p["state"].as_str() == Some(filter_state))
+                        .collect()
                 } else {
                     list.iter().collect()
                 };
 
                 // Print header
-                println!("{:<50} {:<15} {:<12}",
+                println!(
+                    "{:<50} {:<15} {:<12}",
                     "Name".bold(),
                     "State".bold(),
                     "Created".bold()
@@ -377,11 +471,7 @@ pub async fn list(args: ListArgs) -> Result<()> {
                         name.to_string()
                     };
 
-                    println!("{:<50} {:<15} {:<12}",
-                        name_display,
-                        state_display,
-                        created
-                    );
+                    println!("{:<50} {:<15} {:<12}", name_display, state_display, created);
 
                     if args.verbose {
                         let id = policy["id"].as_str().unwrap_or("");
@@ -397,7 +487,10 @@ pub async fn list(args: ListArgs) -> Result<()> {
                     }
                 }
             } else {
-                println!("{} No policies found or unexpected response format", "✗".red());
+                println!(
+                    "{} No policies found or unexpected response format",
+                    "✗".red()
+                );
             }
         }
         Err(e) => {

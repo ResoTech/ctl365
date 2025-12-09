@@ -1,10 +1,9 @@
 /// Tenant-wide Microsoft 365 baseline deployment
 ///
 /// Configures organization-level settings for Exchange Online, SharePoint, Teams, etc.
-
 use crate::config::ConfigManager;
 use crate::error::Result;
-use crate::graph::{exchange_online, GraphClient};
+use crate::graph::{GraphClient, exchange_online};
 use clap::Args;
 use colored::Colorize;
 use std::path::PathBuf;
@@ -88,14 +87,19 @@ pub async fn configure(args: ConfigureArgs) -> Result<()> {
         let baseline = crate::templates::tenant_baseline::generate_tenant_baseline(&baseline_args)?;
 
         std::fs::write(output_path, serde_json::to_string_pretty(&baseline)?)?;
-        println!("{} Baseline saved to: {}", "✓".green().bold(), output_path.display());
+        println!(
+            "{} Baseline saved to: {}",
+            "✓".green().bold(),
+            output_path.display()
+        );
         return Ok(());
     }
 
     // Apply tenant configurations
     if !args.yes && !args.dry_run {
         use std::io::{self, Write};
-        print!("\n{} Configure tenant-wide settings for '{}'? This will affect all users. [y/N]: ",
+        print!(
+            "\n{} Configure tenant-wide settings for '{}'? This will affect all users. [y/N]: ",
             "?".yellow().bold(),
             active_tenant.name
         );
@@ -117,7 +121,10 @@ pub async fn configure(args: ConfigureArgs) -> Result<()> {
         println!("\n{} Exchange Online Archive Mailboxes...", "→".cyan());
 
         if args.dry_run {
-            println!("  {} Would enable archive mailbox for all users", "→".cyan());
+            println!(
+                "  {} Would enable archive mailbox for all users",
+                "→".cyan()
+            );
         } else {
             match exchange_online::enable_archive_mailbox_tenant_wide(&graph).await {
                 Ok(result) => {
@@ -135,7 +142,8 @@ pub async fn configure(args: ConfigureArgs) -> Result<()> {
         println!("\n{} Exchange Online Retention Policy...", "→".cyan());
 
         if args.dry_run {
-            println!("  {} Would create retention policy: Archive after {} years",
+            println!(
+                "  {} Would create retention policy: Archive after {} years",
                 "→".cyan(),
                 args.archive_after_years
             );
@@ -145,14 +153,22 @@ pub async fn configure(args: ConfigureArgs) -> Result<()> {
             match exchange_online::configure_retention_policy(
                 &graph,
                 &policy_name,
-                args.archive_after_years
-            ).await {
+                args.archive_after_years,
+            )
+            .await
+            {
                 Ok(policy) => {
                     let policy_id = policy["id"].as_str().unwrap_or("unknown");
-                    println!("  {} Created retention policy: {}", "✓".green(), policy_name);
+                    println!(
+                        "  {} Created retention policy: {}",
+                        "✓".green(),
+                        policy_name
+                    );
 
                     // Apply policy tenant-wide
-                    match exchange_online::apply_retention_policy_tenant_wide(&graph, policy_id).await {
+                    match exchange_online::apply_retention_policy_tenant_wide(&graph, policy_id)
+                        .await
+                    {
                         Ok(_) => {
                             println!("  {} Applied policy to all mailboxes", "✓".green());
                             configured_count += 1;
@@ -170,7 +186,10 @@ pub async fn configure(args: ConfigureArgs) -> Result<()> {
         println!("\n{} Quarantine Email Notifications...", "→".cyan());
 
         if args.dry_run {
-            println!("  {} Would disable end-user quarantine notifications", "→".cyan());
+            println!(
+                "  {} Would disable end-user quarantine notifications",
+                "→".cyan()
+            );
         } else {
             match exchange_online::disable_quarantine_notifications(&graph).await {
                 Ok(_) => {
@@ -193,7 +212,11 @@ pub async fn configure(args: ConfigureArgs) -> Result<()> {
 
             match exchange_online::configure_antispam_policy(&graph, &policy_name).await {
                 Ok(_) => {
-                    println!("  {} Configured anti-spam policy: {}", "✓".green(), policy_name);
+                    println!(
+                        "  {} Configured anti-spam policy: {}",
+                        "✓".green(),
+                        policy_name
+                    );
                     configured_count += 1;
                 }
                 Err(e) => println!("  {} Failed: {}", "✗".red(), e),
@@ -209,7 +232,11 @@ pub async fn configure(args: ConfigureArgs) -> Result<()> {
 
             match exchange_online::configure_antimalware_policy(&graph, &policy_name).await {
                 Ok(_) => {
-                    println!("  {} Configured anti-malware policy: {}", "✓".green(), policy_name);
+                    println!(
+                        "  {} Configured anti-malware policy: {}",
+                        "✓".green(),
+                        policy_name
+                    );
                     configured_count += 1;
                 }
                 Err(e) => println!("  {} Failed: {}", "✗".red(), e),
@@ -219,7 +246,10 @@ pub async fn configure(args: ConfigureArgs) -> Result<()> {
         println!("\n{} Outbound Spam Filter...", "→".cyan());
 
         if args.dry_run {
-            println!("  {} Would configure outbound spam filter (block auto-forwarding)", "→".cyan());
+            println!(
+                "  {} Would configure outbound spam filter (block auto-forwarding)",
+                "→".cyan()
+            );
         } else {
             match exchange_online::configure_outbound_spam_policy(&graph).await {
                 Ok(_) => {
@@ -244,7 +274,11 @@ pub async fn configure(args: ConfigureArgs) -> Result<()> {
             let safe_links_name = format!("{} - Safe Links", args.name);
             match exchange_online::configure_safe_links_policy(&graph, &safe_links_name).await {
                 Ok(_) => {
-                    println!("  {} Configured Safe Links: {}", "✓".green(), safe_links_name);
+                    println!(
+                        "  {} Configured Safe Links: {}",
+                        "✓".green(),
+                        safe_links_name
+                    );
                     configured_count += 1;
                 }
                 Err(e) => println!("  {} Failed Safe Links: {}", "✗".red(), e),
@@ -252,9 +286,15 @@ pub async fn configure(args: ConfigureArgs) -> Result<()> {
 
             // Safe Attachments
             let safe_attachments_name = format!("{} - Safe Attachments", args.name);
-            match exchange_online::configure_safe_attachments_policy(&graph, &safe_attachments_name).await {
+            match exchange_online::configure_safe_attachments_policy(&graph, &safe_attachments_name)
+                .await
+            {
                 Ok(_) => {
-                    println!("  {} Configured Safe Attachments: {}", "✓".green(), safe_attachments_name);
+                    println!(
+                        "  {} Configured Safe Attachments: {}",
+                        "✓".green(),
+                        safe_attachments_name
+                    );
                     configured_count += 1;
                 }
                 Err(e) => println!("  {} Failed Safe Attachments: {}", "✗".red(), e),
@@ -269,7 +309,8 @@ pub async fn configure(args: ConfigureArgs) -> Result<()> {
     if args.dry_run {
         println!("{} (no changes applied)", "DRY RUN".yellow().bold());
     } else {
-        println!("{} Configured {} tenant-wide settings",
+        println!(
+            "{} Configured {} tenant-wide settings",
             "✓".green().bold(),
             configured_count
         );

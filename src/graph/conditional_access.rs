@@ -6,11 +6,13 @@
 
 use crate::error::Result;
 use crate::graph::GraphClient;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 /// Create a Conditional Access policy
 pub async fn create_policy(client: &GraphClient, policy: &Value) -> Result<Value> {
-    client.post("identity/conditionalAccess/policies", policy).await
+    client
+        .post("identity/conditionalAccess/policies", policy)
+        .await
 }
 
 /// List all Conditional Access policies
@@ -21,7 +23,10 @@ pub async fn list_policies(client: &GraphClient) -> Result<Value> {
 /// Get a specific CA policy by ID
 pub async fn get_policy(client: &GraphClient, policy_id: &str) -> Result<Value> {
     client
-        .get(&format!("identity/conditionalAccess/policies/{}", policy_id))
+        .get(&format!(
+            "identity/conditionalAccess/policies/{}",
+            policy_id
+        ))
         .await
 }
 
@@ -38,24 +43,33 @@ pub async fn update_policy(client: &GraphClient, policy_id: &str, policy: &Value
 /// Delete a CA policy
 pub async fn delete_policy(client: &GraphClient, policy_id: &str) -> Result<()> {
     client
-        .delete(&format!("identity/conditionalAccess/policies/{}", policy_id))
+        .delete(&format!(
+            "identity/conditionalAccess/policies/{}",
+            policy_id
+        ))
         .await?;
     Ok(())
 }
 
 /// Create a Named Location (for GeoIP blocking)
 pub async fn create_named_location(client: &GraphClient, location: &Value) -> Result<Value> {
-    client.post("identity/conditionalAccess/namedLocations", location).await
+    client
+        .post("identity/conditionalAccess/namedLocations", location)
+        .await
 }
 
 /// List Named Locations
 pub async fn list_named_locations(client: &GraphClient) -> Result<Value> {
-    client.get("identity/conditionalAccess/namedLocations").await
+    client
+        .get("identity/conditionalAccess/namedLocations")
+        .await
 }
 
 /// Get security defaults status
 pub async fn get_security_defaults(client: &GraphClient) -> Result<Value> {
-    client.get("policies/identitySecurityDefaultsEnforcementPolicy").await
+    client
+        .get("policies/identitySecurityDefaultsEnforcementPolicy")
+        .await
 }
 
 /// Disable security defaults (required before CA policies can be enforced)
@@ -64,7 +78,12 @@ pub async fn disable_security_defaults(client: &GraphClient) -> Result<Value> {
         "isEnabled": false
     });
 
-    client.patch("policies/identitySecurityDefaultsEnforcementPolicy", &payload).await
+    client
+        .patch(
+            "policies/identitySecurityDefaultsEnforcementPolicy",
+            &payload,
+        )
+        .await
 }
 
 /// Generate MFA enforcement policy (Require MFA for all users)

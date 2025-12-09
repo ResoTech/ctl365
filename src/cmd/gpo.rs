@@ -16,7 +16,7 @@ use crate::graph::GraphClient;
 use clap::Args;
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
@@ -146,7 +146,9 @@ fn get_gpo_mappings() -> HashMap<&'static str, IntuneMappingInfo> {
     mappings.insert(
         "Software\\Policies\\Microsoft\\Windows\\WindowsUpdate\\AU\\NoAutoUpdate",
         IntuneMappingInfo {
-            settings_catalog_id: Some("device_vendor_msft_policy_config_update_allowautoupdate".into()),
+            settings_catalog_id: Some(
+                "device_vendor_msft_policy_config_update_allowautoupdate".into(),
+            ),
             category: "Windows Update".into(),
             setting_definition: "Allow Auto Update".into(),
             notes: None,
@@ -167,7 +169,9 @@ fn get_gpo_mappings() -> HashMap<&'static str, IntuneMappingInfo> {
     mappings.insert(
         "Software\\Policies\\Microsoft\\FVE\\RDVRecovery",
         IntuneMappingInfo {
-            settings_catalog_id: Some("device_vendor_msft_bitlocker_removabledrivesrequireencryption".into()),
+            settings_catalog_id: Some(
+                "device_vendor_msft_bitlocker_removabledrivesrequireencryption".into(),
+            ),
             category: "BitLocker".into(),
             setting_definition: "Removable Drive Recovery".into(),
             notes: None,
@@ -178,7 +182,10 @@ fn get_gpo_mappings() -> HashMap<&'static str, IntuneMappingInfo> {
     mappings.insert(
         "Software\\Policies\\Microsoft\\Windows\\System\\DisableAutomaticRestartSignOn",
         IntuneMappingInfo {
-            settings_catalog_id: Some("device_vendor_msft_policy_config_windowslogon_disableautomaticrestartsignon".into()),
+            settings_catalog_id: Some(
+                "device_vendor_msft_policy_config_windowslogon_disableautomaticrestartsignon"
+                    .into(),
+            ),
             category: "Windows Logon".into(),
             setting_definition: "Disable Automatic Restart Sign-On".into(),
             notes: None,
@@ -210,7 +217,9 @@ fn get_gpo_mappings() -> HashMap<&'static str, IntuneMappingInfo> {
     mappings.insert(
         "Software\\Policies\\Microsoft\\Windows Defender\\Scan\\ScheduleDay",
         IntuneMappingInfo {
-            settings_catalog_id: Some("device_vendor_msft_policy_config_defender_schedulescanday".into()),
+            settings_catalog_id: Some(
+                "device_vendor_msft_policy_config_defender_schedulescanday".into(),
+            ),
             category: "Microsoft Defender".into(),
             setting_definition: "Scan Schedule Day".into(),
             notes: None,
@@ -244,7 +253,10 @@ fn get_gpo_mappings() -> HashMap<&'static str, IntuneMappingInfo> {
 
 /// Analyze GPO backup and report Intune compatibility
 pub async fn analyze(args: AnalyzeArgs) -> Result<()> {
-    println!("{} GPO for Intune compatibility...", "Analyzing".cyan().bold());
+    println!(
+        "{} GPO for Intune compatibility...",
+        "Analyzing".cyan().bold()
+    );
 
     if !args.path.exists() {
         return Err(crate::error::Ctl365Error::ConfigError(format!(
@@ -275,7 +287,10 @@ pub async fn analyze(args: AnalyzeArgs) -> Result<()> {
             (support, None)
         };
 
-        if matches!(support, IntuneSupport::FullySupported | IntuneSupport::PartiallySupported) {
+        if matches!(
+            support,
+            IntuneSupport::FullySupported | IntuneSupport::PartiallySupported
+        ) {
             supported_count += 1;
         }
 
@@ -297,7 +312,9 @@ pub async fn analyze(args: AnalyzeArgs) -> Result<()> {
     };
 
     let report = GpoAnalysisReport {
-        gpo_name: args.path.file_name()
+        gpo_name: args
+            .path
+            .file_name()
             .and_then(|n| n.to_str())
             .unwrap_or("Unknown")
             .to_string(),
@@ -312,11 +329,13 @@ pub async fn analyze(args: AnalyzeArgs) -> Result<()> {
     println!("\n{} Analysis Results:", "→".cyan().bold());
     println!("  GPO: {}", report.gpo_name.green());
     println!("  Total Settings: {}", report.total_settings);
-    println!("  Supported: {} ({})",
+    println!(
+        "  Supported: {} ({})",
         report.supported_settings.to_string().green(),
         format!("{:.1}%", readiness).green()
     );
-    println!("  Unsupported: {}",
+    println!(
+        "  Unsupported: {}",
         report.unsupported_settings.to_string().yellow()
     );
 
@@ -338,7 +357,8 @@ pub async fn analyze(args: AnalyzeArgs) -> Result<()> {
                 IntuneSupport::NotSupported => "[UNSUPPORTED]",
             };
 
-            println!("  {} {} {}",
+            println!(
+                "  {} {} {}",
                 match support_color {
                     "green" => support_text.green(),
                     "yellow" => support_text.yellow(),
@@ -369,7 +389,10 @@ pub async fn analyze(args: AnalyzeArgs) -> Result<()> {
 
 /// Convert GPO settings to Intune Settings Catalog format
 pub async fn convert(args: ConvertArgs) -> Result<()> {
-    println!("{} GPO to Intune Settings Catalog...", "Converting".cyan().bold());
+    println!(
+        "{} GPO to Intune Settings Catalog...",
+        "Converting".cyan().bold()
+    );
 
     if !args.path.exists() {
         return Err(crate::error::Ctl365Error::ConfigError(format!(
@@ -403,20 +426,30 @@ pub async fn convert(args: ConvertArgs) -> Result<()> {
                 converted_settings.push(converted);
 
                 if args.dry_run {
-                    println!("  {} → {}", setting.name, mapping.setting_definition.green());
+                    println!(
+                        "  {} → {}",
+                        setting.name,
+                        mapping.setting_definition.green()
+                    );
                 }
             } else if !args.supported_only {
                 // Generate OMA-URI for unsupported
                 if args.dry_run {
-                    println!("  {} → {} (Custom OMA-URI)", setting.name, "OMA-URI".yellow());
+                    println!(
+                        "  {} → {} (Custom OMA-URI)",
+                        setting.name,
+                        "OMA-URI".yellow()
+                    );
                 }
             } else {
                 skipped_count += 1;
             }
         } else if !args.supported_only {
             // Try to auto-generate OMA-URI
-            let oma_uri = format!("./Device/Vendor/MSFT/Policy/Config/{}",
-                setting.path.replace("\\", "/"));
+            let oma_uri = format!(
+                "./Device/Vendor/MSFT/Policy/Config/{}",
+                setting.path.replace("\\", "/")
+            );
             if args.dry_run {
                 println!("  {} → {} (Auto OMA-URI)", setting.name, oma_uri.dimmed());
             }
@@ -426,7 +459,10 @@ pub async fn convert(args: ConvertArgs) -> Result<()> {
     }
 
     if args.dry_run {
-        println!("\n  {} settings would be converted", converted_settings.len());
+        println!(
+            "\n  {} settings would be converted",
+            converted_settings.len()
+        );
         if skipped_count > 0 {
             println!("  {} settings skipped (unsupported)", skipped_count);
         }
@@ -434,7 +470,9 @@ pub async fn convert(args: ConvertArgs) -> Result<()> {
     }
 
     // Create the converted policy document
-    let gpo_name = args.path.file_name()
+    let gpo_name = args
+        .path
+        .file_name()
         .and_then(|n| n.to_str())
         .unwrap_or("GPO")
         .to_string();
@@ -449,24 +487,38 @@ pub async fn convert(args: ConvertArgs) -> Result<()> {
     };
 
     // Save converted policy
-    let output_file = args.output.join(format!("{}_converted.json",
-        sanitize_filename(&gpo_name)));
+    let output_file = args
+        .output
+        .join(format!("{}_converted.json", sanitize_filename(&gpo_name)));
     fs::write(&output_file, serde_json::to_string_pretty(&policy)?)?;
-    println!("  {} Settings Catalog policy: {}", "✓".green(), output_file.display());
+    println!(
+        "  {} Settings Catalog policy: {}",
+        "✓".green(),
+        output_file.display()
+    );
 
     // Also generate Settings Catalog deployment JSON if requested
     if args.settings_catalog {
         let catalog_json = generate_settings_catalog_json(&policy);
-        let catalog_file = args.output.join(format!("{}_settings_catalog.json",
-            sanitize_filename(&gpo_name)));
+        let catalog_file = args.output.join(format!(
+            "{}_settings_catalog.json",
+            sanitize_filename(&gpo_name)
+        ));
         fs::write(&catalog_file, serde_json::to_string_pretty(&catalog_json)?)?;
-        println!("  {} Deployment JSON: {}", "✓".green(), catalog_file.display());
+        println!(
+            "  {} Deployment JSON: {}",
+            "✓".green(),
+            catalog_file.display()
+        );
     }
 
     println!("\n{} Conversion complete!", "✓".green().bold());
     println!("\nNext steps:");
     println!("  1. Review the converted policy JSON");
-    println!("  2. Deploy: ctl365 gpo deploy --file {}", output_file.display());
+    println!(
+        "  2. Deploy: ctl365 gpo deploy --file {}",
+        output_file.display()
+    );
 
     Ok(())
 }
@@ -490,7 +542,11 @@ pub async fn deploy_converted(args: DeployConvertedArgs) -> Result<()> {
     println!("→ Settings: {}", policy.settings.len());
 
     if args.dry_run {
-        println!("\n{} DRY RUN - Would deploy {} settings", "ℹ".yellow().bold(), policy.settings.len());
+        println!(
+            "\n{} DRY RUN - Would deploy {} settings",
+            "ℹ".yellow().bold(),
+            policy.settings.len()
+        );
         return Ok(());
     }
 
@@ -516,7 +572,10 @@ pub async fn deploy_converted(args: DeployConvertedArgs) -> Result<()> {
 
     println!("\n{} Creating Settings Catalog policy...", "→".cyan());
 
-    match graph.post_beta::<Value, Value>("deviceManagement/configurationPolicies", &policy_body).await {
+    match graph
+        .post_beta::<Value, Value>("deviceManagement/configurationPolicies", &policy_body)
+        .await
+    {
         Ok(response) => {
             let policy_id = response["id"].as_str().unwrap_or("unknown");
             println!("  {} Policy created: {}", "✓".green(), policy_id);
@@ -574,7 +633,10 @@ fn parse_gpo_backup(path: &PathBuf) -> Result<Vec<GpoSetting>> {
 
     // If no settings found, create sample data for demo
     if settings.is_empty() {
-        println!("  {} No GPO data found, using sample policies for demo", "ℹ".yellow());
+        println!(
+            "  {} No GPO data found, using sample policies for demo",
+            "ℹ".yellow()
+        );
         settings = create_sample_gpo_settings();
     }
 
@@ -676,11 +738,12 @@ fn classify_setting_support(path: &str) -> IntuneSupport {
     // Classify based on policy path patterns
     let path_lower = path.to_lowercase();
 
-    if path_lower.contains("windows update") ||
-       path_lower.contains("windows defender") ||
-       path_lower.contains("bitlocker") ||
-       path_lower.contains("edge") ||
-       path_lower.contains("windowslogon") {
+    if path_lower.contains("windows update")
+        || path_lower.contains("windows defender")
+        || path_lower.contains("bitlocker")
+        || path_lower.contains("edge")
+        || path_lower.contains("windowslogon")
+    {
         IntuneSupport::PartiallySupported
     } else if path_lower.contains("microsoft\\") {
         IntuneSupport::RequiresCustomOMA
@@ -689,7 +752,10 @@ fn classify_setting_support(path: &str) -> IntuneSupport {
     }
 }
 
-fn convert_setting_to_catalog(setting: &GpoSetting, mapping: &IntuneMappingInfo) -> ConvertedSetting {
+fn convert_setting_to_catalog(
+    setting: &GpoSetting,
+    mapping: &IntuneMappingInfo,
+) -> ConvertedSetting {
     ConvertedSetting {
         odata_type: "#microsoft.graph.deviceManagementConfigurationSetting".to_string(),
         setting_instance: json!({
@@ -705,9 +771,11 @@ fn convert_setting_to_catalog(setting: &GpoSetting, mapping: &IntuneMappingInfo)
 }
 
 fn generate_settings_catalog_json(policy: &ConvertedPolicy) -> Value {
-    let settings: Vec<Value> = policy.settings.iter().map(|s| {
-        s.setting_instance.clone()
-    }).collect();
+    let settings: Vec<Value> = policy
+        .settings
+        .iter()
+        .map(|s| s.setting_instance.clone())
+        .collect();
 
     json!({
         "@odata.type": "#microsoft.graph.deviceManagementConfigurationPolicy",
@@ -733,20 +801,24 @@ fn generate_csv_report(report: &GpoAnalysisReport) -> String {
             IntuneSupport::NotSupported => "Not Supported",
         };
 
-        let mapping = setting.intune_mapping.as_ref()
+        let mapping = setting
+            .intune_mapping
+            .as_ref()
             .map(|m| m.setting_definition.clone())
             .unwrap_or_else(|| "None".to_string());
 
-        csv.push_str(&format!("\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\"\n",
-            setting.name, setting.path, setting.value,
-            setting.policy_type, support, mapping));
+        csv.push_str(&format!(
+            "\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\"\n",
+            setting.name, setting.path, setting.value, setting.policy_type, support, mapping
+        ));
     }
 
     csv
 }
 
 fn generate_html_report(report: &GpoAnalysisReport) -> String {
-    let mut html = String::from(r#"<!DOCTYPE html>
+    let mut html = String::from(
+        r#"<!DOCTYPE html>
 <html>
 <head>
     <title>GPO Analysis Report</title>
@@ -770,9 +842,11 @@ fn generate_html_report(report: &GpoAnalysisReport) -> String {
 </head>
 <body>
     <h1>GPO Analysis Report</h1>
-"#);
+"#,
+    );
 
-    html.push_str(&format!(r#"
+    html.push_str(&format!(
+        r#"
     <div class="summary">
         <h2>{}</h2>
         <p><strong>Total Settings:</strong> {}</p>
@@ -788,8 +862,13 @@ fn generate_html_report(report: &GpoAnalysisReport) -> String {
             <th>Intune Support</th>
             <th>Mapping</th>
         </tr>
-"#, report.gpo_name, report.total_settings, report.supported_settings,
-    report.migration_readiness, report.unsupported_settings));
+"#,
+        report.gpo_name,
+        report.total_settings,
+        report.supported_settings,
+        report.migration_readiness,
+        report.unsupported_settings
+    ));
 
     for setting in &report.settings {
         let (badge_class, badge_text) = match setting.intune_support {
@@ -799,11 +878,14 @@ fn generate_html_report(report: &GpoAnalysisReport) -> String {
             IntuneSupport::NotSupported => ("badge-unsupported", "Unsupported"),
         };
 
-        let mapping = setting.intune_mapping.as_ref()
+        let mapping = setting
+            .intune_mapping
+            .as_ref()
             .map(|m| m.setting_definition.clone())
             .unwrap_or_else(|| "-".to_string());
 
-        html.push_str(&format!(r#"
+        html.push_str(&format!(
+            r#"
         <tr>
             <td>{}</td>
             <td><code>{}</code></td>
@@ -811,21 +893,29 @@ fn generate_html_report(report: &GpoAnalysisReport) -> String {
             <td><span class="badge {}">{}</span></td>
             <td>{}</td>
         </tr>
-"#, setting.name, setting.path, setting.value, badge_class, badge_text, mapping));
+"#,
+            setting.name, setting.path, setting.value, badge_class, badge_text, mapping
+        ));
     }
 
-    html.push_str(r#"
+    html.push_str(
+        r#"
     </table>
     <footer style="margin-top: 40px; color: #666;">
         <p>Generated by ctl365 - Microsoft 365 Deployment Automation</p>
     </footer>
 </body>
-</html>"#);
+</html>"#,
+    );
 
     html
 }
 
-async fn assign_policy_to_group(graph: &GraphClient, policy_id: &str, group_id: &str) -> Result<()> {
+async fn assign_policy_to_group(
+    graph: &GraphClient,
+    policy_id: &str,
+    group_id: &str,
+) -> Result<()> {
     let assignment = json!({
         "assignments": [{
             "target": {
@@ -835,9 +925,15 @@ async fn assign_policy_to_group(graph: &GraphClient, policy_id: &str, group_id: 
         }]
     });
 
-    let endpoint = format!("deviceManagement/configurationPolicies/{}/assign", policy_id);
+    let endpoint = format!(
+        "deviceManagement/configurationPolicies/{}/assign",
+        policy_id
+    );
 
-    match graph.post_beta::<Value, Value>(&endpoint, &assignment).await {
+    match graph
+        .post_beta::<Value, Value>(&endpoint, &assignment)
+        .await
+    {
         Ok(_) => println!("  {} Assigned to group: {}", "✓".green(), group_id),
         Err(e) => println!("  {} Assignment failed: {}", "✗".red(), e),
     }

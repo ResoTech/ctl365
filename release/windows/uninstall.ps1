@@ -45,8 +45,8 @@ function Uninstall-Ctl365 {
     Write-Host "===============================================" -ForegroundColor Yellow
     Write-Host ""
 
-    # Determine install locations
-    $userInstallDir = "$env:USERPROFILE\.ctl365\bin"
+    # Determine install locations (matches install.ps1)
+    $userInstallDir = "$env:LOCALAPPDATA\ctl365"
     $systemInstallDir = "$env:ProgramFiles\ctl365"
 
     $installDir = if ($SystemWide) { $systemInstallDir } else { $userInstallDir }
@@ -81,8 +81,8 @@ function Uninstall-Ctl365 {
         Write-Status "Removed from PATH" "Success"
     }
 
-    # Remove config if requested
-    $configDir = "$env:USERPROFILE\.ctl365"
+    # Remove config if requested (config stored in %LOCALAPPDATA%\ctl365)
+    $configDir = "$env:LOCALAPPDATA\ctl365"
     if ($RemoveConfig) {
         if (Test-Path $configDir) {
             Write-Status "Removing configuration directory: $configDir"

@@ -7,10 +7,9 @@
 /// Platform: macOS 14.6+ (Sonoma) on Apple Silicon
 /// Deployment: Apple Business Manager + ADE (Automated Device Enrollment)
 /// Licensing: M365 Business Premium, M365 E3+MDE, or M365 E5
-
 use crate::cmd::baseline::NewArgs;
 use crate::error::Result;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 /// Generate OpenIntuneBaseline v1.0 for macOS
 pub fn generate_macos_baseline(args: &NewArgs) -> Result<Value> {
@@ -443,10 +442,12 @@ mod tests {
             policy["@odata.type"],
             "#microsoft.graph.macOSCompliancePolicy"
         );
-        assert!(policy["displayName"]
-            .as_str()
-            .unwrap()
-            .contains("Device Health"));
+        assert!(
+            policy["displayName"]
+                .as_str()
+                .unwrap()
+                .contains("Device Health")
+        );
         assert_eq!(policy["osMinimumVersion"], "14.6");
         assert_eq!(policy["systemIntegrityProtectionEnabled"], true);
         assert_eq!(policy["storageRequireEncryption"], true);

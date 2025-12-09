@@ -226,8 +226,7 @@ impl GraphClient {
                     }
 
                     if status.is_server_error() && attempt < MAX_RETRIES - 1 {
-                        let wait_time =
-                            calculate_backoff_with_jitter(attempt);
+                        let wait_time = calculate_backoff_with_jitter(attempt);
                         eprintln!(
                             "Server error ({}). Retrying in {:?}... (attempt {}/{})",
                             status,
@@ -253,8 +252,7 @@ impl GraphClient {
                 }
                 Err(e) => {
                     if attempt < MAX_RETRIES - 1 {
-                        let wait_time =
-                            calculate_backoff_with_jitter(attempt);
+                        let wait_time = calculate_backoff_with_jitter(attempt);
                         eprintln!(
                             "Connection error: {}. Retrying in {:?}... (attempt {}/{})",
                             e,
@@ -351,8 +349,7 @@ impl GraphClient {
                     }
 
                     if status.is_server_error() && attempt < MAX_RETRIES - 1 {
-                        let wait_time =
-                            calculate_backoff_with_jitter(attempt);
+                        let wait_time = calculate_backoff_with_jitter(attempt);
                         eprintln!(
                             "Server error ({}). Retrying in {:?}... (attempt {}/{})",
                             status,
@@ -378,8 +375,7 @@ impl GraphClient {
                 }
                 Err(e) => {
                     if attempt < MAX_RETRIES - 1 {
-                        let wait_time =
-                            calculate_backoff_with_jitter(attempt);
+                        let wait_time = calculate_backoff_with_jitter(attempt);
                         eprintln!(
                             "Connection error: {}. Retrying in {:?}... (attempt {}/{})",
                             e,
@@ -448,8 +444,7 @@ impl GraphClient {
                     }
 
                     if status.is_server_error() && attempt < MAX_RETRIES - 1 {
-                        let wait_time =
-                            calculate_backoff_with_jitter(attempt);
+                        let wait_time = calculate_backoff_with_jitter(attempt);
                         eprintln!(
                             "Server error ({}). Retrying in {:?}... (attempt {}/{})",
                             status,
@@ -474,8 +469,7 @@ impl GraphClient {
                 }
                 Err(e) => {
                     if attempt < MAX_RETRIES - 1 {
-                        let wait_time =
-                            calculate_backoff_with_jitter(attempt);
+                        let wait_time = calculate_backoff_with_jitter(attempt);
                         eprintln!(
                             "Connection error: {}. Retrying in {:?}... (attempt {}/{})",
                             e,

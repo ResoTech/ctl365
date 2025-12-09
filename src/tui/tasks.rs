@@ -10,7 +10,7 @@
 
 use crate::config::ConfigManager;
 use crate::error::Result;
-use crossbeam_channel::{bounded, Receiver, Sender};
+use crossbeam_channel::{Receiver, Sender, bounded};
 use std::sync::Arc;
 use std::thread;
 
@@ -29,9 +29,7 @@ pub enum TaskRequest {
         baseline_data: serde_json::Value,
     },
     /// Deploy CA policies
-    DeployConditionalAccess {
-        tenant_name: String,
-    },
+    DeployConditionalAccess { tenant_name: String },
     /// Apply settings to tenant
     ApplySettings {
         tenant_name: String,
@@ -39,9 +37,7 @@ pub enum TaskRequest {
         settings: std::collections::HashMap<String, bool>,
     },
     /// Test authentication
-    TestAuth {
-        tenant_name: String,
-    },
+    TestAuth { tenant_name: String },
     /// Shutdown the worker
     Shutdown,
 }
@@ -80,32 +76,17 @@ pub struct TaskProgress {
 #[derive(Debug, Clone)]
 pub enum TaskResult {
     /// Policies loaded successfully
-    PoliciesLoaded {
-        policies: Vec<PolicyData>,
-    },
+    PoliciesLoaded { policies: Vec<PolicyData> },
     /// Baseline deployed
-    BaselineDeployed {
-        count: usize,
-        message: String,
-    },
+    BaselineDeployed { count: usize, message: String },
     /// CA policies deployed
-    CaDeployed {
-        count: usize,
-        message: String,
-    },
+    CaDeployed { count: usize, message: String },
     /// Settings applied
-    SettingsApplied {
-        message: String,
-    },
+    SettingsApplied { message: String },
     /// Auth test result
-    AuthResult {
-        success: bool,
-        message: String,
-    },
+    AuthResult { success: bool, message: String },
     /// Task failed
-    Error {
-        message: String,
-    },
+    Error { message: String },
 }
 
 /// Policy data returned from Graph
@@ -125,10 +106,7 @@ pub enum TaskResponse {
     /// Progress update
     Progress(TaskProgress),
     /// Task completed
-    Completed {
-        task_id: String,
-        result: TaskResult,
-    },
+    Completed { task_id: String, result: TaskResult },
     /// Worker is ready
     Ready,
 }
@@ -139,7 +117,10 @@ pub struct TaskSender {
 }
 
 impl TaskSender {
-    pub fn send(&self, request: TaskRequest) -> std::result::Result<(), crossbeam_channel::SendError<TaskRequest>> {
+    pub fn send(
+        &self,
+        request: TaskRequest,
+    ) -> std::result::Result<(), crossbeam_channel::SendError<TaskRequest>> {
         self.tx.send(request)
     }
 
@@ -190,81 +171,107 @@ pub fn spawn_task_worker(config: ConfigManager) -> (TaskSender, TaskReceiver) {
 
             loop {
                 match request_rx.recv() {
-                    Ok(request) => {
-                        match request {
-                            TaskRequest::Shutdown => {
-                                break;
-                            }
-                            TaskRequest::LoadPolicies { tenant_name, policy_type } => {
-                                let task_id = format!("load_policies_{}", chrono::Utc::now().timestamp_millis());
-                                let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
-                                    task_id: task_id.clone(),
-                                    percent: 0,
-                                    message: "Connecting to Graph API...".into(),
-                                    phase: "init".into(),
-                                }));
-
-                                let result = load_policies_async(&config, &tenant_name, &policy_type, &response_tx, &task_id).await;
-                                let _ = response_tx.send(TaskResponse::Completed {
-                                    task_id,
-                                    result,
-                                });
-                            }
-                            TaskRequest::DeployBaseline { tenant_name, baseline_type, baseline_data } => {
-                                let task_id = format!("deploy_baseline_{}", chrono::Utc::now().timestamp_millis());
-                                let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
-                                    task_id: task_id.clone(),
-                                    percent: 0,
-                                    message: format!("Preparing {} baseline...", baseline_type),
-                                    phase: "init".into(),
-                                }));
-
-                                let result = deploy_baseline_async(&config, &tenant_name, &baseline_type, &baseline_data, &response_tx, &task_id).await;
-                                let _ = response_tx.send(TaskResponse::Completed {
-                                    task_id,
-                                    result,
-                                });
-                            }
-                            TaskRequest::DeployConditionalAccess { tenant_name } => {
-                                let task_id = format!("deploy_ca_{}", chrono::Utc::now().timestamp_millis());
-                                let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
-                                    task_id: task_id.clone(),
-                                    percent: 0,
-                                    message: "Generating CA policies...".into(),
-                                    phase: "init".into(),
-                                }));
-
-                                let result = deploy_ca_async(&config, &tenant_name, &response_tx, &task_id).await;
-                                let _ = response_tx.send(TaskResponse::Completed {
-                                    task_id,
-                                    result,
-                                });
-                            }
-                            TaskRequest::ApplySettings { tenant_name, category, settings } => {
-                                let task_id = format!("apply_settings_{}", chrono::Utc::now().timestamp_millis());
-                                let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
-                                    task_id: task_id.clone(),
-                                    percent: 0,
-                                    message: "Applying settings...".into(),
-                                    phase: "init".into(),
-                                }));
-
-                                let result = apply_settings_async(&config, &tenant_name, &category, &settings, &response_tx, &task_id).await;
-                                let _ = response_tx.send(TaskResponse::Completed {
-                                    task_id,
-                                    result,
-                                });
-                            }
-                            TaskRequest::TestAuth { tenant_name } => {
-                                let task_id = format!("test_auth_{}", chrono::Utc::now().timestamp_millis());
-                                let result = test_auth_async(&config, &tenant_name).await;
-                                let _ = response_tx.send(TaskResponse::Completed {
-                                    task_id,
-                                    result,
-                                });
-                            }
+                    Ok(request) => match request {
+                        TaskRequest::Shutdown => {
+                            break;
                         }
-                    }
+                        TaskRequest::LoadPolicies {
+                            tenant_name,
+                            policy_type,
+                        } => {
+                            let task_id =
+                                format!("load_policies_{}", chrono::Utc::now().timestamp_millis());
+                            let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
+                                task_id: task_id.clone(),
+                                percent: 0,
+                                message: "Connecting to Graph API...".into(),
+                                phase: "init".into(),
+                            }));
+
+                            let result = load_policies_async(
+                                &config,
+                                &tenant_name,
+                                &policy_type,
+                                &response_tx,
+                                &task_id,
+                            )
+                            .await;
+                            let _ = response_tx.send(TaskResponse::Completed { task_id, result });
+                        }
+                        TaskRequest::DeployBaseline {
+                            tenant_name,
+                            baseline_type,
+                            baseline_data,
+                        } => {
+                            let task_id = format!(
+                                "deploy_baseline_{}",
+                                chrono::Utc::now().timestamp_millis()
+                            );
+                            let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
+                                task_id: task_id.clone(),
+                                percent: 0,
+                                message: format!("Preparing {} baseline...", baseline_type),
+                                phase: "init".into(),
+                            }));
+
+                            let result = deploy_baseline_async(
+                                &config,
+                                &tenant_name,
+                                &baseline_type,
+                                &baseline_data,
+                                &response_tx,
+                                &task_id,
+                            )
+                            .await;
+                            let _ = response_tx.send(TaskResponse::Completed { task_id, result });
+                        }
+                        TaskRequest::DeployConditionalAccess { tenant_name } => {
+                            let task_id =
+                                format!("deploy_ca_{}", chrono::Utc::now().timestamp_millis());
+                            let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
+                                task_id: task_id.clone(),
+                                percent: 0,
+                                message: "Generating CA policies...".into(),
+                                phase: "init".into(),
+                            }));
+
+                            let result =
+                                deploy_ca_async(&config, &tenant_name, &response_tx, &task_id)
+                                    .await;
+                            let _ = response_tx.send(TaskResponse::Completed { task_id, result });
+                        }
+                        TaskRequest::ApplySettings {
+                            tenant_name,
+                            category,
+                            settings,
+                        } => {
+                            let task_id =
+                                format!("apply_settings_{}", chrono::Utc::now().timestamp_millis());
+                            let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
+                                task_id: task_id.clone(),
+                                percent: 0,
+                                message: "Applying settings...".into(),
+                                phase: "init".into(),
+                            }));
+
+                            let result = apply_settings_async(
+                                &config,
+                                &tenant_name,
+                                &category,
+                                &settings,
+                                &response_tx,
+                                &task_id,
+                            )
+                            .await;
+                            let _ = response_tx.send(TaskResponse::Completed { task_id, result });
+                        }
+                        TaskRequest::TestAuth { tenant_name } => {
+                            let task_id =
+                                format!("test_auth_{}", chrono::Utc::now().timestamp_millis());
+                            let result = test_auth_async(&config, &tenant_name).await;
+                            let _ = response_tx.send(TaskResponse::Completed { task_id, result });
+                        }
+                    },
                     Err(_) => {
                         // Channel closed, exit
                         break;
@@ -319,21 +326,13 @@ async fn load_policies_async(
 
     // Fetch policies based on type
     let policies = match policy_type {
-        PolicyType::ConditionalAccess => {
-            fetch_ca_policies(&client).await
-        }
-        PolicyType::Compliance => {
-            fetch_compliance_policies(&client).await
-        }
+        PolicyType::ConditionalAccess => fetch_ca_policies(&client).await,
+        PolicyType::Compliance => fetch_compliance_policies(&client).await,
         PolicyType::Configuration | PolicyType::SettingsCatalog => {
             fetch_config_policies(&client).await
         }
-        PolicyType::Apps => {
-            fetch_app_policies(&client).await
-        }
-        PolicyType::All => {
-            fetch_all_policies(&client).await
-        }
+        PolicyType::Apps => fetch_app_policies(&client).await,
+        PolicyType::All => fetch_all_policies(&client).await,
     };
 
     let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
@@ -345,7 +344,9 @@ async fn load_policies_async(
 
     match policies {
         Ok(p) => TaskResult::PoliciesLoaded { policies: p },
-        Err(e) => TaskResult::Error { message: e.to_string() },
+        Err(e) => TaskResult::Error {
+            message: e.to_string(),
+        },
     }
 }
 
@@ -367,19 +368,24 @@ async fn fetch_ca_policies(client: &crate::graph::GraphClient) -> Result<Vec<Pol
 
     let response: CaResponse = client.get("identity/conditionalAccess/policies").await?;
 
-    Ok(response.value.into_iter().map(|p| PolicyData {
-        name: p.display_name,
-        policy_type: "Conditional Access".into(),
-        status: match p.state.as_str() {
-            "enabled" => "Deployed",
-            "enabledForReportingButNotEnforced" => "Report-Only",
-            "disabled" => "Disabled",
-            _ => "Unknown",
-        }.into(),
-        platform: "All".into(),
-        assignments: 0, // Would need additional API call
-        last_modified: p.modified_date_time.unwrap_or_else(|| "-".into()),
-    }).collect())
+    Ok(response
+        .value
+        .into_iter()
+        .map(|p| PolicyData {
+            name: p.display_name,
+            policy_type: "Conditional Access".into(),
+            status: match p.state.as_str() {
+                "enabled" => "Deployed",
+                "enabledForReportingButNotEnforced" => "Report-Only",
+                "disabled" => "Disabled",
+                _ => "Unknown",
+            }
+            .into(),
+            platform: "All".into(),
+            assignments: 0, // Would need additional API call
+            last_modified: p.modified_date_time.unwrap_or_else(|| "-".into()),
+        })
+        .collect())
 }
 
 async fn fetch_compliance_policies(client: &crate::graph::GraphClient) -> Result<Vec<PolicyData>> {
@@ -398,16 +404,22 @@ async fn fetch_compliance_policies(client: &crate::graph::GraphClient) -> Result
         last_modified_date_time: Option<String>,
     }
 
-    let response: ComplianceResponse = client.get_beta("deviceManagement/deviceCompliancePolicies").await?;
+    let response: ComplianceResponse = client
+        .get_beta("deviceManagement/deviceCompliancePolicies")
+        .await?;
 
-    Ok(response.value.into_iter().map(|p| PolicyData {
-        name: p.display_name,
-        policy_type: "Compliance".into(),
-        status: "Deployed".into(),
-        platform: "Windows".into(), // Would need to parse from policy
-        assignments: 0,
-        last_modified: p.last_modified_date_time.unwrap_or_else(|| "-".into()),
-    }).collect())
+    Ok(response
+        .value
+        .into_iter()
+        .map(|p| PolicyData {
+            name: p.display_name,
+            policy_type: "Compliance".into(),
+            status: "Deployed".into(),
+            platform: "Windows".into(), // Would need to parse from policy
+            assignments: 0,
+            last_modified: p.last_modified_date_time.unwrap_or_else(|| "-".into()),
+        })
+        .collect())
 }
 
 async fn fetch_config_policies(client: &crate::graph::GraphClient) -> Result<Vec<PolicyData>> {
@@ -426,16 +438,22 @@ async fn fetch_config_policies(client: &crate::graph::GraphClient) -> Result<Vec
         last_modified_date_time: Option<String>,
     }
 
-    let response: ConfigResponse = client.get_beta("deviceManagement/configurationPolicies").await?;
+    let response: ConfigResponse = client
+        .get_beta("deviceManagement/configurationPolicies")
+        .await?;
 
-    Ok(response.value.into_iter().map(|p| PolicyData {
-        name: p.name,
-        policy_type: "Settings Catalog".into(),
-        status: "Deployed".into(),
-        platform: "Windows".into(),
-        assignments: 0,
-        last_modified: p.last_modified_date_time.unwrap_or_else(|| "-".into()),
-    }).collect())
+    Ok(response
+        .value
+        .into_iter()
+        .map(|p| PolicyData {
+            name: p.name,
+            policy_type: "Settings Catalog".into(),
+            status: "Deployed".into(),
+            platform: "Windows".into(),
+            assignments: 0,
+            last_modified: p.last_modified_date_time.unwrap_or_else(|| "-".into()),
+        })
+        .collect())
 }
 
 async fn fetch_app_policies(client: &crate::graph::GraphClient) -> Result<Vec<PolicyData>> {
@@ -456,21 +474,29 @@ async fn fetch_app_policies(client: &crate::graph::GraphClient) -> Result<Vec<Po
         last_modified_date_time: Option<String>,
     }
 
-    let response: AppResponse = client.get_beta("deviceAppManagement/mobileApps?$top=50").await?;
+    let response: AppResponse = client
+        .get_beta("deviceAppManagement/mobileApps?$top=50")
+        .await?;
 
-    Ok(response.value.into_iter().map(|a| {
-        let app_type = a.odata_type.as_deref()
-            .map(|t| t.replace("#microsoft.graph.", "").replace("App", ""))
-            .unwrap_or_else(|| "Unknown".into());
-        PolicyData {
-            name: a.display_name,
-            policy_type: app_type,
-            status: "Deployed".into(),
-            platform: "Windows".into(),
-            assignments: 0,
-            last_modified: a.last_modified_date_time.unwrap_or_else(|| "-".into()),
-        }
-    }).collect())
+    Ok(response
+        .value
+        .into_iter()
+        .map(|a| {
+            let app_type = a
+                .odata_type
+                .as_deref()
+                .map(|t| t.replace("#microsoft.graph.", "").replace("App", ""))
+                .unwrap_or_else(|| "Unknown".into());
+            PolicyData {
+                name: a.display_name,
+                policy_type: app_type,
+                status: "Deployed".into(),
+                platform: "Windows".into(),
+                assignments: 0,
+                last_modified: a.last_modified_date_time.unwrap_or_else(|| "-".into()),
+            }
+        })
+        .collect())
 }
 
 async fn fetch_all_policies(client: &crate::graph::GraphClient) -> Result<Vec<PolicyData>> {
@@ -516,7 +542,8 @@ async fn deploy_baseline_async(
         }
     };
 
-    let policies = baseline_data.get("policies")
+    let policies = baseline_data
+        .get("policies")
         .and_then(|p| p.as_array())
         .map(|a| a.to_vec())
         .unwrap_or_default();
@@ -527,7 +554,8 @@ async fn deploy_baseline_async(
 
     for (i, policy) in policies.iter().enumerate() {
         let percent = ((i + 1) * 100 / total.max(1)) as u16;
-        let policy_name = policy.get("displayName")
+        let policy_name = policy
+            .get("displayName")
             .or_else(|| policy.get("name"))
             .and_then(|n| n.as_str())
             .unwrap_or("Unknown");
@@ -540,7 +568,8 @@ async fn deploy_baseline_async(
         }));
 
         // Determine endpoint based on policy type
-        let odata_type = policy.get("@odata.type")
+        let odata_type = policy
+            .get("@odata.type")
             .and_then(|t| t.as_str())
             .unwrap_or("");
 
@@ -552,7 +581,10 @@ async fn deploy_baseline_async(
             continue; // Skip unknown types
         };
 
-        match client.post_beta::<_, serde_json::Value>(endpoint, policy).await {
+        match client
+            .post_beta::<_, serde_json::Value>(endpoint, policy)
+            .await
+        {
             Ok(_) => deployed += 1,
             Err(e) => errors.push(format!("{}: {}", policy_name, e)),
         }
@@ -569,7 +601,12 @@ async fn deploy_baseline_async(
     } else {
         TaskResult::BaselineDeployed {
             count: deployed,
-            message: format!("Deployed {} policies with {} errors: {}", deployed, errors.len(), errors.join("; ")),
+            message: format!(
+                "Deployed {} policies with {} errors: {}",
+                deployed,
+                errors.len(),
+                errors.join("; ")
+            ),
         }
     }
 }
@@ -592,7 +629,9 @@ async fn deploy_ca_async(
 
     // Generate CA policies
     let baseline = ca_baseline_2025::CABaseline2025::generate();
-    let policies: Vec<serde_json::Value> = baseline.policies.iter()
+    let policies: Vec<serde_json::Value> = baseline
+        .policies
+        .iter()
         .map(|p| ca_baseline_2025::CABaseline2025::to_graph_json(p))
         .collect();
 
@@ -618,7 +657,8 @@ async fn deploy_ca_async(
 
     for (i, policy) in policies.iter().enumerate() {
         let percent = 10 + ((i + 1) * 90 / total.max(1)) as u16;
-        let policy_name = policy.get("displayName")
+        let policy_name = policy
+            .get("displayName")
             .and_then(|n| n.as_str())
             .unwrap_or("Unknown");
 
@@ -629,7 +669,10 @@ async fn deploy_ca_async(
             phase: "deploy".into(),
         }));
 
-        match client.post::<_, serde_json::Value>("identity/conditionalAccess/policies", policy).await {
+        match client
+            .post::<_, serde_json::Value>("identity/conditionalAccess/policies", policy)
+            .await
+        {
             Ok(_) => deployed += 1,
             Err(e) => errors.push(format!("{}: {}", policy_name, e)),
         }
@@ -644,12 +687,19 @@ async fn deploy_ca_async(
     if errors.is_empty() {
         TaskResult::CaDeployed {
             count: deployed,
-            message: format!("Successfully deployed {} CA policies in Report-Only mode", deployed),
+            message: format!(
+                "Successfully deployed {} CA policies in Report-Only mode",
+                deployed
+            ),
         }
     } else {
         TaskResult::CaDeployed {
             count: deployed,
-            message: format!("Deployed {} policies with {} errors", deployed, errors.len()),
+            message: format!(
+                "Deployed {} policies with {} errors",
+                deployed,
+                errors.len()
+            ),
         }
     }
 }
@@ -708,19 +758,36 @@ async fn apply_settings_async(
     // Apply based on category
     let result = match category {
         SettingsCategory::Defender => {
-            crate::tui::menu::apply_defender_settings_from_config(config, tenant_name, &tenant_config).await
+            crate::tui::menu::apply_defender_settings_from_config(
+                config,
+                tenant_name,
+                &tenant_config,
+            )
+            .await
         }
         SettingsCategory::Exchange => {
-            crate::tui::menu::apply_exchange_settings_from_config(config, tenant_name, &tenant_config).await
+            crate::tui::menu::apply_exchange_settings_from_config(
+                config,
+                tenant_name,
+                &tenant_config,
+            )
+            .await
         }
         SettingsCategory::SharePoint => {
-            crate::tui::menu::apply_sharepoint_settings_from_config(config, tenant_name, &tenant_config).await
+            crate::tui::menu::apply_sharepoint_settings_from_config(
+                config,
+                tenant_name,
+                &tenant_config,
+            )
+            .await
         }
         SettingsCategory::Teams => {
-            crate::tui::menu::apply_teams_settings_from_config(config, tenant_name, &tenant_config).await
+            crate::tui::menu::apply_teams_settings_from_config(config, tenant_name, &tenant_config)
+                .await
         }
         SettingsCategory::All => {
-            crate::tui::menu::apply_all_settings_from_config(config, tenant_name, &tenant_config).await
+            crate::tui::menu::apply_all_settings_from_config(config, tenant_name, &tenant_config)
+                .await
         }
     };
 
@@ -749,7 +816,9 @@ async fn apply_settings_async(
                 &e.to_string(),
                 tenant_name,
             );
-            TaskResult::Error { message: e.to_string() }
+            TaskResult::Error {
+                message: e.to_string(),
+            }
         }
     }
 }
@@ -775,7 +844,11 @@ async fn test_auth_async(config: &ConfigManager, tenant_name: &str) -> TaskResul
                     }
                 }
                 Err(e) => {
-                    crate::tui::change_tracker::record_auth(tenant_name, false, Some(&e.to_string()));
+                    crate::tui::change_tracker::record_auth(
+                        tenant_name,
+                        false,
+                        Some(&e.to_string()),
+                    );
                     TaskResult::AuthResult {
                         success: false,
                         message: format!("API call failed: {}", e),

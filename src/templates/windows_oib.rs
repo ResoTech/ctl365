@@ -11,11 +11,10 @@
 ///
 /// Platform: Windows 11 (compatible with Windows 10 Enterprise)
 /// Licensing: M365 Business Premium, M365 E3+MDE, or M365 E5
-
 use crate::cmd::baseline::NewArgs;
 use crate::error::Result;
 use crate::templates::settings_catalog::*;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use serde::{Deserialize, Serialize};
 
@@ -376,59 +375,95 @@ fn generate_asr_rules_l2(args: &NewArgs) -> Value {
     // L2 = Balanced mode: critical rules blocked, some warned, some audited
     let asr_rules = vec![
         // Block execution of potentially obfuscated scripts (PowerShell/JS/VBS) = warn
-        choice_setting("device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockexecutionofpotentiallyobfuscatedscripts",
-                      "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockexecutionofpotentiallyobfuscatedscripts_warn"),
+        choice_setting(
+            "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockexecutionofpotentiallyobfuscatedscripts",
+            "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockexecutionofpotentiallyobfuscatedscripts_warn",
+        ),
         // Block Win32 API calls from Office macros = block
-        choice_setting("device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockwin32apicallsfromofficemacros",
-                      "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockwin32apicallsfromofficemacros_block"),
+        choice_setting(
+            "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockwin32apicallsfromofficemacros",
+            "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockwin32apicallsfromofficemacros_block",
+        ),
         // Block executable files from running unless they meet prevalence, age, or trusted list criterion = audit
-        choice_setting("device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockexecutablefilesrunningunlesstheymeetprevalenceagetrustedlistcriterion",
-                      "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockexecutablefilesrunningunlesstheymeetprevalenceagetrustedlistcriterion_audit"),
+        choice_setting(
+            "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockexecutablefilesrunningunlesstheymeetprevalenceagetrustedlistcriterion",
+            "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockexecutablefilesrunningunlesstheymeetprevalenceagetrustedlistcriterion_audit",
+        ),
         // Block Office communication apps from creating child processes = warn
-        choice_setting("device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockofficecommunicationappfromcreatingchildprocesses",
-                      "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockofficecommunicationappfromcreatingchildprocesses_warn"),
+        choice_setting(
+            "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockofficecommunicationappfromcreatingchildprocesses",
+            "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockofficecommunicationappfromcreatingchildprocesses_warn",
+        ),
         // Block all Office applications from creating child processes = block
-        choice_setting("device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockallofficeapplicationsfromcreatingchildprocesses",
-                      "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockallofficeapplicationsfromcreatingchildprocesses_block"),
+        choice_setting(
+            "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockallofficeapplicationsfromcreatingchildprocesses",
+            "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockallofficeapplicationsfromcreatingchildprocesses_block",
+        ),
         // Block Adobe Reader from creating child processes = block
-        choice_setting("device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockadobereaderfromcreatingchildprocesses",
-                      "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockadobereaderfromcreatingchildprocesses_block"),
+        choice_setting(
+            "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockadobereaderfromcreatingchildprocesses",
+            "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockadobereaderfromcreatingchildprocesses_block",
+        ),
         // Block credential stealing from Windows local security authority subsystem (lsass.exe) = block
-        choice_setting("device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockcredentialstealingfromwindowslocalsecurityauthoritysubsystem",
-                      "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockcredentialstealingfromwindowslocalsecurityauthoritysubsystem_block"),
+        choice_setting(
+            "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockcredentialstealingfromwindowslocalsecurityauthoritysubsystem",
+            "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockcredentialstealingfromwindowslocalsecurityauthoritysubsystem_block",
+        ),
         // Block JavaScript or VBScript from launching downloaded executable content = block
-        choice_setting("device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockjavascriptorvbscriptfromlaunchingdownloadedexecutablecontent",
-                      "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockjavascriptorvbscriptfromlaunchingdownloadedexecutablecontent_block"),
+        choice_setting(
+            "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockjavascriptorvbscriptfromlaunchingdownloadedexecutablecontent",
+            "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockjavascriptorvbscriptfromlaunchingdownloadedexecutablecontent_block",
+        ),
         // Block untrusted and unsigned processes that run from USB = block
-        choice_setting("device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockuntrustedunsignedprocessesthatrunfromusb",
-                      "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockuntrustedunsignedprocessesthatrunfromusb_block"),
+        choice_setting(
+            "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockuntrustedunsignedprocessesthatrunfromusb",
+            "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockuntrustedunsignedprocessesthatrunfromusb_block",
+        ),
         // Block persistence through WMI event subscription = block
-        choice_setting("device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockpersistencethroughwmieventsubscription",
-                      "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockpersistencethroughwmieventsubscription_block"),
+        choice_setting(
+            "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockpersistencethroughwmieventsubscription",
+            "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockpersistencethroughwmieventsubscription_block",
+        ),
         // Block use of copied or impersonated system tools = block
-        choice_setting("device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockuseofcopiedorimpersonatedsystemtools",
-                      "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockuseofcopiedorimpersonatedsystemtools_block"),
+        choice_setting(
+            "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockuseofcopiedorimpersonatedsystemtools",
+            "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockuseofcopiedorimpersonatedsystemtools_block",
+        ),
         // Block abuse of exploited vulnerable signed drivers = block
-        choice_setting("device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockabuseofexploitedvulnerablesigneddrivers",
-                      "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockabuseofexploitedvulnerablesigneddrivers_block"),
+        choice_setting(
+            "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockabuseofexploitedvulnerablesigneddrivers",
+            "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockabuseofexploitedvulnerablesigneddrivers_block",
+        ),
         // Block process creations originating from PSExec and WMI commands = warn
-        choice_setting("device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockprocesscreationsfrompsexecandwmicommands",
-                      "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockprocesscreationsfrompsexecandwmicommands_warn"),
+        choice_setting(
+            "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockprocesscreationsfrompsexecandwmicommands",
+            "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockprocesscreationsfrompsexecandwmicommands_warn",
+        ),
         // Block Office applications from creating executable content = block
-        choice_setting("device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockofficeapplicationsfromcreatingexecutablecontent",
-                      "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockofficeapplicationsfromcreatingexecutablecontent_block"),
+        choice_setting(
+            "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockofficeapplicationsfromcreatingexecutablecontent",
+            "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockofficeapplicationsfromcreatingexecutablecontent_block",
+        ),
         // Block Office applications from injecting code into other processes = block
-        choice_setting("device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockofficeapplicationsfrominjectingcodeintootherprocesses",
-                      "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockofficeapplicationsfrominjectingcodeintootherprocesses_block"),
+        choice_setting(
+            "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockofficeapplicationsfrominjectingcodeintootherprocesses",
+            "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockofficeapplicationsfrominjectingcodeintootherprocesses_block",
+        ),
         // Block rebooting machine in Safe Mode = audit
-        choice_setting("device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockrebootingmachineinsafemode",
-                      "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockrebootingmachineinsafemode_audit"),
+        choice_setting(
+            "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockrebootingmachineinsafemode",
+            "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockrebootingmachineinsafemode_audit",
+        ),
         // Use advanced protection against ransomware = block
-        choice_setting("device_vendor_msft_policy_config_defender_attacksurfacereductionrules_useadvancedprotectionagainstransomware",
-                      "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_useadvancedprotectionagainstransomware_block"),
+        choice_setting(
+            "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_useadvancedprotectionagainstransomware",
+            "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_useadvancedprotectionagainstransomware_block",
+        ),
         // Block executable content from email client and webmail = block
-        choice_setting("device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockexecutablecontentfromemailclientandwebmail",
-                      "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockexecutablecontentfromemailclientandwebmail_block"),
+        choice_setting(
+            "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockexecutablecontentfromemailclientandwebmail",
+            "device_vendor_msft_policy_config_defender_attacksurfacereductionrules_blockexecutablecontentfromemailclientandwebmail_block",
+        ),
     ];
 
     let policy = SettingsCatalogPolicy {
@@ -462,8 +497,13 @@ fn generate_asr_rules_l2(args: &NewArgs) -> Value {
 /// OIB Settings Catalog: Windows Firewall
 fn generate_windows_firewall_configuration(args: &NewArgs) -> Value {
     let policy = SettingsCatalogPolicy {
-        name: format!("{} - OIB - ES - Windows Firewall - D - Firewall Configuration", args.name),
-        description: "Windows Defender Firewall - Enabled for all profiles with auditing - Windows 11 25H2".to_string(),
+        name: format!(
+            "{} - OIB - ES - Windows Firewall - D - Firewall Configuration",
+            args.name
+        ),
+        description:
+            "Windows Defender Firewall - Enabled for all profiles with auditing - Windows 11 25H2"
+                .to_string(),
         platform: Platform::Windows10,
         technologies: Technologies::Mdm,
         template_reference: None,
@@ -600,18 +640,27 @@ fn generate_windows_laps_configuration(args: &NewArgs) -> Value {
 /// OIB Settings Catalog: Credential Management (Passwordless)
 fn generate_credential_management_passwordless(args: &NewArgs) -> Value {
     let policy = SettingsCatalogPolicy {
-        name: format!("{} - SC - Credential Management - D - Passwordless - v3.3", args.name),
+        name: format!(
+            "{} - SC - Credential Management - D - Passwordless - v3.3",
+            args.name
+        ),
         description: "Enforces passwordless authentication patterns".to_string(),
         platform: Platform::Windows10,
         technologies: Technologies::Mdm,
         template_reference: None,
         settings: vec![
-            choice_setting("device_vendor_msft_policy_config_admx_credentialproviders_defaultcredentialprovider",
-                          "device_vendor_msft_policy_config_admx_credentialproviders_defaultcredentialprovider_1"),
-            choice_setting("device_vendor_msft_policy_config_authentication_enablepasswordlessexperience",
-                          "device_vendor_msft_policy_config_authentication_enablepasswordlessexperience_1"),
-            choice_setting("device_vendor_msft_policy_config_authentication_enablewebsignin",
-                          "device_vendor_msft_policy_config_authentication_enablewebsignin_1"),
+            choice_setting(
+                "device_vendor_msft_policy_config_admx_credentialproviders_defaultcredentialprovider",
+                "device_vendor_msft_policy_config_admx_credentialproviders_defaultcredentialprovider_1",
+            ),
+            choice_setting(
+                "device_vendor_msft_policy_config_authentication_enablepasswordlessexperience",
+                "device_vendor_msft_policy_config_authentication_enablepasswordlessexperience_1",
+            ),
+            choice_setting(
+                "device_vendor_msft_policy_config_authentication_enablewebsignin",
+                "device_vendor_msft_policy_config_authentication_enablewebsignin_1",
+            ),
         ],
     };
 
@@ -794,57 +843,108 @@ fn generate_device_security_hardening(args: &NewArgs) -> Value {
 /// OIB Settings Catalog: Device Security - Local Security Policies
 fn generate_device_security_local_security_policies(args: &NewArgs) -> Value {
     let policy = SettingsCatalogPolicy {
-        name: format!("{} - SC - Device Security - D - Local Security Policies (24H2+) - v3.6", args.name),
-        description: "UAC, account policies, audit policies, privilege escalation controls".to_string(),
+        name: format!(
+            "{} - SC - Device Security - D - Local Security Policies (24H2+) - v3.6",
+            args.name
+        ),
+        description: "UAC, account policies, audit policies, privilege escalation controls"
+            .to_string(),
         platform: Platform::Windows10,
         technologies: Technologies::Mdm,
         template_reference: None,
         settings: vec![
-            choice_setting("device_vendor_msft_policy_config_localpoliciessecurityoptions_accounts_enableadministratoraccountstatus",
-                          "device_vendor_msft_policy_config_localpoliciessecurityoptions_accounts_enableadministratoraccountstatus_0"),
-            choice_setting("device_vendor_msft_policy_config_localpoliciessecurityoptions_accounts_enableguestaccountstatus",
-                          "device_vendor_msft_policy_config_localpoliciessecurityoptions_accounts_enableguestaccountstatus_0"),
-            choice_setting("device_vendor_msft_policy_config_localpoliciessecurityoptions_accounts_limitlocalaccountuseofblankpasswordstoconsolelogononly",
-                          "device_vendor_msft_policy_config_localpoliciessecurityoptions_accounts_limitlocalaccountuseofblankpasswordstoconsolelogononly_1"),
-            choice_setting("device_vendor_msft_policy_config_localpoliciessecurityoptions_interactivelogon_smartcardremovalbehavior",
-                          "device_vendor_msft_policy_config_localpoliciessecurityoptions_interactivelogon_smartcardremovalbehavior_1"),
-            choice_setting("device_vendor_msft_policy_config_localpoliciessecurityoptions_microsoftnetworkclient_digitallysigncommunicationsalways",
-                          "device_vendor_msft_policy_config_localpoliciessecurityoptions_microsoftnetworkclient_digitallysigncommunicationsalways_1"),
-            choice_setting("device_vendor_msft_policy_config_localpoliciessecurityoptions_microsoftnetworkclient_sendunencryptedpasswordtothirdpartysmbservers",
-                          "device_vendor_msft_policy_config_localpoliciessecurityoptions_microsoftnetworkclient_sendunencryptedpasswordtothirdpartysmbservers_0"),
-            choice_setting("device_vendor_msft_policy_config_localpoliciessecurityoptions_microsoftnetworkserver_digitallysigncommunicationsalways",
-                          "device_vendor_msft_policy_config_localpoliciessecurityoptions_microsoftnetworkserver_digitallysigncommunicationsalways_1"),
-            choice_setting("device_vendor_msft_policy_config_localpoliciessecurityoptions_networkaccess_donotallowanonymousenumerationofsamaccounts",
-                          "device_vendor_msft_policy_config_localpoliciessecurityoptions_networkaccess_donotallowanonymousenumerationofsamaccounts_1"),
-            choice_setting("device_vendor_msft_policy_config_localpoliciessecurityoptions_networkaccess_donotallowanonymousenumerationofsamaccountsandshares",
-                          "device_vendor_msft_policy_config_localpoliciessecurityoptions_networkaccess_donotallowanonymousenumerationofsamaccountsandshares_1"),
-            choice_setting("device_vendor_msft_policy_config_localpoliciessecurityoptions_networkaccess_restrictanonymousaccesstonamedpipesandshares",
-                          "device_vendor_msft_policy_config_localpoliciessecurityoptions_networkaccess_restrictanonymousaccesstonamedpipesandshares_1"),
-            string_setting("device_vendor_msft_policy_config_localpoliciessecurityoptions_networkaccess_restrictclientsallowedtomakeremotecallstosam", "O:BAG:BAD:(A;;RC;;;BA)"),
-            choice_setting("device_vendor_msft_policy_config_localpoliciessecurityoptions_networksecurity_donotstorelanmanagerhashvalueonnextpasswordchange",
-                          "device_vendor_msft_policy_config_localpoliciessecurityoptions_networksecurity_donotstorelanmanagerhashvalueonnextpasswordchange_1"),
-            choice_setting("device_vendor_msft_policy_config_localpoliciessecurityoptions_networksecurity_lanmanagerauthenticationlevel",
-                          "device_vendor_msft_policy_config_localpoliciessecurityoptions_networksecurity_lanmanagerauthenticationlevel_5"),
-            choice_setting("device_vendor_msft_policy_config_localpoliciessecurityoptions_networksecurity_minimumsessionsecurityforntlmsspbasedclients",
-                          "device_vendor_msft_policy_config_localpoliciessecurityoptions_networksecurity_minimumsessionsecurityforntlmsspbasedclients_537395200"),
-            choice_setting("device_vendor_msft_policy_config_localpoliciessecurityoptions_networksecurity_minimumsessionsecurityforntlmsspbasedservers",
-                          "device_vendor_msft_policy_config_localpoliciessecurityoptions_networksecurity_minimumsessionsecurityforntlmsspbasedservers_537395200"),
-            choice_setting("device_vendor_msft_policy_config_localpoliciessecurityoptions_useraccountcontrol_behavioroftheelevationpromptforadministrators",
-                          "device_vendor_msft_policy_config_localpoliciessecurityoptions_useraccountcontrol_behavioroftheelevationpromptforadministrators_2"),
-            choice_setting("device_vendor_msft_policy_config_localpoliciessecurityoptions_useraccountcontrol_behavioroftheelevationpromptforstandardusers",
-                          "device_vendor_msft_policy_config_localpoliciessecurityoptions_useraccountcontrol_behavioroftheelevationpromptforstandardusers_1"),
-            choice_setting("device_vendor_msft_policy_config_localpoliciessecurityoptions_useraccountcontrol_detectapplicationinstallationsandpromptforelevation",
-                          "device_vendor_msft_policy_config_localpoliciessecurityoptions_useraccountcontrol_detectapplicationinstallationsandpromptforelevation_1"),
-            choice_setting("device_vendor_msft_policy_config_localpoliciessecurityoptions_useraccountcontrol_onlyelevateuiaccessapplicationsthatareinstalledinsecurelocations",
-                          "device_vendor_msft_policy_config_localpoliciessecurityoptions_useraccountcontrol_onlyelevateuiaccessapplicationsthatareinstalledinsecurelocations_1"),
-            choice_setting("device_vendor_msft_policy_config_localpoliciessecurityoptions_useraccountcontrol_runalladministratorsinadminapprovalmode",
-                          "device_vendor_msft_policy_config_localpoliciessecurityoptions_useraccountcontrol_runalladministratorsinadminapprovalmode_1"),
-            choice_setting("device_vendor_msft_policy_config_localpoliciessecurityoptions_useraccountcontrol_switchtothesecuredesktopwhenpromptingforelevation",
-                          "device_vendor_msft_policy_config_localpoliciessecurityoptions_useraccountcontrol_switchtothesecuredesktopwhenpromptingforelevation_1"),
-            choice_setting("device_vendor_msft_policy_config_localpoliciessecurityoptions_useraccountcontrol_useadminapprovalmode",
-                          "device_vendor_msft_policy_config_localpoliciessecurityoptions_useraccountcontrol_useadminapprovalmode_1"),
-            choice_setting("device_vendor_msft_policy_config_localpoliciessecurityoptions_useraccountcontrol_virtualizefileandregistrywritefailurestoperuserlocations",
-                          "device_vendor_msft_policy_config_localpoliciessecurityoptions_useraccountcontrol_virtualizefileandregistrywritefailurestoperuserlocations_1"),
+            choice_setting(
+                "device_vendor_msft_policy_config_localpoliciessecurityoptions_accounts_enableadministratoraccountstatus",
+                "device_vendor_msft_policy_config_localpoliciessecurityoptions_accounts_enableadministratoraccountstatus_0",
+            ),
+            choice_setting(
+                "device_vendor_msft_policy_config_localpoliciessecurityoptions_accounts_enableguestaccountstatus",
+                "device_vendor_msft_policy_config_localpoliciessecurityoptions_accounts_enableguestaccountstatus_0",
+            ),
+            choice_setting(
+                "device_vendor_msft_policy_config_localpoliciessecurityoptions_accounts_limitlocalaccountuseofblankpasswordstoconsolelogononly",
+                "device_vendor_msft_policy_config_localpoliciessecurityoptions_accounts_limitlocalaccountuseofblankpasswordstoconsolelogononly_1",
+            ),
+            choice_setting(
+                "device_vendor_msft_policy_config_localpoliciessecurityoptions_interactivelogon_smartcardremovalbehavior",
+                "device_vendor_msft_policy_config_localpoliciessecurityoptions_interactivelogon_smartcardremovalbehavior_1",
+            ),
+            choice_setting(
+                "device_vendor_msft_policy_config_localpoliciessecurityoptions_microsoftnetworkclient_digitallysigncommunicationsalways",
+                "device_vendor_msft_policy_config_localpoliciessecurityoptions_microsoftnetworkclient_digitallysigncommunicationsalways_1",
+            ),
+            choice_setting(
+                "device_vendor_msft_policy_config_localpoliciessecurityoptions_microsoftnetworkclient_sendunencryptedpasswordtothirdpartysmbservers",
+                "device_vendor_msft_policy_config_localpoliciessecurityoptions_microsoftnetworkclient_sendunencryptedpasswordtothirdpartysmbservers_0",
+            ),
+            choice_setting(
+                "device_vendor_msft_policy_config_localpoliciessecurityoptions_microsoftnetworkserver_digitallysigncommunicationsalways",
+                "device_vendor_msft_policy_config_localpoliciessecurityoptions_microsoftnetworkserver_digitallysigncommunicationsalways_1",
+            ),
+            choice_setting(
+                "device_vendor_msft_policy_config_localpoliciessecurityoptions_networkaccess_donotallowanonymousenumerationofsamaccounts",
+                "device_vendor_msft_policy_config_localpoliciessecurityoptions_networkaccess_donotallowanonymousenumerationofsamaccounts_1",
+            ),
+            choice_setting(
+                "device_vendor_msft_policy_config_localpoliciessecurityoptions_networkaccess_donotallowanonymousenumerationofsamaccountsandshares",
+                "device_vendor_msft_policy_config_localpoliciessecurityoptions_networkaccess_donotallowanonymousenumerationofsamaccountsandshares_1",
+            ),
+            choice_setting(
+                "device_vendor_msft_policy_config_localpoliciessecurityoptions_networkaccess_restrictanonymousaccesstonamedpipesandshares",
+                "device_vendor_msft_policy_config_localpoliciessecurityoptions_networkaccess_restrictanonymousaccesstonamedpipesandshares_1",
+            ),
+            string_setting(
+                "device_vendor_msft_policy_config_localpoliciessecurityoptions_networkaccess_restrictclientsallowedtomakeremotecallstosam",
+                "O:BAG:BAD:(A;;RC;;;BA)",
+            ),
+            choice_setting(
+                "device_vendor_msft_policy_config_localpoliciessecurityoptions_networksecurity_donotstorelanmanagerhashvalueonnextpasswordchange",
+                "device_vendor_msft_policy_config_localpoliciessecurityoptions_networksecurity_donotstorelanmanagerhashvalueonnextpasswordchange_1",
+            ),
+            choice_setting(
+                "device_vendor_msft_policy_config_localpoliciessecurityoptions_networksecurity_lanmanagerauthenticationlevel",
+                "device_vendor_msft_policy_config_localpoliciessecurityoptions_networksecurity_lanmanagerauthenticationlevel_5",
+            ),
+            choice_setting(
+                "device_vendor_msft_policy_config_localpoliciessecurityoptions_networksecurity_minimumsessionsecurityforntlmsspbasedclients",
+                "device_vendor_msft_policy_config_localpoliciessecurityoptions_networksecurity_minimumsessionsecurityforntlmsspbasedclients_537395200",
+            ),
+            choice_setting(
+                "device_vendor_msft_policy_config_localpoliciessecurityoptions_networksecurity_minimumsessionsecurityforntlmsspbasedservers",
+                "device_vendor_msft_policy_config_localpoliciessecurityoptions_networksecurity_minimumsessionsecurityforntlmsspbasedservers_537395200",
+            ),
+            choice_setting(
+                "device_vendor_msft_policy_config_localpoliciessecurityoptions_useraccountcontrol_behavioroftheelevationpromptforadministrators",
+                "device_vendor_msft_policy_config_localpoliciessecurityoptions_useraccountcontrol_behavioroftheelevationpromptforadministrators_2",
+            ),
+            choice_setting(
+                "device_vendor_msft_policy_config_localpoliciessecurityoptions_useraccountcontrol_behavioroftheelevationpromptforstandardusers",
+                "device_vendor_msft_policy_config_localpoliciessecurityoptions_useraccountcontrol_behavioroftheelevationpromptforstandardusers_1",
+            ),
+            choice_setting(
+                "device_vendor_msft_policy_config_localpoliciessecurityoptions_useraccountcontrol_detectapplicationinstallationsandpromptforelevation",
+                "device_vendor_msft_policy_config_localpoliciessecurityoptions_useraccountcontrol_detectapplicationinstallationsandpromptforelevation_1",
+            ),
+            choice_setting(
+                "device_vendor_msft_policy_config_localpoliciessecurityoptions_useraccountcontrol_onlyelevateuiaccessapplicationsthatareinstalledinsecurelocations",
+                "device_vendor_msft_policy_config_localpoliciessecurityoptions_useraccountcontrol_onlyelevateuiaccessapplicationsthatareinstalledinsecurelocations_1",
+            ),
+            choice_setting(
+                "device_vendor_msft_policy_config_localpoliciessecurityoptions_useraccountcontrol_runalladministratorsinadminapprovalmode",
+                "device_vendor_msft_policy_config_localpoliciessecurityoptions_useraccountcontrol_runalladministratorsinadminapprovalmode_1",
+            ),
+            choice_setting(
+                "device_vendor_msft_policy_config_localpoliciessecurityoptions_useraccountcontrol_switchtothesecuredesktopwhenpromptingforelevation",
+                "device_vendor_msft_policy_config_localpoliciessecurityoptions_useraccountcontrol_switchtothesecuredesktopwhenpromptingforelevation_1",
+            ),
+            choice_setting(
+                "device_vendor_msft_policy_config_localpoliciessecurityoptions_useraccountcontrol_useadminapprovalmode",
+                "device_vendor_msft_policy_config_localpoliciessecurityoptions_useraccountcontrol_useadminapprovalmode_1",
+            ),
+            choice_setting(
+                "device_vendor_msft_policy_config_localpoliciessecurityoptions_useraccountcontrol_virtualizefileandregistrywritefailurestoperuserlocations",
+                "device_vendor_msft_policy_config_localpoliciessecurityoptions_useraccountcontrol_virtualizefileandregistrywritefailurestoperuserlocations_1",
+            ),
         ],
     };
 
@@ -880,26 +980,47 @@ fn generate_device_security_login_and_lock_screen(args: &NewArgs) -> Value {
 /// OIB Settings Catalog: Device Security - Power and Device Lock
 fn generate_device_security_power_and_device_lock(args: &NewArgs) -> Value {
     let policy = SettingsCatalogPolicy {
-        name: format!("{} - SC - Device Security - U - Power and Device Lock - v3.6", args.name),
+        name: format!(
+            "{} - SC - Device Security - U - Power and Device Lock - v3.6",
+            args.name
+        ),
         description: "Inactivity timeouts, power settings, screen lock requirements".to_string(),
         platform: Platform::Windows10,
         technologies: Technologies::Mdm,
         template_reference: None,
         settings: vec![
-            choice_setting("device_vendor_msft_policy_config_power_requirepasswordwhencomputerwakesonbattery",
-                          "device_vendor_msft_policy_config_power_requirepasswordwhencomputerwakesonbattery_1"),
-            choice_setting("device_vendor_msft_policy_config_power_requirepasswordwhencomputerwakespluggedin",
-                          "device_vendor_msft_policy_config_power_requirepasswordwhencomputerwakespluggedin_1"),
-            choice_setting("device_vendor_msft_policy_config_power_standbytimeoutonbattery",
-                          "device_vendor_msft_policy_config_power_standbytimeoutonbattery_1"),
-            choice_setting("device_vendor_msft_policy_config_power_standbytimeoutpluggedin",
-                          "device_vendor_msft_policy_config_power_standbytimeoutpluggedin_1"),
-            choice_setting("device_vendor_msft_policy_config_power_displayofftimeoutonbattery",
-                          "device_vendor_msft_policy_config_power_displayofftimeoutonbattery_1"),
-            choice_setting("device_vendor_msft_policy_config_power_displayofftimeoutpluggedin",
-                          "device_vendor_msft_policy_config_power_displayofftimeoutpluggedin_1"),
-            integer_setting("device_vendor_msft_policy_config_power_unattendedsleeptimeoutonbattery", 600),
-            integer_setting("device_vendor_msft_policy_config_power_unattendedsleeptimeoutpluggedin", 900),
+            choice_setting(
+                "device_vendor_msft_policy_config_power_requirepasswordwhencomputerwakesonbattery",
+                "device_vendor_msft_policy_config_power_requirepasswordwhencomputerwakesonbattery_1",
+            ),
+            choice_setting(
+                "device_vendor_msft_policy_config_power_requirepasswordwhencomputerwakespluggedin",
+                "device_vendor_msft_policy_config_power_requirepasswordwhencomputerwakespluggedin_1",
+            ),
+            choice_setting(
+                "device_vendor_msft_policy_config_power_standbytimeoutonbattery",
+                "device_vendor_msft_policy_config_power_standbytimeoutonbattery_1",
+            ),
+            choice_setting(
+                "device_vendor_msft_policy_config_power_standbytimeoutpluggedin",
+                "device_vendor_msft_policy_config_power_standbytimeoutpluggedin_1",
+            ),
+            choice_setting(
+                "device_vendor_msft_policy_config_power_displayofftimeoutonbattery",
+                "device_vendor_msft_policy_config_power_displayofftimeoutonbattery_1",
+            ),
+            choice_setting(
+                "device_vendor_msft_policy_config_power_displayofftimeoutpluggedin",
+                "device_vendor_msft_policy_config_power_displayofftimeoutpluggedin_1",
+            ),
+            integer_setting(
+                "device_vendor_msft_policy_config_power_unattendedsleeptimeoutonbattery",
+                600,
+            ),
+            integer_setting(
+                "device_vendor_msft_policy_config_power_unattendedsleeptimeoutpluggedin",
+                900,
+            ),
         ],
     };
 
@@ -924,7 +1045,9 @@ fn get_cis_rationale() -> Vec<CISRationale> {
         CISRationale {
             cis_ref: "45.7".to_string(),
             setting_name: "Interactive logon: Do not display last signed-in".to_string(),
-            rationale: "Breaks Windows Hello by causing the user to always have to enter their credentials".to_string(),
+            rationale:
+                "Breaks Windows Hello by causing the user to always have to enter their credentials"
+                    .to_string(),
             notes: None,
         },
         CISRationale {

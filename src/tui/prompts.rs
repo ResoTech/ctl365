@@ -51,7 +51,11 @@ pub fn select<T: ToString>(message: &str, options: &[T], default: usize) -> Resu
 }
 
 /// Prompt for multi-selection from a list of options
-pub fn multi_select<T: ToString>(message: &str, options: &[T], defaults: &[bool]) -> Result<Vec<usize>> {
+pub fn multi_select<T: ToString>(
+    message: &str,
+    options: &[T],
+    defaults: &[bool],
+) -> Result<Vec<usize>> {
     let items: Vec<String> = options.iter().map(|o| o.to_string()).collect();
     let result = MultiSelect::with_theme(&ColorfulTheme::default())
         .with_prompt(message)

@@ -162,7 +162,10 @@ pub struct UserImpactSummary {
 
 /// Export AAD Connect configuration documentation
 pub async fn export_config(args: ExportConfigArgs) -> Result<()> {
-    println!("{} Azure AD Connect configuration...", "Exporting".cyan().bold());
+    println!(
+        "{} Azure AD Connect configuration...",
+        "Exporting".cyan().bold()
+    );
 
     let config = ConfigManager::load()?;
     let active_tenant = config
@@ -202,14 +205,21 @@ pub async fn export_config(args: ExportConfigArgs) -> Result<()> {
         }
     }
 
-    println!("\n{} Documentation exported to: {}", "✓".green().bold(), args.output.display());
+    println!(
+        "\n{} Documentation exported to: {}",
+        "✓".green().bold(),
+        args.output.display()
+    );
 
     Ok(())
 }
 
 /// Show sync status
 pub async fn sync_status(args: SyncStatusArgs) -> Result<()> {
-    println!("{} Azure AD Connect sync status...", "Checking".cyan().bold());
+    println!(
+        "{} Azure AD Connect sync status...",
+        "Checking".cyan().bold()
+    );
 
     let config = ConfigManager::load()?;
     let active_tenant = config
@@ -226,11 +236,18 @@ pub async fn sync_status(args: SyncStatusArgs) -> Result<()> {
             if let Some(orgs) = response["value"].as_array() {
                 if let Some(org) = orgs.first() {
                     let on_premises_sync = org["onPremisesSyncEnabled"].as_bool().unwrap_or(false);
-                    let last_sync = org["onPremisesLastSyncDateTime"].as_str().unwrap_or("Never");
+                    let last_sync = org["onPremisesLastSyncDateTime"]
+                        .as_str()
+                        .unwrap_or("Never");
 
                     println!("\n{} Sync Status:", "→".cyan().bold());
-                    println!("  Directory Sync: {}",
-                        if on_premises_sync { "Enabled".green() } else { "Disabled".yellow() }
+                    println!(
+                        "  Directory Sync: {}",
+                        if on_premises_sync {
+                            "Enabled".green()
+                        } else {
+                            "Disabled".yellow()
+                        }
                     );
                     println!("  Last Sync: {}", last_sync.cyan());
 
@@ -252,7 +269,10 @@ pub async fn sync_status(args: SyncStatusArgs) -> Result<()> {
     if args.errors {
         println!("\n{} Sync Errors:", "→".cyan().bold());
 
-        match graph.get_beta::<Value>("directory/onPremisesSynchronization").await {
+        match graph
+            .get_beta::<Value>("directory/onPremisesSynchronization")
+            .await
+        {
             Ok(response) => {
                 if let Some(configs) = response["value"].as_array() {
                     for sync_config in configs {
@@ -265,7 +285,10 @@ pub async fn sync_status(args: SyncStatusArgs) -> Result<()> {
                 }
             }
             Err(_) => {
-                println!("  {} No sync errors found or unable to retrieve", "ℹ".yellow());
+                println!(
+                    "  {} No sync errors found or unable to retrieve",
+                    "ℹ".yellow()
+                );
             }
         }
     }
@@ -273,7 +296,10 @@ pub async fn sync_status(args: SyncStatusArgs) -> Result<()> {
     // Check pending exports
     if args.pending {
         println!("\n{} Pending Changes:", "→".cyan().bold());
-        println!("  {} Pending export information requires AAD Connect server access", "ℹ".yellow());
+        println!(
+            "  {} Pending export information requires AAD Connect server access",
+            "ℹ".yellow()
+        );
         println!("  Use Synchronization Service Manager on the AAD Connect server");
     }
 
@@ -282,7 +308,11 @@ pub async fn sync_status(args: SyncStatusArgs) -> Result<()> {
 
 /// Check migration readiness
 pub async fn migration_check(args: MigrationCheckArgs) -> Result<()> {
-    println!("{} migration readiness to {}...", "Assessing".cyan().bold(), args.target.cyan());
+    println!(
+        "{} migration readiness to {}...",
+        "Assessing".cyan().bold(),
+        args.target.cyan()
+    );
 
     let config = ConfigManager::load()?;
     let active_tenant = config
@@ -313,7 +343,11 @@ pub async fn migration_check(args: MigrationCheckArgs) -> Result<()> {
     if let Some(output_path) = args.output {
         let json = serde_json::to_string_pretty(&report)?;
         fs::write(&output_path, json)?;
-        println!("\n{} Report saved to: {}", "✓".green(), output_path.display());
+        println!(
+            "\n{} Report saved to: {}",
+            "✓".green(),
+            output_path.display()
+        );
     }
 
     Ok(())
@@ -321,7 +355,10 @@ pub async fn migration_check(args: MigrationCheckArgs) -> Result<()> {
 
 /// Compare on-prem with Entra ID
 pub async fn compare(_args: CompareArgs) -> Result<()> {
-    println!("{} on-premises AD with Entra ID...", "Comparing".cyan().bold());
+    println!(
+        "{} on-premises AD with Entra ID...",
+        "Comparing".cyan().bold()
+    );
 
     println!("\n{} Direct AD comparison requires:", "ℹ".yellow().bold());
     println!("  • LDAP access to on-premises domain controller");
@@ -337,7 +374,10 @@ pub async fn compare(_args: CompareArgs) -> Result<()> {
     Ok(())
 }
 
-async fn fetch_aad_connect_config(graph: &GraphClient, tenant_name: &str) -> Result<AadConnectConfig> {
+async fn fetch_aad_connect_config(
+    graph: &GraphClient,
+    tenant_name: &str,
+) -> Result<AadConnectConfig> {
     let mut aad_config = AadConnectConfig {
         tenant_name: tenant_name.to_string(),
         sync_enabled: false,
@@ -359,7 +399,9 @@ async fn fetch_aad_connect_config(graph: &GraphClient, tenant_name: &str) -> Res
         if let Some(orgs) = response["value"].as_array() {
             if let Some(org) = orgs.first() {
                 aad_config.sync_enabled = org["onPremisesSyncEnabled"].as_bool().unwrap_or(false);
-                aad_config.last_sync_time = org["onPremisesLastSyncDateTime"].as_str().map(|s| s.to_string());
+                aad_config.last_sync_time = org["onPremisesLastSyncDateTime"]
+                    .as_str()
+                    .map(|s| s.to_string());
 
                 // Get verified domains
                 if let Some(domains) = org["verifiedDomains"].as_array() {
@@ -376,20 +418,26 @@ async fn fetch_aad_connect_config(graph: &GraphClient, tenant_name: &str) -> Res
     }
 
     // Check directory sync configuration
-    if let Ok(response) = graph.get_beta::<Value>("directory/onPremisesSynchronization").await {
+    if let Ok(response) = graph
+        .get_beta::<Value>("directory/onPremisesSynchronization")
+        .await
+    {
         if let Some(configs) = response["value"].as_array() {
             for sync_config in configs {
                 // Check features
                 if let Some(features) = sync_config["features"].as_object() {
-                    aad_config.password_hash_sync_enabled = features.get("passwordHashSyncEnabled")
+                    aad_config.password_hash_sync_enabled = features
+                        .get("passwordHashSyncEnabled")
                         .and_then(|v| v.as_bool())
                         .unwrap_or(false);
 
-                    aad_config.passthrough_auth_enabled = features.get("passthroughAuthenticationEnabled")
+                    aad_config.passthrough_auth_enabled = features
+                        .get("passthroughAuthenticationEnabled")
                         .and_then(|v| v.as_bool())
                         .unwrap_or(false);
 
-                    aad_config.seamless_sso_enabled = features.get("seamlessSsoEnabled")
+                    aad_config.seamless_sso_enabled = features
+                        .get("seamlessSsoEnabled")
                         .and_then(|v| v.as_bool())
                         .unwrap_or(false);
                 }
@@ -425,7 +473,9 @@ fn get_default_sync_rules() -> Vec<SyncRule> {
             target_object_type: "person".to_string(),
             link_type: "Join".to_string(),
             precedence: 100,
-            scoping_filter: Some("objectClass=user AND NOT userAccountControl:1.2.840.113556.1.4.803:=2".to_string()),
+            scoping_filter: Some(
+                "objectClass=user AND NOT userAccountControl:1.2.840.113556.1.4.803:=2".to_string(),
+            ),
             attribute_flows: vec![
                 AttributeFlow {
                     source_attribute: "objectGUID".to_string(),
@@ -449,14 +499,12 @@ fn get_default_sync_rules() -> Vec<SyncRule> {
             link_type: "Join".to_string(),
             precedence: 101,
             scoping_filter: Some("objectClass=group".to_string()),
-            attribute_flows: vec![
-                AttributeFlow {
-                    source_attribute: "objectGUID".to_string(),
-                    target_attribute: "sourceAnchor".to_string(),
-                    flow_type: "Direct".to_string(),
-                    expression: None,
-                },
-            ],
+            attribute_flows: vec![AttributeFlow {
+                source_attribute: "objectGUID".to_string(),
+                target_attribute: "sourceAnchor".to_string(),
+                flow_type: "Direct".to_string(),
+                expression: None,
+            }],
         },
         SyncRule {
             name: "Out to AAD - User Join".to_string(),
@@ -484,7 +532,11 @@ fn get_default_sync_rules() -> Vec<SyncRule> {
     ]
 }
 
-async fn assess_migration_readiness(graph: &GraphClient, tenant_name: &str, target: &str) -> Result<MigrationReadinessReport> {
+async fn assess_migration_readiness(
+    graph: &GraphClient,
+    tenant_name: &str,
+    target: &str,
+) -> Result<MigrationReadinessReport> {
     let mut blockers = Vec::new();
     let mut warnings = Vec::new();
     let mut recommendations = Vec::new();
@@ -495,7 +547,10 @@ async fn assess_migration_readiness(graph: &GraphClient, tenant_name: &str, targ
     let mut guest_users = 0u32;
 
     // Count user types
-    if let Ok(response) = graph.get::<Value>("users?$count=true&$select=id,userType,onPremisesSyncEnabled").await {
+    if let Ok(response) = graph
+        .get::<Value>("users?$count=true&$select=id,userType,onPremisesSyncEnabled")
+        .await
+    {
         if let Some(users) = response["value"].as_array() {
             for user in users {
                 total_users += 1;
@@ -542,7 +597,9 @@ async fn assess_migration_readiness(graph: &GraphClient, tenant_name: &str, targ
                     title: "Synced Users Present".to_string(),
                     description: format!("{} users are synced from on-premises AD", synced_users),
                     impact: "High".to_string(),
-                    remediation: "Convert synced users to cloud-only or migrate to new cloud identities".to_string(),
+                    remediation:
+                        "Convert synced users to cloud-only or migrate to new cloud identities"
+                            .to_string(),
                 });
             }
 
@@ -576,7 +633,8 @@ async fn assess_migration_readiness(graph: &GraphClient, tenant_name: &str, targ
             recommendations.push(MigrationFinding {
                 category: "Authentication".to_string(),
                 title: "Consider Password Hash Sync".to_string(),
-                description: "PHS provides backup authentication and leaked credential detection".to_string(),
+                description: "PHS provides backup authentication and leaked credential detection"
+                    .to_string(),
                 impact: "Medium".to_string(),
                 remediation: "Enable Password Hash Synchronization".to_string(),
             });
@@ -586,7 +644,8 @@ async fn assess_migration_readiness(graph: &GraphClient, tenant_name: &str, targ
                 title: "Deploy Staging Server".to_string(),
                 description: "Add AAD Connect staging server for disaster recovery".to_string(),
                 impact: "Medium".to_string(),
-                remediation: "Configure AAD Connect in staging mode on secondary server".to_string(),
+                remediation: "Configure AAD Connect in staging mode on secondary server"
+                    .to_string(),
             });
         }
         "passthrough" => {
@@ -654,20 +713,45 @@ async fn assess_migration_readiness(graph: &GraphClient, tenant_name: &str, targ
 
 fn display_config_summary(config: &AadConnectConfig) {
     println!("\n{} Configuration Summary:", "→".cyan().bold());
-    println!("  Directory Sync: {}",
-        if config.sync_enabled { "Enabled".green() } else { "Disabled".yellow() }
+    println!(
+        "  Directory Sync: {}",
+        if config.sync_enabled {
+            "Enabled".green()
+        } else {
+            "Disabled".yellow()
+        }
     );
-    println!("  Password Hash Sync: {}",
-        if config.password_hash_sync_enabled { "Enabled".green() } else { "Disabled".yellow() }
+    println!(
+        "  Password Hash Sync: {}",
+        if config.password_hash_sync_enabled {
+            "Enabled".green()
+        } else {
+            "Disabled".yellow()
+        }
     );
-    println!("  Pass-through Auth: {}",
-        if config.passthrough_auth_enabled { "Enabled".green() } else { "Disabled".yellow() }
+    println!(
+        "  Pass-through Auth: {}",
+        if config.passthrough_auth_enabled {
+            "Enabled".green()
+        } else {
+            "Disabled".yellow()
+        }
     );
-    println!("  Federation: {}",
-        if config.federation_enabled { "Enabled".cyan() } else { "Disabled".yellow() }
+    println!(
+        "  Federation: {}",
+        if config.federation_enabled {
+            "Enabled".cyan()
+        } else {
+            "Disabled".yellow()
+        }
     );
-    println!("  Seamless SSO: {}",
-        if config.seamless_sso_enabled { "Enabled".green() } else { "Disabled".yellow() }
+    println!(
+        "  Seamless SSO: {}",
+        if config.seamless_sso_enabled {
+            "Enabled".green()
+        } else {
+            "Disabled".yellow()
+        }
     );
 
     if let Some(last_sync) = &config.last_sync_time {
@@ -693,7 +777,8 @@ fn display_migration_summary(report: &MigrationReadinessReport) {
 
     println!("\n{} Migration Readiness Assessment:", "→".cyan().bold());
     println!("  Target Model: {}", report.target_model.cyan());
-    println!("  Overall Readiness: {} ({:.0}%)",
+    println!(
+        "  Overall Readiness: {} ({:.0}%)",
         match score_color {
             "green" => report.overall_readiness.green(),
             "yellow" => report.overall_readiness.yellow(),
@@ -704,8 +789,14 @@ fn display_migration_summary(report: &MigrationReadinessReport) {
 
     println!("\n{} User Impact:", "→".cyan().bold());
     println!("  Total Users: {}", report.user_impact.total_users);
-    println!("  Synced Users: {}", report.user_impact.synced_users.to_string().cyan());
-    println!("  Cloud-Only Users: {}", report.user_impact.cloud_only_users);
+    println!(
+        "  Synced Users: {}",
+        report.user_impact.synced_users.to_string().cyan()
+    );
+    println!(
+        "  Cloud-Only Users: {}",
+        report.user_impact.cloud_only_users
+    );
     println!("  Guest Users: {}", report.user_impact.guest_users);
 
     if !report.blockers.is_empty() {
@@ -730,22 +821,44 @@ fn display_migration_summary(report: &MigrationReadinessReport) {
     }
 }
 
-fn generate_markdown_doc(config: &AadConnectConfig, include_rules: bool, include_mappings: bool) -> String {
+fn generate_markdown_doc(
+    config: &AadConnectConfig,
+    include_rules: bool,
+    include_mappings: bool,
+) -> String {
     let mut md = String::new();
 
     md.push_str("# Azure AD Connect Configuration Documentation\n\n");
-    md.push_str(&format!("Generated: {}\n\n", chrono::Utc::now().format("%Y-%m-%d %H:%M UTC")));
+    md.push_str(&format!(
+        "Generated: {}\n\n",
+        chrono::Utc::now().format("%Y-%m-%d %H:%M UTC")
+    ));
     md.push_str(&format!("Tenant: {}\n\n", config.tenant_name));
 
     md.push_str("## Synchronization Settings\n\n");
     md.push_str("| Setting | Value |\n");
     md.push_str("|---------|-------|\n");
-    md.push_str(&format!("| Directory Sync Enabled | {} |\n", config.sync_enabled));
-    md.push_str(&format!("| Password Hash Sync | {} |\n", config.password_hash_sync_enabled));
-    md.push_str(&format!("| Pass-through Authentication | {} |\n", config.passthrough_auth_enabled));
+    md.push_str(&format!(
+        "| Directory Sync Enabled | {} |\n",
+        config.sync_enabled
+    ));
+    md.push_str(&format!(
+        "| Password Hash Sync | {} |\n",
+        config.password_hash_sync_enabled
+    ));
+    md.push_str(&format!(
+        "| Pass-through Authentication | {} |\n",
+        config.passthrough_auth_enabled
+    ));
     md.push_str(&format!("| Federation | {} |\n", config.federation_enabled));
-    md.push_str(&format!("| Seamless SSO | {} |\n", config.seamless_sso_enabled));
-    md.push_str(&format!("| Sync Interval | {} minutes |\n", config.sync_interval_minutes));
+    md.push_str(&format!(
+        "| Seamless SSO | {} |\n",
+        config.seamless_sso_enabled
+    ));
+    md.push_str(&format!(
+        "| Sync Interval | {} minutes |\n",
+        config.sync_interval_minutes
+    ));
 
     if let Some(last_sync) = &config.last_sync_time {
         md.push_str(&format!("| Last Sync | {} |\n", last_sync));
@@ -762,8 +875,14 @@ fn generate_markdown_doc(config: &AadConnectConfig, include_rules: bool, include
         for rule in &config.sync_rules {
             md.push_str(&format!("### {}\n\n", rule.name));
             md.push_str(&format!("- **Direction:** {}\n", rule.direction));
-            md.push_str(&format!("- **Source Object Type:** {}\n", rule.source_object_type));
-            md.push_str(&format!("- **Target Object Type:** {}\n", rule.target_object_type));
+            md.push_str(&format!(
+                "- **Source Object Type:** {}\n",
+                rule.source_object_type
+            ));
+            md.push_str(&format!(
+                "- **Target Object Type:** {}\n",
+                rule.target_object_type
+            ));
             md.push_str(&format!("- **Precedence:** {}\n", rule.precedence));
 
             if let Some(filter) = &rule.scoping_filter {
@@ -775,8 +894,10 @@ fn generate_markdown_doc(config: &AadConnectConfig, include_rules: bool, include
                 md.push_str("| Source | Target | Flow Type |\n");
                 md.push_str("|--------|--------|----------|\n");
                 for flow in &rule.attribute_flows {
-                    md.push_str(&format!("| {} | {} | {} |\n",
-                        flow.source_attribute, flow.target_attribute, flow.flow_type));
+                    md.push_str(&format!(
+                        "| {} | {} | {} |\n",
+                        flow.source_attribute, flow.target_attribute, flow.flow_type
+                    ));
                 }
             }
 
@@ -791,7 +912,8 @@ fn generate_markdown_doc(config: &AadConnectConfig, include_rules: bool, include
 }
 
 fn generate_html_doc(config: &AadConnectConfig) -> String {
-    let mut html = String::from(r#"<!DOCTYPE html>
+    let mut html = String::from(
+        r#"<!DOCTYPE html>
 <html>
 <head>
     <title>Azure AD Connect Configuration</title>
@@ -808,22 +930,49 @@ fn generate_html_doc(config: &AadConnectConfig) -> String {
 </head>
 <body>
     <h1>Azure AD Connect Configuration</h1>
-"#);
+"#,
+    );
 
-    html.push_str(&format!("<p><strong>Tenant:</strong> {}</p>", config.tenant_name));
-    html.push_str(&format!("<p><strong>Generated:</strong> {}</p>",
-        chrono::Utc::now().format("%Y-%m-%d %H:%M UTC")));
+    html.push_str(&format!(
+        "<p><strong>Tenant:</strong> {}</p>",
+        config.tenant_name
+    ));
+    html.push_str(&format!(
+        "<p><strong>Generated:</strong> {}</p>",
+        chrono::Utc::now().format("%Y-%m-%d %H:%M UTC")
+    ));
 
     html.push_str(r#"<div class="card"><h2>Synchronization Settings</h2><table>"#);
     html.push_str("<tr><th>Setting</th><th>Value</th></tr>");
 
-    let bool_to_html = |v: bool| if v { r#"<span class="enabled">Enabled</span>"# } else { r#"<span class="disabled">Disabled</span>"# };
+    let bool_to_html = |v: bool| {
+        if v {
+            r#"<span class="enabled">Enabled</span>"#
+        } else {
+            r#"<span class="disabled">Disabled</span>"#
+        }
+    };
 
-    html.push_str(&format!("<tr><td>Directory Sync</td><td>{}</td></tr>", bool_to_html(config.sync_enabled)));
-    html.push_str(&format!("<tr><td>Password Hash Sync</td><td>{}</td></tr>", bool_to_html(config.password_hash_sync_enabled)));
-    html.push_str(&format!("<tr><td>Pass-through Auth</td><td>{}</td></tr>", bool_to_html(config.passthrough_auth_enabled)));
-    html.push_str(&format!("<tr><td>Federation</td><td>{}</td></tr>", bool_to_html(config.federation_enabled)));
-    html.push_str(&format!("<tr><td>Seamless SSO</td><td>{}</td></tr>", bool_to_html(config.seamless_sso_enabled)));
+    html.push_str(&format!(
+        "<tr><td>Directory Sync</td><td>{}</td></tr>",
+        bool_to_html(config.sync_enabled)
+    ));
+    html.push_str(&format!(
+        "<tr><td>Password Hash Sync</td><td>{}</td></tr>",
+        bool_to_html(config.password_hash_sync_enabled)
+    ));
+    html.push_str(&format!(
+        "<tr><td>Pass-through Auth</td><td>{}</td></tr>",
+        bool_to_html(config.passthrough_auth_enabled)
+    ));
+    html.push_str(&format!(
+        "<tr><td>Federation</td><td>{}</td></tr>",
+        bool_to_html(config.federation_enabled)
+    ));
+    html.push_str(&format!(
+        "<tr><td>Seamless SSO</td><td>{}</td></tr>",
+        bool_to_html(config.seamless_sso_enabled)
+    ));
 
     html.push_str("</table></div>");
 

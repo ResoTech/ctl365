@@ -1,0 +1,126 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: self-hosted
+    name: Build & Test (nv-osmium)
+    timeout-minutes: 20
+    env:
+      PATH: /home/runner/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin:/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin:/home/runner/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify Environment
+        run: |
+          set -euo pipefail
+          echo "=== Rust Toolchain ==="
+          rustc --version
+          cargo --version
+          echo ""
+          echo "=== Nightly Toolchain ==="
+          rustc +nightly --version || echo "Nightly not installed, will install"
+
+      - name: Install Nightly Toolchain
+        run: |
+          rustup install nightly --profile minimal
+          rustup component add clippy --toolchain nightly
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ctl365-ci
+
+      - name: Build Release
+        run: cargo build --release
+
+      - name: Clippy (zero warnings policy)
+        run: |
+          cargo clippy --release -- -D warnings
+
+      - name: Format Check
+        run: cargo fmt --check || echo "::warning::Format issues found"
+
+      - name: Unit Tests (nightly for wiremock)
+        run: cargo +nightly test
+
+      - name: CLI Smoke Test
+        run: |
+          set -euo pipefail
+          CTL365=$(find target -path "*/release/ctl365" -type f -executable | head -1)
+
+          echo "=== Basic Commands ==="
+          $CTL365 --version
+          $CTL365 --help > /dev/null
+
+          echo ""
+          echo "=== Command Help ==="
+          $CTL365 tenant --help > /dev/null
+          $CTL365 baseline --help > /dev/null
+          $CTL365 ca --help > /dev/null
+          $CTL365 autopilot --help > /dev/null
+
+          echo ""
+          echo "=== Baseline List ==="
+          $CTL365 baseline list || true
+
+          echo ""
+          echo "✅ CLI smoke tests passed"
+
+      - name: CLI Test Suite
+        run: |
+          set -euo pipefail
+          CTL365=$(find target -path "*/release/ctl365" -type f -executable | head -1)
+          PASSED=0
+          FAILED=0
+
+          test_cmd() {
+            local name="$1"
+            local cmd="$2"
+            if $CTL365 $cmd > /dev/null 2>&1; then
+              echo "✅ $name"
+              PASSED=$((PASSED + 1))
+            else
+              echo "❌ $name"
+              FAILED=$((FAILED + 1))
+            fi
+          }
+
+          echo "=== CLI Commands ==="
+          test_cmd "version" "--version"
+          test_cmd "help" "--help"
+          test_cmd "tenant help" "tenant --help"
+          test_cmd "baseline help" "baseline --help"
+          test_cmd "baseline list" "baseline list"
+          test_cmd "ca help" "ca --help"
+          test_cmd "autopilot help" "autopilot --help"
+          test_cmd "app help" "app --help"
+          test_cmd "audit help" "audit --help"
+          test_cmd "sharepoint help" "sharepoint --help"
+          test_cmd "viva help" "viva --help"
+          test_cmd "copilot help" "copilot --help"
+          test_cmd "scuba help" "scuba --help"
+          test_cmd "tui help" "tui --help"
+
+          echo ""
+          echo "Results: $PASSED passed, $FAILED failed"
+
+          if [[ $FAILED -gt 0 ]]; then
+            exit 1
+          fi
+
+      - name: Build Summary
+        run: |
+          echo "### Build Complete ✅" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Item | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Binary | $(find target -path '*/release/ctl365' -type f -executable -exec ls -lh {} \; | awk '{print $5}' | head -1) |" >> $GITHUB_STEP_SUMMARY
+          echo "| Rust | $(rustc --version | cut -d' ' -f2) |" >> $GITHUB_STEP_SUMMARY
+          echo "| Tests | $(cargo +nightly test 2>&1 | grep -E '^test result' | head -1 || echo 'See logs') |" >> $GITHUB_STEP_SUMMARY

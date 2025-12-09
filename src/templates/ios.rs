@@ -12,7 +12,7 @@
 
 use crate::cmd::baseline::NewArgs;
 use crate::error::Result;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 /// Generate iOS baseline with compliance + configuration + app protection
 pub fn generate_ios_baseline(args: &NewArgs) -> Result<Value> {
@@ -486,10 +486,12 @@ mod tests {
             policy["@odata.type"],
             "#microsoft.graph.iosCompliancePolicy"
         );
-        assert!(policy["displayName"]
-            .as_str()
-            .unwrap()
-            .contains("iOS Compliance"));
+        assert!(
+            policy["displayName"]
+                .as_str()
+                .unwrap()
+                .contains("iOS Compliance")
+        );
         assert_eq!(policy["osMinimumVersion"], "17.0");
         assert_eq!(policy["securityBlockJailbrokenDevices"], true);
         assert_eq!(policy["passcodeRequired"], true);

@@ -5,15 +5,14 @@
 /// - Assignment migration with group mapping
 /// - Incremental sync (skip existing policies)
 /// - Conflict resolution strategies
-
 use crate::config::ConfigManager;
 use crate::error::Result;
-use crate::graph::{intune, conditional_access, GraphClient};
+use crate::graph::{GraphClient, conditional_access, intune};
 use clap::Args;
 use colored::Colorize;
 use indicatif::{ProgressBar, ProgressStyle};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
@@ -162,7 +161,11 @@ pub async fn export_enhanced(args: ExportArgs) -> Result<()> {
     println!("→ Output: {}", args.output.display().to_string().cyan());
     println!(
         "→ Include Assignments: {}",
-        if args.include_assignments { "Yes" } else { "No" }
+        if args.include_assignments {
+            "Yes"
+        } else {
+            "No"
+        }
     );
 
     let graph = GraphClient::from_config(&config, &active_tenant.name).await?;
@@ -243,10 +246,8 @@ pub async fn export_enhanced(args: ExportArgs) -> Result<()> {
                         )?;
 
                         if args.include_assignments && !assignments.is_empty() {
-                            let assignment_file = assignments_dir.join(format!(
-                                "compliance_{}.json",
-                                sanitize_filename(name)
-                            ));
+                            let assignment_file = assignments_dir
+                                .join(format!("compliance_{}.json", sanitize_filename(name)));
                             fs::write(
                                 &assignment_file,
                                 serde_json::to_string_pretty(&assignments)?,
@@ -420,7 +421,10 @@ pub async fn export_enhanced(args: ExportArgs) -> Result<()> {
     );
 
     println!("\n{}", "Policy Breakdown:".cyan().bold());
-    println!("  Compliance Policies: {}", policy_counts.compliance_policies);
+    println!(
+        "  Compliance Policies: {}",
+        policy_counts.compliance_policies
+    );
     println!(
         "  Device Configurations: {}",
         policy_counts.device_configurations
@@ -535,8 +539,7 @@ pub async fn import_enhanced(args: ImportArgs) -> Result<()> {
 
                 if args.dry_run {
                     println!("  {} would import: {}", "→".cyan(), name);
-                    if args.migrate_assignments && !policy_with_assignments.assignments.is_empty()
-                    {
+                    if args.migrate_assignments && !policy_with_assignments.assignments.is_empty() {
                         println!(
                             "    {} {} assignments",
                             "→".cyan(),
@@ -570,11 +573,9 @@ pub async fn import_enhanced(args: ImportArgs) -> Result<()> {
                                 )
                                 .await
                                 {
-                                    Ok(migrated) => println!(
-                                        "    {} {} assignments",
-                                        "✓".green(),
-                                        migrated
-                                    ),
+                                    Ok(migrated) => {
+                                        println!("    {} {} assignments", "✓".green(), migrated)
+                                    }
                                     Err(e) => println!(
                                         "    {} Assignment migration failed: {}",
                                         "✗".red(),
@@ -643,11 +644,9 @@ pub async fn import_enhanced(args: ImportArgs) -> Result<()> {
                                 )
                                 .await
                                 {
-                                    Ok(migrated) => println!(
-                                        "    {} {} assignments",
-                                        "✓".green(),
-                                        migrated
-                                    ),
+                                    Ok(migrated) => {
+                                        println!("    {} {} assignments", "✓".green(), migrated)
+                                    }
                                     Err(e) => println!(
                                         "    {} Assignment migration failed: {}",
                                         "✗".red(),
@@ -715,11 +714,9 @@ pub async fn import_enhanced(args: ImportArgs) -> Result<()> {
                                 )
                                 .await
                                 {
-                                    Ok(migrated) => println!(
-                                        "    {} {} assignments",
-                                        "✓".green(),
-                                        migrated
-                                    ),
+                                    Ok(migrated) => {
+                                        println!("    {} {} assignments", "✓".green(), migrated)
+                                    }
                                     Err(e) => println!(
                                         "    {} Assignment migration failed: {}",
                                         "✗".red(),
@@ -762,10 +759,7 @@ pub async fn import_enhanced(args: ImportArgs) -> Result<()> {
 
 async fn get_all_groups(client: &GraphClient) -> Result<Vec<Value>> {
     let response: Value = client.get("groups?$select=id,displayName").await?;
-    Ok(response["value"]
-        .as_array()
-        .unwrap_or(&vec![])
-        .clone())
+    Ok(response["value"].as_array().unwrap_or(&vec![]).clone())
 }
 
 async fn get_policy_assignments(
@@ -775,8 +769,14 @@ async fn get_policy_assignments(
     groups: &HashMap<String, String>,
 ) -> Result<Vec<Assignment>> {
     let endpoint = match policy_type {
-        "compliance" => format!("deviceManagement/deviceCompliancePolicies/{}/assignments", policy_id),
-        "deviceConfiguration" => format!("deviceManagement/deviceConfigurations/{}/assignments", policy_id),
+        "compliance" => format!(
+            "deviceManagement/deviceCompliancePolicies/{}/assignments",
+            policy_id
+        ),
+        "deviceConfiguration" => format!(
+            "deviceManagement/deviceConfigurations/{}/assignments",
+            policy_id
+        ),
         _ => return Ok(vec![]),
     };
 
@@ -826,7 +826,10 @@ async fn list_settings_catalog_policies(client: &GraphClient) -> Result<Value> {
 
 async fn get_settings_catalog_policy(client: &GraphClient, policy_id: &str) -> Result<Value> {
     client
-        .get_beta(&format!("deviceManagement/configurationPolicies/{}", policy_id))
+        .get_beta(&format!(
+            "deviceManagement/configurationPolicies/{}",
+            policy_id
+        ))
         .await
 }
 
@@ -888,10 +891,9 @@ async fn get_existing_policy_names(client: &GraphClient) -> Result<HashMap<Strin
     {
         if let Some(list) = response["value"].as_array() {
             for policy in list {
-                if let (Some(id), Some(name)) = (
-                    policy["id"].as_str(),
-                    policy["displayName"].as_str(),
-                ) {
+                if let (Some(id), Some(name)) =
+                    (policy["id"].as_str(), policy["displayName"].as_str())
+                {
                     policies.insert(name.to_string(), id.to_string());
                 }
             }
@@ -905,10 +907,9 @@ async fn get_existing_policy_names(client: &GraphClient) -> Result<HashMap<Strin
     {
         if let Some(list) = response["value"].as_array() {
             for policy in list {
-                if let (Some(id), Some(name)) = (
-                    policy["id"].as_str(),
-                    policy["displayName"].as_str(),
-                ) {
+                if let (Some(id), Some(name)) =
+                    (policy["id"].as_str(), policy["displayName"].as_str())
+                {
                     policies.insert(name.to_string(), id.to_string());
                 }
             }
@@ -997,10 +998,9 @@ async fn migrate_policy_assignments(
             "deviceManagement/deviceCompliancePolicies/{}/assign",
             policy_id
         ),
-        "deviceConfiguration" => format!(
-            "deviceManagement/deviceConfigurations/{}/assign",
-            policy_id
-        ),
+        "deviceConfiguration" => {
+            format!("deviceManagement/deviceConfigurations/{}/assign", policy_id)
+        }
         _ => return Ok(0),
     };
 
@@ -1095,7 +1095,9 @@ async fn migrate_settings_catalog_assignments(
             "assignments": migrated_assignments
         });
 
-        client.post_beta::<Value, Value>(&endpoint, &payload).await?;
+        client
+            .post_beta::<Value, Value>(&endpoint, &payload)
+            .await?;
         Ok(migrated_assignments.len())
     } else {
         Ok(0)
@@ -1155,7 +1157,10 @@ pub async fn compare(args: CompareArgs) -> Result<()> {
         // Compare two export directories
         compare_exports(&source_path, &target_path, &args).await?;
     } else {
-        println!("\n{} Live tenant comparison coming soon!", "ℹ".yellow().bold());
+        println!(
+            "\n{} Live tenant comparison coming soon!",
+            "ℹ".yellow().bold()
+        );
         println!("Currently supports comparing export directories.");
         println!("\nTo compare tenants:");
         println!("  1. Export from source: ctl365 export export -o ./source-export");
@@ -1178,7 +1183,12 @@ async fn compare_exports(source: &PathBuf, target: &PathBuf, args: &CompareArgs)
 
     if source_compliance.exists() {
         println!("\n{} Compliance Policies:", "→".cyan());
-        compare_policy_dir(&source_compliance, &target_compliance, "Compliance", &mut differences)?;
+        compare_policy_dir(
+            &source_compliance,
+            &target_compliance,
+            "Compliance",
+            &mut differences,
+        )?;
     }
 
     // Compare device configurations
@@ -1187,7 +1197,12 @@ async fn compare_exports(source: &PathBuf, target: &PathBuf, args: &CompareArgs)
 
     if source_config.exists() {
         println!("\n{} Device Configurations:", "→".cyan());
-        compare_policy_dir(&source_config, &target_config, "DeviceConfig", &mut differences)?;
+        compare_policy_dir(
+            &source_config,
+            &target_config,
+            "DeviceConfig",
+            &mut differences,
+        )?;
     }
 
     // Compare settings catalog
@@ -1196,7 +1211,12 @@ async fn compare_exports(source: &PathBuf, target: &PathBuf, args: &CompareArgs)
 
     if source_settings.exists() {
         println!("\n{} Settings Catalog:", "→".cyan());
-        compare_policy_dir(&source_settings, &target_settings, "SettingsCatalog", &mut differences)?;
+        compare_policy_dir(
+            &source_settings,
+            &target_settings,
+            "SettingsCatalog",
+            &mut differences,
+        )?;
     }
 
     // Compare conditional access
@@ -1205,25 +1225,47 @@ async fn compare_exports(source: &PathBuf, target: &PathBuf, args: &CompareArgs)
 
     if source_ca.exists() {
         println!("\n{} Conditional Access:", "→".cyan());
-        compare_policy_dir(&source_ca, &target_ca, "ConditionalAccess", &mut differences)?;
+        compare_policy_dir(
+            &source_ca,
+            &target_ca,
+            "ConditionalAccess",
+            &mut differences,
+        )?;
     }
 
     // Summary
     println!("\n{}", "Comparison Summary:".cyan().bold());
     println!("────────────────────────────────────────────");
 
-    let only_in_source: Vec<_> = differences.iter().filter(|(_, _, s)| s == "only_in_source").collect();
-    let only_in_target: Vec<_> = differences.iter().filter(|(_, _, s)| s == "only_in_target").collect();
-    let modified: Vec<_> = differences.iter().filter(|(_, _, s)| s == "modified").collect();
+    let only_in_source: Vec<_> = differences
+        .iter()
+        .filter(|(_, _, s)| s == "only_in_source")
+        .collect();
+    let only_in_target: Vec<_> = differences
+        .iter()
+        .filter(|(_, _, s)| s == "only_in_target")
+        .collect();
+    let modified: Vec<_> = differences
+        .iter()
+        .filter(|(_, _, s)| s == "modified")
+        .collect();
 
     if only_in_source.is_empty() && only_in_target.is_empty() && modified.is_empty() {
         println!("{} Exports are identical!", "✓".green().bold());
     } else {
         if !only_in_source.is_empty() {
-            println!("{} {} policies only in source", "−".red(), only_in_source.len());
+            println!(
+                "{} {} policies only in source",
+                "−".red(),
+                only_in_source.len()
+            );
         }
         if !only_in_target.is_empty() {
-            println!("{} {} policies only in target", "+".green(), only_in_target.len());
+            println!(
+                "{} {} policies only in target",
+                "+".green(),
+                only_in_target.len()
+            );
         }
         if !modified.is_empty() {
             println!("{} {} policies modified", "~".yellow(), modified.len());
@@ -1241,7 +1283,11 @@ async fn compare_exports(source: &PathBuf, target: &PathBuf, args: &CompareArgs)
             }).collect::<Vec<_>>()
         });
         fs::write(output_path, serde_json::to_string_pretty(&report)?)?;
-        println!("\n{} Report saved to: {}", "✓".green(), output_path.display());
+        println!(
+            "\n{} Report saved to: {}",
+            "✓".green(),
+            output_path.display()
+        );
     }
 
     Ok(())
@@ -1279,14 +1325,22 @@ fn compare_policy_dir(
     for file in source_files.difference(&target_files) {
         let name = file.trim_end_matches(".json");
         println!("  {} {} (only in source)", "−".red(), name);
-        differences.push((policy_type.to_string(), name.to_string(), "only_in_source".to_string()));
+        differences.push((
+            policy_type.to_string(),
+            name.to_string(),
+            "only_in_source".to_string(),
+        ));
     }
 
     // Only in target
     for file in target_files.difference(&source_files) {
         let name = file.trim_end_matches(".json");
         println!("  {} {} (only in target)", "+".green(), name);
-        differences.push((policy_type.to_string(), name.to_string(), "only_in_target".to_string()));
+        differences.push((
+            policy_type.to_string(),
+            name.to_string(),
+            "only_in_target".to_string(),
+        ));
     }
 
     // In both - check for modifications
@@ -1301,7 +1355,11 @@ fn compare_policy_dir(
         if !policies_equal(&source_json, &target_json) {
             let name = file.trim_end_matches(".json");
             println!("  {} {} (modified)", "~".yellow(), name);
-            differences.push((policy_type.to_string(), name.to_string(), "modified".to_string()));
+            differences.push((
+                policy_type.to_string(),
+                name.to_string(),
+                "modified".to_string(),
+            ));
         }
     }
 

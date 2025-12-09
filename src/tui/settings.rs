@@ -171,7 +171,7 @@ pub fn defender_settings() -> Vec<TenantSetting> {
                     "Replace".into(),
                     "DynamicDelivery".into(),
                     "Monitor".into(),
-                ]
+                ],
             },
             default_value: SettingValue::String("DynamicDelivery".into()),
             current_value: None,
@@ -214,7 +214,10 @@ pub fn exchange_settings() -> Vec<TenantSetting> {
             name: "Archive After (Years)".into(),
             description: "Move emails to archive after this many years".into(),
             category: "Exchange Online".into(),
-            setting_type: SettingType::Number { min: Some(1), max: Some(10) },
+            setting_type: SettingType::Number {
+                min: Some(1),
+                max: Some(10),
+            },
             default_value: SettingValue::Number(3),
             current_value: None,
             recommended: true,
@@ -250,7 +253,10 @@ pub fn exchange_settings() -> Vec<TenantSetting> {
             name: "Spam Bulk Threshold".into(),
             description: "Bulk email threshold (1-9, lower = more aggressive)".into(),
             category: "Exchange Online".into(),
-            setting_type: SettingType::Number { min: Some(1), max: Some(9) },
+            setting_type: SettingType::Number {
+                min: Some(1),
+                max: Some(9),
+            },
             default_value: SettingValue::Number(6),
             current_value: None,
             recommended: true,
@@ -268,7 +274,7 @@ pub fn exchange_settings() -> Vec<TenantSetting> {
                     "Quarantine".into(),
                     "Delete".into(),
                     "Redirect".into(),
-                ]
+                ],
             },
             default_value: SettingValue::String("Quarantine".into()),
             current_value: None,
@@ -282,11 +288,7 @@ pub fn exchange_settings() -> Vec<TenantSetting> {
             description: "Action for messages identified as phishing".into(),
             category: "Exchange Online".into(),
             setting_type: SettingType::Choice {
-                options: vec![
-                    "MoveToJmf".into(),
-                    "Quarantine".into(),
-                    "Delete".into(),
-                ]
+                options: vec!["MoveToJmf".into(), "Quarantine".into(), "Delete".into()],
             },
             default_value: SettingValue::String("Quarantine".into()),
             current_value: None,
@@ -323,7 +325,7 @@ pub fn sharepoint_settings() -> Vec<TenantSetting> {
                     "ExistingExternalUserSharingOnly".into(),
                     "ExternalUserSharingOnly".into(),
                     "ExternalUserAndGuestSharing".into(),
-                ]
+                ],
             },
             default_value: SettingValue::String("ExistingExternalUserSharingOnly".into()),
             current_value: None,
@@ -336,7 +338,10 @@ pub fn sharepoint_settings() -> Vec<TenantSetting> {
             name: "Anonymous Link Expiry (Days)".into(),
             description: "Days before anonymous sharing links expire".into(),
             category: "SharePoint & OneDrive".into(),
-            setting_type: SettingType::Number { min: Some(1), max: Some(365) },
+            setting_type: SettingType::Number {
+                min: Some(1),
+                max: Some(365),
+            },
             default_value: SettingValue::Number(30),
             current_value: None,
             recommended: true,
@@ -349,11 +354,7 @@ pub fn sharepoint_settings() -> Vec<TenantSetting> {
             description: "Default scope for new sharing links".into(),
             category: "SharePoint & OneDrive".into(),
             setting_type: SettingType::Choice {
-                options: vec![
-                    "Internal".into(),
-                    "Direct".into(),
-                    "AnonymousAccess".into(),
-                ]
+                options: vec!["Internal".into(), "Direct".into(), "AnonymousAccess".into()],
             },
             default_value: SettingValue::String("Internal".into()),
             current_value: None,
@@ -438,7 +439,7 @@ pub fn teams_settings() -> Vec<TenantSetting> {
                     "EveryoneInCompanyExcludingGuests".into(),
                     "OrganizerOnly".into(),
                     "InvitedUsers".into(),
-                ]
+                ],
             },
             default_value: SettingValue::String("EveryoneInCompanyExcludingGuests".into()),
             current_value: None,
@@ -481,7 +482,7 @@ pub fn get_category_settings(category: SettingCategory) -> Vec<TenantSetting> {
         SettingCategory::SharePointOneDrive => sharepoint_settings(),
         SettingCategory::Teams => teams_settings(),
         SettingCategory::ConditionalAccess => vec![], // Handled separately via CA module
-        SettingCategory::IntuneBaseline => vec![], // Handled separately via baseline module
+        SettingCategory::IntuneBaseline => vec![],    // Handled separately via baseline module
     }
 }
 

@@ -13,17 +13,22 @@ use crate::config::ConfigManager;
 use crate::error::Result;
 use crate::tui::msp::MspConfig;
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind, KeyModifiers},
+    event::{
+        self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind, KeyModifiers,
+    },
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 use ratatui::{
+    Frame, Terminal,
     backend::CrosstermBackend,
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Clear, Gauge, List, ListItem, ListState, Paragraph, Row, Table, TableState, Wrap},
-    Frame, Terminal,
+    widgets::{
+        Block, Borders, Clear, Gauge, List, ListItem, ListState, Paragraph, Row, Table, TableState,
+        Wrap,
+    },
 };
 use std::io;
 
@@ -451,14 +456,21 @@ impl App {
         self.progress = None;
         self.status_message = Some((
             message.to_string(),
-            if success { StatusLevel::Success } else { StatusLevel::Error }
+            if success {
+                StatusLevel::Success
+            } else {
+                StatusLevel::Error
+            },
         ));
         self.async_task = None;
     }
 
     /// Check if async task is running
     pub fn is_async_task_running(&self) -> bool {
-        self.async_task.as_ref().map(|t| !t.completed).unwrap_or(false)
+        self.async_task
+            .as_ref()
+            .map(|t| !t.completed)
+            .unwrap_or(false)
     }
 
     /// Toggle search mode
@@ -514,9 +526,8 @@ impl App {
                 let tenant = tenant_name.clone();
                 let pt = policy_type.clone();
 
-                let result = handle.block_on(async {
-                    load_policies_from_api(&config, &tenant, &pt).await
-                });
+                let result =
+                    handle.block_on(async { load_policies_from_api(&config, &tenant, &pt).await });
 
                 match result {
                     Ok(policies) => {
@@ -528,7 +539,7 @@ impl App {
                         // Fall back to sample data on error
                         self.status_message = Some((
                             format!("Using sample data (API error: {})", e),
-                            StatusLevel::Warning
+                            StatusLevel::Warning,
                         ));
                     }
                 }
@@ -543,37 +554,177 @@ impl App {
     pub fn load_sample_policies(&mut self, policy_type: &PolicyListType) {
         self.table_data = match policy_type {
             PolicyListType::ConditionalAccess => vec![
-                PolicyRow { name: "CAD001 - Require compliant device".into(), policy_type: "Device".into(), status: PolicyStatus::ReportOnly, platform: "All".into(), assignments: 1, last_modified: "2025-01-15".into() },
-                PolicyRow { name: "CAD002 - Block legacy OS".into(), policy_type: "Device".into(), status: PolicyStatus::ReportOnly, platform: "Windows".into(), assignments: 1, last_modified: "2025-01-15".into() },
-                PolicyRow { name: "CAL002 - Block untrusted locations".into(), policy_type: "Location".into(), status: PolicyStatus::ReportOnly, platform: "All".into(), assignments: 2, last_modified: "2025-01-15".into() },
-                PolicyRow { name: "CAP001 - Block legacy auth".into(), policy_type: "Protocol".into(), status: PolicyStatus::Deployed, platform: "All".into(), assignments: 1, last_modified: "2025-01-10".into() },
-                PolicyRow { name: "CAR001 - Sign-in risk MFA".into(), policy_type: "Risk".into(), status: PolicyStatus::ReportOnly, platform: "All".into(), assignments: 1, last_modified: "2025-01-15".into() },
-                PolicyRow { name: "CAS001 - Azure Portal protection".into(), policy_type: "Service".into(), status: PolicyStatus::Deployed, platform: "All".into(), assignments: 1, last_modified: "2025-01-08".into() },
-                PolicyRow { name: "CAU001 - Require MFA".into(), policy_type: "User".into(), status: PolicyStatus::Deployed, platform: "All".into(), assignments: 3, last_modified: "2025-01-05".into() },
+                PolicyRow {
+                    name: "CAD001 - Require compliant device".into(),
+                    policy_type: "Device".into(),
+                    status: PolicyStatus::ReportOnly,
+                    platform: "All".into(),
+                    assignments: 1,
+                    last_modified: "2025-01-15".into(),
+                },
+                PolicyRow {
+                    name: "CAD002 - Block legacy OS".into(),
+                    policy_type: "Device".into(),
+                    status: PolicyStatus::ReportOnly,
+                    platform: "Windows".into(),
+                    assignments: 1,
+                    last_modified: "2025-01-15".into(),
+                },
+                PolicyRow {
+                    name: "CAL002 - Block untrusted locations".into(),
+                    policy_type: "Location".into(),
+                    status: PolicyStatus::ReportOnly,
+                    platform: "All".into(),
+                    assignments: 2,
+                    last_modified: "2025-01-15".into(),
+                },
+                PolicyRow {
+                    name: "CAP001 - Block legacy auth".into(),
+                    policy_type: "Protocol".into(),
+                    status: PolicyStatus::Deployed,
+                    platform: "All".into(),
+                    assignments: 1,
+                    last_modified: "2025-01-10".into(),
+                },
+                PolicyRow {
+                    name: "CAR001 - Sign-in risk MFA".into(),
+                    policy_type: "Risk".into(),
+                    status: PolicyStatus::ReportOnly,
+                    platform: "All".into(),
+                    assignments: 1,
+                    last_modified: "2025-01-15".into(),
+                },
+                PolicyRow {
+                    name: "CAS001 - Azure Portal protection".into(),
+                    policy_type: "Service".into(),
+                    status: PolicyStatus::Deployed,
+                    platform: "All".into(),
+                    assignments: 1,
+                    last_modified: "2025-01-08".into(),
+                },
+                PolicyRow {
+                    name: "CAU001 - Require MFA".into(),
+                    policy_type: "User".into(),
+                    status: PolicyStatus::Deployed,
+                    platform: "All".into(),
+                    assignments: 3,
+                    last_modified: "2025-01-05".into(),
+                },
             ],
             PolicyListType::Compliance => vec![
-                PolicyRow { name: "OIB-WIN-Compliance-v3.6".into(), policy_type: "Compliance".into(), status: PolicyStatus::Deployed, platform: "Windows".into(), assignments: 2, last_modified: "2025-01-12".into() },
-                PolicyRow { name: "OIB-MAC-Compliance-v3.6".into(), policy_type: "Compliance".into(), status: PolicyStatus::Draft, platform: "macOS".into(), assignments: 0, last_modified: "2025-01-14".into() },
-                PolicyRow { name: "OIB-iOS-Compliance-v3.6".into(), policy_type: "Compliance".into(), status: PolicyStatus::Draft, platform: "iOS".into(), assignments: 0, last_modified: "2025-01-14".into() },
+                PolicyRow {
+                    name: "OIB-WIN-Compliance-v3.6".into(),
+                    policy_type: "Compliance".into(),
+                    status: PolicyStatus::Deployed,
+                    platform: "Windows".into(),
+                    assignments: 2,
+                    last_modified: "2025-01-12".into(),
+                },
+                PolicyRow {
+                    name: "OIB-MAC-Compliance-v3.6".into(),
+                    policy_type: "Compliance".into(),
+                    status: PolicyStatus::Draft,
+                    platform: "macOS".into(),
+                    assignments: 0,
+                    last_modified: "2025-01-14".into(),
+                },
+                PolicyRow {
+                    name: "OIB-iOS-Compliance-v3.6".into(),
+                    policy_type: "Compliance".into(),
+                    status: PolicyStatus::Draft,
+                    platform: "iOS".into(),
+                    assignments: 0,
+                    last_modified: "2025-01-14".into(),
+                },
             ],
             PolicyListType::Configuration | PolicyListType::SettingsCatalog => vec![
-                PolicyRow { name: "OIB-WIN-Config-BitLocker-v3.6".into(), policy_type: "Settings Catalog".into(), status: PolicyStatus::Deployed, platform: "Windows".into(), assignments: 2, last_modified: "2025-01-12".into() },
-                PolicyRow { name: "OIB-WIN-Config-Defender-v3.6".into(), policy_type: "Settings Catalog".into(), status: PolicyStatus::Deployed, platform: "Windows".into(), assignments: 2, last_modified: "2025-01-12".into() },
-                PolicyRow { name: "OIB-WIN-Config-Edge-v3.6".into(), policy_type: "Settings Catalog".into(), status: PolicyStatus::Draft, platform: "Windows".into(), assignments: 0, last_modified: "2025-01-14".into() },
+                PolicyRow {
+                    name: "OIB-WIN-Config-BitLocker-v3.6".into(),
+                    policy_type: "Settings Catalog".into(),
+                    status: PolicyStatus::Deployed,
+                    platform: "Windows".into(),
+                    assignments: 2,
+                    last_modified: "2025-01-12".into(),
+                },
+                PolicyRow {
+                    name: "OIB-WIN-Config-Defender-v3.6".into(),
+                    policy_type: "Settings Catalog".into(),
+                    status: PolicyStatus::Deployed,
+                    platform: "Windows".into(),
+                    assignments: 2,
+                    last_modified: "2025-01-12".into(),
+                },
+                PolicyRow {
+                    name: "OIB-WIN-Config-Edge-v3.6".into(),
+                    policy_type: "Settings Catalog".into(),
+                    status: PolicyStatus::Draft,
+                    platform: "Windows".into(),
+                    assignments: 0,
+                    last_modified: "2025-01-14".into(),
+                },
             ],
             PolicyListType::Apps => vec![
-                PolicyRow { name: "Microsoft 365 Apps".into(), policy_type: "Win32".into(), status: PolicyStatus::Deployed, platform: "Windows".into(), assignments: 2, last_modified: "2025-01-10".into() },
-                PolicyRow { name: "Company Portal".into(), policy_type: "Store".into(), status: PolicyStatus::Deployed, platform: "Windows".into(), assignments: 1, last_modified: "2025-01-08".into() },
-                PolicyRow { name: "Microsoft Teams".into(), policy_type: "Store".into(), status: PolicyStatus::Deployed, platform: "iOS".into(), assignments: 1, last_modified: "2025-01-05".into() },
+                PolicyRow {
+                    name: "Microsoft 365 Apps".into(),
+                    policy_type: "Win32".into(),
+                    status: PolicyStatus::Deployed,
+                    platform: "Windows".into(),
+                    assignments: 2,
+                    last_modified: "2025-01-10".into(),
+                },
+                PolicyRow {
+                    name: "Company Portal".into(),
+                    policy_type: "Store".into(),
+                    status: PolicyStatus::Deployed,
+                    platform: "Windows".into(),
+                    assignments: 1,
+                    last_modified: "2025-01-08".into(),
+                },
+                PolicyRow {
+                    name: "Microsoft Teams".into(),
+                    policy_type: "Store".into(),
+                    status: PolicyStatus::Deployed,
+                    platform: "iOS".into(),
+                    assignments: 1,
+                    last_modified: "2025-01-05".into(),
+                },
             ],
             PolicyListType::All => {
                 let mut all = Vec::new();
                 // Combine all policy types
                 all.extend(vec![
-                    PolicyRow { name: "CAU001 - Require MFA".into(), policy_type: "CA".into(), status: PolicyStatus::Deployed, platform: "All".into(), assignments: 3, last_modified: "2025-01-05".into() },
-                    PolicyRow { name: "OIB-WIN-Compliance-v3.6".into(), policy_type: "Compliance".into(), status: PolicyStatus::Deployed, platform: "Windows".into(), assignments: 2, last_modified: "2025-01-12".into() },
-                    PolicyRow { name: "OIB-WIN-Config-BitLocker-v3.6".into(), policy_type: "Config".into(), status: PolicyStatus::Deployed, platform: "Windows".into(), assignments: 2, last_modified: "2025-01-12".into() },
-                    PolicyRow { name: "Microsoft 365 Apps".into(), policy_type: "App".into(), status: PolicyStatus::Deployed, platform: "Windows".into(), assignments: 2, last_modified: "2025-01-10".into() },
+                    PolicyRow {
+                        name: "CAU001 - Require MFA".into(),
+                        policy_type: "CA".into(),
+                        status: PolicyStatus::Deployed,
+                        platform: "All".into(),
+                        assignments: 3,
+                        last_modified: "2025-01-05".into(),
+                    },
+                    PolicyRow {
+                        name: "OIB-WIN-Compliance-v3.6".into(),
+                        policy_type: "Compliance".into(),
+                        status: PolicyStatus::Deployed,
+                        platform: "Windows".into(),
+                        assignments: 2,
+                        last_modified: "2025-01-12".into(),
+                    },
+                    PolicyRow {
+                        name: "OIB-WIN-Config-BitLocker-v3.6".into(),
+                        policy_type: "Config".into(),
+                        status: PolicyStatus::Deployed,
+                        platform: "Windows".into(),
+                        assignments: 2,
+                        last_modified: "2025-01-12".into(),
+                    },
+                    PolicyRow {
+                        name: "Microsoft 365 Apps".into(),
+                        policy_type: "App".into(),
+                        status: PolicyStatus::Deployed,
+                        platform: "Windows".into(),
+                        assignments: 2,
+                        last_modified: "2025-01-10".into(),
+                    },
                 ]);
                 all
             }
@@ -647,7 +798,8 @@ impl App {
         self.setting_toggles.clear();
         self.setting_toggles.insert("safe_links".into(), true);
         self.setting_toggles.insert("safe_links_teams".into(), true);
-        self.setting_toggles.insert("safe_links_office".into(), true);
+        self.setting_toggles
+            .insert("safe_links_office".into(), true);
         self.setting_toggles.insert("safe_attachments".into(), true);
     }
 
@@ -661,7 +813,8 @@ impl App {
 
     pub fn init_sharepoint_toggles(&mut self) {
         self.setting_toggles.clear();
-        self.setting_toggles.insert("external_sharing".into(), false);
+        self.setting_toggles
+            .insert("external_sharing".into(), false);
         self.setting_toggles.insert("sync_client".into(), true);
         self.setting_toggles.insert("versioning".into(), true);
         self.setting_toggles.insert("dlp".into(), true);
@@ -671,7 +824,8 @@ impl App {
         self.setting_toggles.clear();
         self.setting_toggles.insert("external_access".into(), false);
         self.setting_toggles.insert("guest_access".into(), false);
-        self.setting_toggles.insert("meeting_recording".into(), true);
+        self.setting_toggles
+            .insert("meeting_recording".into(), true);
         self.setting_toggles.insert("anonymous_join".into(), false);
     }
 
@@ -721,10 +875,8 @@ impl App {
             // Validate required fields
             for field in &form.fields {
                 if field.required && field.value.trim().is_empty() {
-                    self.status_message = Some((
-                        format!("{} is required", field.label),
-                        StatusLevel::Error
-                    ));
+                    self.status_message =
+                        Some((format!("{} is required", field.label), StatusLevel::Error));
                     self.form_state = Some(form);
                     return;
                 }
@@ -755,7 +907,8 @@ impl App {
 
     fn process_add_client(&mut self, fields: &[FormField]) {
         let get_field = |id: &str| -> String {
-            fields.iter()
+            fields
+                .iter()
                 .find(|f| f.id == id)
                 .map(|f| f.value.clone())
                 .unwrap_or_default()
@@ -769,10 +922,15 @@ impl App {
         let contact_email = get_field("contact_email");
 
         // Check if client already exists
-        if self.msp_config.clients.iter().any(|c| c.abbreviation == abbreviation) {
+        if self
+            .msp_config
+            .clients
+            .iter()
+            .any(|c| c.abbreviation == abbreviation)
+        {
             self.status_message = Some((
                 format!("Client {} already exists", abbreviation),
-                StatusLevel::Error
+                StatusLevel::Error,
             ));
             return;
         }
@@ -784,65 +942,95 @@ impl App {
             full_name: full_name.clone(),
             tenant_id: tenant_id.clone(),
             client_id: client_id.clone(),
-            client_secret: if client_secret.is_empty() { None } else { Some(client_secret.clone()) },
-            contact_email: if contact_email.is_empty() { None } else { Some(contact_email) },
+            client_secret: if client_secret.is_empty() {
+                None
+            } else {
+                Some(client_secret.clone())
+            },
+            contact_email: if contact_email.is_empty() {
+                None
+            } else {
+                Some(contact_email)
+            },
             notes: None,
             added_date: chrono::Utc::now().format("%Y-%m-%d").to_string(),
-            auth_type: if client_secret.is_empty() { "device_code" } else { "client_credentials" }.into(),
+            auth_type: if client_secret.is_empty() {
+                "device_code"
+            } else {
+                "client_credentials"
+            }
+            .into(),
         };
 
         self.msp_config.clients.push(new_client);
 
         // Save MSP config
         if let Err(e) = self.msp_config.save() {
-            self.status_message = Some((
-                format!("Failed to save client: {}", e),
-                StatusLevel::Error
-            ));
+            self.status_message =
+                Some((format!("Failed to save client: {}", e), StatusLevel::Error));
             return;
         }
 
         // Also add to tenant config for authentication
-        use crate::config::{TenantConfig, AuthType};
+        use crate::config::{AuthType, TenantConfig};
         let has_secret = !client_secret.is_empty();
         let tenant_config = TenantConfig {
             name: abbreviation.clone(),
             tenant_id,
             client_id,
-            client_secret: if has_secret { Some(client_secret) } else { None },
-            auth_type: if has_secret { AuthType::ClientCredentials } else { AuthType::DeviceCode },
+            client_secret: if has_secret {
+                Some(client_secret)
+            } else {
+                None
+            },
+            auth_type: if has_secret {
+                AuthType::ClientCredentials
+            } else {
+                AuthType::DeviceCode
+            },
             description: Some(full_name.clone()),
         };
 
         if let Err(e) = self.config.add_tenant(tenant_config) {
             self.status_message = Some((
                 format!("Client added but tenant config failed: {}", e),
-                StatusLevel::Warning
+                StatusLevel::Warning,
             ));
             self.go_back();
             return;
         }
 
         // Record audit entry for tenant added
-        use crate::tui::change_tracker::{AuditEntry, AuditAction, record};
-        let entry = AuditEntry::new(AuditAction::TenantAdded, "Client", &abbreviation, &abbreviation)
-            .with_details(&full_name)
-            .success();
+        use crate::tui::change_tracker::{AuditAction, AuditEntry, record};
+        let entry = AuditEntry::new(
+            AuditAction::TenantAdded,
+            "Client",
+            &abbreviation,
+            &abbreviation,
+        )
+        .with_details(&full_name)
+        .success();
         record(entry);
 
         self.status_message = Some((
             format!("Client {} added successfully!", abbreviation),
-            StatusLevel::Success
+            StatusLevel::Success,
         ));
         self.go_back();
     }
 
     fn process_edit_client(&mut self, _abbrev: &str, _fields: &[FormField]) {
-        self.status_message = Some(("Edit client not yet implemented".into(), StatusLevel::Warning));
+        self.status_message = Some((
+            "Edit client not yet implemented".into(),
+            StatusLevel::Warning,
+        ));
     }
 
     fn process_export_policies(&mut self, _fields: &[FormField]) {
-        self.status_message = Some(("Export policies not yet implemented".into(), StatusLevel::Warning));
+        self.status_message = Some((
+            "Export policies not yet implemented".into(),
+            StatusLevel::Warning,
+        ));
     }
 
     /// Navigate to a new screen
@@ -903,12 +1091,16 @@ impl App {
         match crate::tui::change_tracker::load_recent_entries(self.audit_days_filter) {
             Ok(entries) => {
                 self.audit_entries = entries;
-                self.table_state.select(if self.audit_entries.is_empty() { None } else { Some(0) });
+                self.table_state.select(if self.audit_entries.is_empty() {
+                    None
+                } else {
+                    Some(0)
+                });
             }
             Err(e) => {
                 self.status_message = Some((
                     format!("Failed to load audit history: {}", e),
-                    StatusLevel::Warning
+                    StatusLevel::Warning,
                 ));
                 self.audit_entries = Vec::new();
             }
@@ -918,33 +1110,135 @@ impl App {
     /// Audit history menu
     fn audit_history_menu(&self) -> Vec<MenuItem> {
         vec![
-            MenuItem { id: "audit_7d".into(), label: "Last 7 Days".into(), description: "Show entries from past week".into(), shortcut: Some('7'), enabled: true },
-            MenuItem { id: "audit_30d".into(), label: "Last 30 Days".into(), description: "Show entries from past month".into(), shortcut: Some('3'), enabled: true },
-            MenuItem { id: "audit_all".into(), label: "All History".into(), description: "Show all audit entries".into(), shortcut: Some('a'), enabled: true },
-            MenuItem { id: "audit_export".into(), label: "Export to JSON".into(), description: "Export audit trail to file".into(), shortcut: Some('e'), enabled: true },
-            MenuItem { id: "audit_clear_session".into(), label: "Clear Session".into(), description: "Clear current session entries".into(), shortcut: Some('c'), enabled: true },
-            MenuItem { id: "back".into(), label: "← Back".into(), description: "Return to dashboard".into(), shortcut: Some('b'), enabled: true },
+            MenuItem {
+                id: "audit_7d".into(),
+                label: "Last 7 Days".into(),
+                description: "Show entries from past week".into(),
+                shortcut: Some('7'),
+                enabled: true,
+            },
+            MenuItem {
+                id: "audit_30d".into(),
+                label: "Last 30 Days".into(),
+                description: "Show entries from past month".into(),
+                shortcut: Some('3'),
+                enabled: true,
+            },
+            MenuItem {
+                id: "audit_all".into(),
+                label: "All History".into(),
+                description: "Show all audit entries".into(),
+                shortcut: Some('a'),
+                enabled: true,
+            },
+            MenuItem {
+                id: "audit_export".into(),
+                label: "Export to JSON".into(),
+                description: "Export audit trail to file".into(),
+                shortcut: Some('e'),
+                enabled: true,
+            },
+            MenuItem {
+                id: "audit_clear_session".into(),
+                label: "Clear Session".into(),
+                description: "Clear current session entries".into(),
+                shortcut: Some('c'),
+                enabled: true,
+            },
+            MenuItem {
+                id: "back".into(),
+                label: "← Back".into(),
+                description: "Return to dashboard".into(),
+                shortcut: Some('b'),
+                enabled: true,
+            },
         ]
     }
 
     fn policy_list_menu(&self) -> Vec<MenuItem> {
         vec![
-            MenuItem { id: "refresh".into(), label: "Refresh".into(), description: "Reload policies from tenant".into(), shortcut: Some('r'), enabled: true },
-            MenuItem { id: "filter".into(), label: "Filter".into(), description: "Filter by status or platform".into(), shortcut: Some('f'), enabled: true },
-            MenuItem { id: "export".into(), label: "Export".into(), description: "Export to JSON/CSV".into(), shortcut: Some('e'), enabled: true },
-            MenuItem { id: "back".into(), label: "Back".into(), description: "Return to previous screen".into(), shortcut: Some('b'), enabled: true },
+            MenuItem {
+                id: "refresh".into(),
+                label: "Refresh".into(),
+                description: "Reload policies from tenant".into(),
+                shortcut: Some('r'),
+                enabled: true,
+            },
+            MenuItem {
+                id: "filter".into(),
+                label: "Filter".into(),
+                description: "Filter by status or platform".into(),
+                shortcut: Some('f'),
+                enabled: true,
+            },
+            MenuItem {
+                id: "export".into(),
+                label: "Export".into(),
+                description: "Export to JSON/CSV".into(),
+                shortcut: Some('e'),
+                enabled: true,
+            },
+            MenuItem {
+                id: "back".into(),
+                label: "Back".into(),
+                description: "Return to previous screen".into(),
+                shortcut: Some('b'),
+                enabled: true,
+            },
         ]
     }
 
     fn baseline_select_menu(&self) -> Vec<MenuItem> {
         vec![
-            MenuItem { id: "windows_oib".into(), label: "Windows - OIB v3.6".into(), description: "OpenIntuneBaseline for Windows 11 25H2".into(), shortcut: Some('1'), enabled: true },
-            MenuItem { id: "windows_basic".into(), label: "Windows - Basic".into(), description: "Simple baseline for quick deployments".into(), shortcut: Some('2'), enabled: true },
-            MenuItem { id: "macos_oib".into(), label: "macOS - OIB".into(), description: "OpenIntuneBaseline for macOS".into(), shortcut: Some('3'), enabled: true },
-            MenuItem { id: "ios_oib".into(), label: "iOS/iPadOS - OIB".into(), description: "OpenIntuneBaseline for iOS".into(), shortcut: Some('4'), enabled: true },
-            MenuItem { id: "android_oib".into(), label: "Android - OIB".into(), description: "OpenIntuneBaseline for Android".into(), shortcut: Some('5'), enabled: true },
-            MenuItem { id: "ca_2025".into(), label: "CA Baseline 2025".into(), description: "44 Conditional Access policies".into(), shortcut: Some('6'), enabled: true },
-            MenuItem { id: "back".into(), label: "Back".into(), description: "Return to previous screen".into(), shortcut: Some('b'), enabled: true },
+            MenuItem {
+                id: "windows_oib".into(),
+                label: "Windows - OIB v3.6".into(),
+                description: "OpenIntuneBaseline for Windows 11 25H2".into(),
+                shortcut: Some('1'),
+                enabled: true,
+            },
+            MenuItem {
+                id: "windows_basic".into(),
+                label: "Windows - Basic".into(),
+                description: "Simple baseline for quick deployments".into(),
+                shortcut: Some('2'),
+                enabled: true,
+            },
+            MenuItem {
+                id: "macos_oib".into(),
+                label: "macOS - OIB".into(),
+                description: "OpenIntuneBaseline for macOS".into(),
+                shortcut: Some('3'),
+                enabled: true,
+            },
+            MenuItem {
+                id: "ios_oib".into(),
+                label: "iOS/iPadOS - OIB".into(),
+                description: "OpenIntuneBaseline for iOS".into(),
+                shortcut: Some('4'),
+                enabled: true,
+            },
+            MenuItem {
+                id: "android_oib".into(),
+                label: "Android - OIB".into(),
+                description: "OpenIntuneBaseline for Android".into(),
+                shortcut: Some('5'),
+                enabled: true,
+            },
+            MenuItem {
+                id: "ca_2025".into(),
+                label: "CA Baseline 2025".into(),
+                description: "44 Conditional Access policies".into(),
+                shortcut: Some('6'),
+                enabled: true,
+            },
+            MenuItem {
+                id: "back".into(),
+                label: "Back".into(),
+                description: "Return to previous screen".into(),
+                shortcut: Some('b'),
+                enabled: true,
+            },
         ]
     }
 
@@ -960,7 +1254,10 @@ impl App {
             MenuItem {
                 id: "configure".into(),
                 label: "Configure Tenant".into(),
-                description: self.active_tenant.clone().unwrap_or("No tenant selected".into()),
+                description: self
+                    .active_tenant
+                    .clone()
+                    .unwrap_or("No tenant selected".into()),
                 shortcut: Some('t'),
                 enabled: self.active_tenant.is_some(),
             },
@@ -981,7 +1278,10 @@ impl App {
             MenuItem {
                 id: "audit_history".into(),
                 label: "Audit History".into(),
-                description: format!("{} changes tracked", crate::tui::change_tracker::get_session_entries().len()),
+                description: format!(
+                    "{} changes tracked",
+                    crate::tui::change_tracker::get_session_entries().len()
+                ),
                 shortcut: Some('h'),
                 enabled: true,
             },
@@ -1017,15 +1317,18 @@ impl App {
     }
 
     fn client_list_menu(&self) -> Vec<MenuItem> {
-        let mut items: Vec<MenuItem> = self.msp_config.clients.iter().map(|c| {
-            MenuItem {
+        let mut items: Vec<MenuItem> = self
+            .msp_config
+            .clients
+            .iter()
+            .map(|c| MenuItem {
                 id: format!("client:{}", c.abbreviation),
                 label: format!("{} - {}", c.abbreviation, c.full_name),
                 description: format!("Tenant: {}", &c.tenant_id[..8]),
                 shortcut: None,
                 enabled: true,
-            }
-        }).collect();
+            })
+            .collect();
 
         items.push(MenuItem {
             id: "add".into(),
@@ -1118,46 +1421,218 @@ impl App {
         match category {
             SettingsCategory::Main => self.client_config_menu(),
             SettingsCategory::Defender => vec![
-                MenuItem { id: "safe_links".into(), label: "Enable Safe Links".into(), description: "Scan URLs in emails at click time".into(), shortcut: Some('1'), enabled: true },
-                MenuItem { id: "safe_links_teams".into(), label: "Safe Links for Teams".into(), description: "Protect URLs in Teams chats".into(), shortcut: Some('2'), enabled: true },
-                MenuItem { id: "safe_links_office".into(), label: "Safe Links for Office".into(), description: "Protect URLs in Office docs".into(), shortcut: Some('3'), enabled: true },
-                MenuItem { id: "safe_attachments".into(), label: "Enable Safe Attachments".into(), description: "Sandbox email attachments".into(), shortcut: Some('4'), enabled: true },
-                MenuItem { id: "apply".into(), label: "Apply Settings".into(), description: "Save and apply these settings".into(), shortcut: Some('a'), enabled: true },
-                MenuItem { id: "back".into(), label: "← Back".into(), description: "Return without saving".into(), shortcut: Some('b'), enabled: true },
+                MenuItem {
+                    id: "safe_links".into(),
+                    label: "Enable Safe Links".into(),
+                    description: "Scan URLs in emails at click time".into(),
+                    shortcut: Some('1'),
+                    enabled: true,
+                },
+                MenuItem {
+                    id: "safe_links_teams".into(),
+                    label: "Safe Links for Teams".into(),
+                    description: "Protect URLs in Teams chats".into(),
+                    shortcut: Some('2'),
+                    enabled: true,
+                },
+                MenuItem {
+                    id: "safe_links_office".into(),
+                    label: "Safe Links for Office".into(),
+                    description: "Protect URLs in Office docs".into(),
+                    shortcut: Some('3'),
+                    enabled: true,
+                },
+                MenuItem {
+                    id: "safe_attachments".into(),
+                    label: "Enable Safe Attachments".into(),
+                    description: "Sandbox email attachments".into(),
+                    shortcut: Some('4'),
+                    enabled: true,
+                },
+                MenuItem {
+                    id: "apply".into(),
+                    label: "Apply Settings".into(),
+                    description: "Save and apply these settings".into(),
+                    shortcut: Some('a'),
+                    enabled: true,
+                },
+                MenuItem {
+                    id: "back".into(),
+                    label: "← Back".into(),
+                    description: "Return without saving".into(),
+                    shortcut: Some('b'),
+                    enabled: true,
+                },
             ],
             SettingsCategory::Exchange => vec![
-                MenuItem { id: "archive".into(), label: "Enable Archive Mailbox".into(), description: "Online archive for all users".into(), shortcut: Some('1'), enabled: true },
-                MenuItem { id: "forwarding".into(), label: "Block External Forwarding".into(), description: "Prevent data exfiltration".into(), shortcut: Some('2'), enabled: true },
-                MenuItem { id: "zap".into(), label: "Zero-Hour Auto Purge".into(), description: "Remove delivered malware".into(), shortcut: Some('3'), enabled: true },
-                MenuItem { id: "spam".into(), label: "Anti-Spam Policy".into(), description: "Configure spam filtering".into(), shortcut: Some('4'), enabled: true },
-                MenuItem { id: "apply".into(), label: "Apply Settings".into(), description: "Save and apply these settings".into(), shortcut: Some('a'), enabled: true },
-                MenuItem { id: "back".into(), label: "← Back".into(), description: "Return without saving".into(), shortcut: Some('b'), enabled: true },
+                MenuItem {
+                    id: "archive".into(),
+                    label: "Enable Archive Mailbox".into(),
+                    description: "Online archive for all users".into(),
+                    shortcut: Some('1'),
+                    enabled: true,
+                },
+                MenuItem {
+                    id: "forwarding".into(),
+                    label: "Block External Forwarding".into(),
+                    description: "Prevent data exfiltration".into(),
+                    shortcut: Some('2'),
+                    enabled: true,
+                },
+                MenuItem {
+                    id: "zap".into(),
+                    label: "Zero-Hour Auto Purge".into(),
+                    description: "Remove delivered malware".into(),
+                    shortcut: Some('3'),
+                    enabled: true,
+                },
+                MenuItem {
+                    id: "spam".into(),
+                    label: "Anti-Spam Policy".into(),
+                    description: "Configure spam filtering".into(),
+                    shortcut: Some('4'),
+                    enabled: true,
+                },
+                MenuItem {
+                    id: "apply".into(),
+                    label: "Apply Settings".into(),
+                    description: "Save and apply these settings".into(),
+                    shortcut: Some('a'),
+                    enabled: true,
+                },
+                MenuItem {
+                    id: "back".into(),
+                    label: "← Back".into(),
+                    description: "Return without saving".into(),
+                    shortcut: Some('b'),
+                    enabled: true,
+                },
             ],
             SettingsCategory::SharePoint => vec![
-                MenuItem { id: "external_sharing".into(), label: "External Sharing".into(), description: "Allow sharing with external users".into(), shortcut: Some('1'), enabled: true },
-                MenuItem { id: "sync_client".into(), label: "Sync Client".into(), description: "Allow OneDrive sync client".into(), shortcut: Some('2'), enabled: true },
-                MenuItem { id: "versioning".into(), label: "Versioning".into(), description: "Enable file versioning".into(), shortcut: Some('3'), enabled: true },
-                MenuItem { id: "dlp".into(), label: "Data Loss Prevention".into(), description: "Enable DLP policies".into(), shortcut: Some('4'), enabled: true },
-                MenuItem { id: "apply".into(), label: "Apply Settings".into(), description: "Save and apply these settings".into(), shortcut: Some('a'), enabled: true },
-                MenuItem { id: "back".into(), label: "← Back".into(), description: "Return without saving".into(), shortcut: Some('b'), enabled: true },
+                MenuItem {
+                    id: "external_sharing".into(),
+                    label: "External Sharing".into(),
+                    description: "Allow sharing with external users".into(),
+                    shortcut: Some('1'),
+                    enabled: true,
+                },
+                MenuItem {
+                    id: "sync_client".into(),
+                    label: "Sync Client".into(),
+                    description: "Allow OneDrive sync client".into(),
+                    shortcut: Some('2'),
+                    enabled: true,
+                },
+                MenuItem {
+                    id: "versioning".into(),
+                    label: "Versioning".into(),
+                    description: "Enable file versioning".into(),
+                    shortcut: Some('3'),
+                    enabled: true,
+                },
+                MenuItem {
+                    id: "dlp".into(),
+                    label: "Data Loss Prevention".into(),
+                    description: "Enable DLP policies".into(),
+                    shortcut: Some('4'),
+                    enabled: true,
+                },
+                MenuItem {
+                    id: "apply".into(),
+                    label: "Apply Settings".into(),
+                    description: "Save and apply these settings".into(),
+                    shortcut: Some('a'),
+                    enabled: true,
+                },
+                MenuItem {
+                    id: "back".into(),
+                    label: "← Back".into(),
+                    description: "Return without saving".into(),
+                    shortcut: Some('b'),
+                    enabled: true,
+                },
             ],
             SettingsCategory::Teams => vec![
-                MenuItem { id: "external_access".into(), label: "External Access".into(), description: "Allow communication with external orgs".into(), shortcut: Some('1'), enabled: true },
-                MenuItem { id: "guest_access".into(), label: "Guest Access".into(), description: "Allow guest users in Teams".into(), shortcut: Some('2'), enabled: true },
-                MenuItem { id: "meeting_recording".into(), label: "Meeting Recording".into(), description: "Allow meeting recordings".into(), shortcut: Some('3'), enabled: true },
-                MenuItem { id: "anonymous_join".into(), label: "Anonymous Join".into(), description: "Allow anonymous meeting join".into(), shortcut: Some('4'), enabled: true },
-                MenuItem { id: "apply".into(), label: "Apply Settings".into(), description: "Save and apply these settings".into(), shortcut: Some('a'), enabled: true },
-                MenuItem { id: "back".into(), label: "← Back".into(), description: "Return without saving".into(), shortcut: Some('b'), enabled: true },
+                MenuItem {
+                    id: "external_access".into(),
+                    label: "External Access".into(),
+                    description: "Allow communication with external orgs".into(),
+                    shortcut: Some('1'),
+                    enabled: true,
+                },
+                MenuItem {
+                    id: "guest_access".into(),
+                    label: "Guest Access".into(),
+                    description: "Allow guest users in Teams".into(),
+                    shortcut: Some('2'),
+                    enabled: true,
+                },
+                MenuItem {
+                    id: "meeting_recording".into(),
+                    label: "Meeting Recording".into(),
+                    description: "Allow meeting recordings".into(),
+                    shortcut: Some('3'),
+                    enabled: true,
+                },
+                MenuItem {
+                    id: "anonymous_join".into(),
+                    label: "Anonymous Join".into(),
+                    description: "Allow anonymous meeting join".into(),
+                    shortcut: Some('4'),
+                    enabled: true,
+                },
+                MenuItem {
+                    id: "apply".into(),
+                    label: "Apply Settings".into(),
+                    description: "Save and apply these settings".into(),
+                    shortcut: Some('a'),
+                    enabled: true,
+                },
+                MenuItem {
+                    id: "back".into(),
+                    label: "← Back".into(),
+                    description: "Return without saving".into(),
+                    shortcut: Some('b'),
+                    enabled: true,
+                },
             ],
             SettingsCategory::Intune => vec![
-                MenuItem { id: "compliance".into(), label: "Compliance Policies".into(), description: "View/deploy compliance policies".into(), shortcut: Some('1'), enabled: true },
-                MenuItem { id: "configuration".into(), label: "Configuration Profiles".into(), description: "View/deploy config profiles".into(), shortcut: Some('2'), enabled: true },
-                MenuItem { id: "apps".into(), label: "Applications".into(), description: "View/deploy applications".into(), shortcut: Some('3'), enabled: true },
-                MenuItem { id: "back".into(), label: "← Back".into(), description: "Return without saving".into(), shortcut: Some('b'), enabled: true },
+                MenuItem {
+                    id: "compliance".into(),
+                    label: "Compliance Policies".into(),
+                    description: "View/deploy compliance policies".into(),
+                    shortcut: Some('1'),
+                    enabled: true,
+                },
+                MenuItem {
+                    id: "configuration".into(),
+                    label: "Configuration Profiles".into(),
+                    description: "View/deploy config profiles".into(),
+                    shortcut: Some('2'),
+                    enabled: true,
+                },
+                MenuItem {
+                    id: "apps".into(),
+                    label: "Applications".into(),
+                    description: "View/deploy applications".into(),
+                    shortcut: Some('3'),
+                    enabled: true,
+                },
+                MenuItem {
+                    id: "back".into(),
+                    label: "← Back".into(),
+                    description: "Return without saving".into(),
+                    shortcut: Some('b'),
+                    enabled: true,
+                },
             ],
-            _ => vec![
-                MenuItem { id: "back".into(), label: "← Back".into(), description: "Return".into(), shortcut: Some('b'), enabled: true },
-            ],
+            _ => vec![MenuItem {
+                id: "back".into(),
+                label: "← Back".into(),
+                description: "Return".into(),
+                shortcut: Some('b'),
+                enabled: true,
+            }],
         }
     }
 
@@ -1289,30 +1764,44 @@ impl App {
 
             // Baseline deployments with confirmation and impact summary
             "windows_oib" => {
-                let tenant = self.active_tenant.clone().unwrap_or_else(|| "Unknown".into());
-                let impact = crate::tui::context::ImpactSummary::baseline_deploy("Windows OIB", 6, &tenant);
+                let tenant = self
+                    .active_tenant
+                    .clone()
+                    .unwrap_or_else(|| "Unknown".into());
+                let impact =
+                    crate::tui::context::ImpactSummary::baseline_deploy("Windows OIB", 6, &tenant);
                 self.show_confirmation_with_impact(
                     "Deploy Windows Baseline",
                     ConfirmAction::DeployBaseline("windows_oib".into()),
-                    impact
+                    impact,
                 );
             }
             "windows_basic" => {
-                let tenant = self.active_tenant.clone().unwrap_or_else(|| "Unknown".into());
-                let impact = crate::tui::context::ImpactSummary::baseline_deploy("Windows Basic", 4, &tenant);
+                let tenant = self
+                    .active_tenant
+                    .clone()
+                    .unwrap_or_else(|| "Unknown".into());
+                let impact = crate::tui::context::ImpactSummary::baseline_deploy(
+                    "Windows Basic",
+                    4,
+                    &tenant,
+                );
                 self.show_confirmation_with_impact(
                     "Deploy Windows Baseline",
                     ConfirmAction::DeployBaseline("windows_basic".into()),
-                    impact
+                    impact,
                 );
             }
             "ca_2025" => {
-                let tenant = self.active_tenant.clone().unwrap_or_else(|| "Unknown".into());
+                let tenant = self
+                    .active_tenant
+                    .clone()
+                    .unwrap_or_else(|| "Unknown".into());
                 let impact = crate::tui::context::ImpactSummary::ca_deploy(44, &tenant);
                 self.show_confirmation_with_impact(
                     "Deploy CA Baseline 2025",
                     ConfirmAction::DeployConditionalAccess,
-                    impact
+                    impact,
                 );
             }
 
@@ -1331,13 +1820,20 @@ impl App {
                     SettingsCategory::Teams => "Teams",
                     _ => "All",
                 };
-                let tenant = self.active_tenant.clone().unwrap_or_else(|| "Unknown".into());
+                let tenant = self
+                    .active_tenant
+                    .clone()
+                    .unwrap_or_else(|| "Unknown".into());
                 let setting_count = self.setting_toggles.len();
-                let impact = crate::tui::context::ImpactSummary::settings_change(category_name, setting_count, &tenant);
+                let impact = crate::tui::context::ImpactSummary::settings_change(
+                    category_name,
+                    setting_count,
+                    &tenant,
+                );
                 self.show_confirmation_with_impact(
                     &format!("Apply {} Settings", category_name),
                     ConfirmAction::ApplySettings(category),
-                    impact
+                    impact,
                 );
             }
 
@@ -1373,18 +1869,26 @@ impl App {
                 self.toggle_setting(action);
                 let enabled = self.setting_toggles.get(action).copied().unwrap_or(false);
                 self.status_message = Some((
-                    format!("{} {}", action, if enabled { "enabled" } else { "disabled" }),
-                    StatusLevel::Info
+                    format!(
+                        "{} {}",
+                        action,
+                        if enabled { "enabled" } else { "disabled" }
+                    ),
+                    StatusLevel::Info,
                 ));
             }
-            "archive" | "forwarding" | "zap" | "spam" |
-            "external_sharing" | "sync_client" | "versioning" | "dlp" |
-            "external_access" | "guest_access" | "meeting_recording" | "anonymous_join" => {
+            "archive" | "forwarding" | "zap" | "spam" | "external_sharing" | "sync_client"
+            | "versioning" | "dlp" | "external_access" | "guest_access" | "meeting_recording"
+            | "anonymous_join" => {
                 self.toggle_setting(action);
                 let enabled = self.setting_toggles.get(action).copied().unwrap_or(false);
                 self.status_message = Some((
-                    format!("{} {}", action.replace('_', " "), if enabled { "enabled" } else { "disabled" }),
-                    StatusLevel::Info
+                    format!(
+                        "{} {}",
+                        action.replace('_', " "),
+                        if enabled { "enabled" } else { "disabled" }
+                    ),
+                    StatusLevel::Info,
                 ));
             }
 
@@ -1404,27 +1908,32 @@ impl App {
                 let old_tenant = self.active_tenant.clone();
                 // Switch to this client
                 if let Err(e) = self.config.set_active_tenant(abbrev) {
-                    self.status_message = Some((format!("Failed to switch: {}", e), StatusLevel::Error));
+                    self.status_message =
+                        Some((format!("Failed to switch: {}", e), StatusLevel::Error));
                 } else {
                     // Record tenant switch
-                    crate::tui::change_tracker::record_tenant_switch(
-                        old_tenant.as_deref(),
-                        abbrev
-                    );
+                    crate::tui::change_tracker::record_tenant_switch(old_tenant.as_deref(), abbrev);
                     self.active_tenant = Some(abbrev.to_string());
-                    self.status_message = Some((format!("Switched to {}", abbrev), StatusLevel::Success));
+                    self.status_message =
+                        Some((format!("Switched to {}", abbrev), StatusLevel::Success));
                     self.navigate_to(Screen::ClientConfig(abbrev.to_string()));
                 }
             }
             _ => {
-                self.status_message = Some((format!("Action '{}' not implemented yet", action), StatusLevel::Warning));
+                self.status_message = Some((
+                    format!("Action '{}' not implemented yet", action),
+                    StatusLevel::Warning,
+                ));
             }
         }
     }
 
     /// Generate a report
     fn generate_report(&mut self, report_type: &str) {
-        let tenant = self.active_tenant.clone().unwrap_or_else(|| "unknown".to_string());
+        let tenant = self
+            .active_tenant
+            .clone()
+            .unwrap_or_else(|| "unknown".to_string());
         let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
         let filename = format!("{}_{}_report_{}.html", tenant, report_type, timestamp);
 
@@ -1449,7 +1958,7 @@ impl App {
         if let Err(e) = std::fs::create_dir_all(&report_dir) {
             self.status_message = Some((
                 format!("Failed to create reports directory: {}", e),
-                StatusLevel::Error
+                StatusLevel::Error,
             ));
             return;
         }
@@ -1461,24 +1970,25 @@ impl App {
                 crate::tui::change_tracker::record_report_generated(
                     title,
                     &report_path.display().to_string(),
-                    &tenant
+                    &tenant,
                 );
                 self.status_message = Some((
                     format!("Report saved: {}", report_path.display()),
-                    StatusLevel::Success
+                    StatusLevel::Success,
                 ));
             }
             Err(e) => {
-                self.status_message = Some((
-                    format!("Failed to save report: {}", e),
-                    StatusLevel::Error
-                ));
+                self.status_message =
+                    Some((format!("Failed to save report: {}", e), StatusLevel::Error));
             }
         }
     }
 
     fn generate_html_report(&self, title: &str, report_type: &str) -> String {
-        let tenant = self.active_tenant.clone().unwrap_or_else(|| "No Tenant".to_string());
+        let tenant = self
+            .active_tenant
+            .clone()
+            .unwrap_or_else(|| "No Tenant".to_string());
         let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S");
 
         let content = match report_type {
@@ -1491,7 +2001,8 @@ impl App {
             _ => "<p>Report content not available.</p>".to_string(),
         };
 
-        format!(r#"<!DOCTYPE html>
+        format!(
+            r#"<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -1655,11 +2166,17 @@ impl App {
         </div>
     </div>
 </body>
-</html>"#, title = title, tenant = tenant, timestamp = timestamp, content = content)
+</html>"#,
+            title = title,
+            tenant = tenant,
+            timestamp = timestamp,
+            content = content
+        )
     }
 
     fn generate_compliance_content(&self) -> String {
-        format!(r#"
+        format!(
+            r#"
         <div class="summary-box">
             <span class="score">85%</span>
             <p>Compliance Score</p>
@@ -1678,11 +2195,13 @@ impl App {
             <li>Deploy BitLocker encryption policies</li>
             <li>Configure Windows Defender ATP</li>
         </ul>
-        "#)
+        "#
+        )
     }
 
     fn generate_security_content(&self) -> String {
-        format!(r#"
+        format!(
+            r#"
         <h2>Security Posture</h2>
         <div class="summary-box">
             <span class="score">B+</span>
@@ -1697,42 +2216,64 @@ impl App {
             <tr><td>Device Encryption</td><td class="status-deployed">Required</td><td>Low</td></tr>
             <tr><td>Safe Links</td><td class="status-deployed">Enabled</td><td>Low</td></tr>
         </table>
-        "#)
+        "#
+        )
     }
 
     fn generate_inventory_content(&self) -> String {
-        let policies: Vec<String> = self.table_data.iter().map(|p| {
-            format!(r#"<tr><td>{}</td><td>{}</td><td class="status-{}">{}</td><td>{}</td></tr>"#,
-                p.name, p.policy_type,
-                p.status.as_str().to_lowercase().replace("-", ""),
-                p.status.as_str(), p.platform)
-        }).collect();
+        let policies: Vec<String> = self
+            .table_data
+            .iter()
+            .map(|p| {
+                format!(
+                    r#"<tr><td>{}</td><td>{}</td><td class="status-{}">{}</td><td>{}</td></tr>"#,
+                    p.name,
+                    p.policy_type,
+                    p.status.as_str().to_lowercase().replace("-", ""),
+                    p.status.as_str(),
+                    p.platform
+                )
+            })
+            .collect();
 
         let policy_rows = if policies.is_empty() {
-            "<tr><td colspan='4'>No policies loaded. Navigate to a policy list first.</td></tr>".to_string()
+            "<tr><td colspan='4'>No policies loaded. Navigate to a policy list first.</td></tr>"
+                .to_string()
         } else {
             policies.join("\n")
         };
 
-        format!(r#"
+        format!(
+            r#"
         <h2>Policy Inventory</h2>
         <p>Total Policies: {}</p>
         <table>
             <tr><th>Policy Name</th><th>Type</th><th>Status</th><th>Platform</th></tr>
             {}
         </table>
-        "#, self.table_data.len(), policy_rows)
+        "#,
+            self.table_data.len(),
+            policy_rows
+        )
     }
 
     fn generate_changes_content(&self) -> String {
         // Load session changes
         let changes = crate::tui::change_tracker::load_session_changes().unwrap_or_default();
 
-        let change_rows: Vec<String> = changes.iter().map(|c| {
-            format!(r#"<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>"#,
-                c.timestamp, c.category, c.setting_name, c.change_type,
-                c.new_value.clone().unwrap_or_default())
-        }).collect();
+        let change_rows: Vec<String> = changes
+            .iter()
+            .map(|c| {
+                format!(
+                    r#"<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>"#,
+                    c.timestamp,
+                    c.category,
+                    c.setting_name,
+                    c.change_type,
+                    c.new_value.clone().unwrap_or_default()
+                )
+            })
+            .collect();
 
         let rows = if change_rows.is_empty() {
             "<tr><td colspan='5'>No changes recorded this session.</td></tr>".to_string()
@@ -1740,18 +2281,22 @@ impl App {
             change_rows.join("\n")
         };
 
-        format!(r#"
+        format!(
+            r#"
         <h2>Change Control Report</h2>
         <p>Changes made during this session:</p>
         <table>
             <tr><th>Timestamp</th><th>Category</th><th>Setting</th><th>Action</th><th>New Value</th></tr>
             {}
         </table>
-        "#, rows)
+        "#,
+            rows
+        )
     }
 
     fn generate_executive_content(&self) -> String {
-        format!(r#"
+        format!(
+            r#"
         <h2>Executive Summary</h2>
         <div class="summary-box">
             <h3>Key Highlights</h3>
@@ -1769,11 +2314,16 @@ impl App {
             <li>Review and remediate devices with compliance issues</li>
             <li>Schedule quarterly security reviews</li>
         </ol>
-        "#, self.table_data.len())
+        "#,
+            self.table_data.len()
+        )
     }
 
     fn generate_client_report_content(&self) -> String {
-        let tenant = self.active_tenant.clone().unwrap_or_else(|| "Unknown".to_string());
+        let tenant = self
+            .active_tenant
+            .clone()
+            .unwrap_or_else(|| "Unknown".to_string());
         let changes = crate::tui::change_tracker::load_session_changes().unwrap_or_default();
         let change_summary = crate::tui::change_tracker::get_change_summary();
         let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
@@ -1789,7 +2339,8 @@ impl App {
         let policy_rows: String = if policy_counts.is_empty() {
             "<tr><td colspan='2'>No policies loaded</td></tr>".to_string()
         } else {
-            policy_counts.iter()
+            policy_counts
+                .iter()
                 .map(|(k, v)| format!("<tr><td>{}</td><td>{}</td></tr>", k, v))
                 .collect::<Vec<_>>()
                 .join("\n")
@@ -1799,7 +2350,8 @@ impl App {
         let change_rows: String = if change_summary.is_empty() {
             "<tr><td colspan='2'>No changes</td></tr>".to_string()
         } else {
-            change_summary.iter()
+            change_summary
+                .iter()
                 .map(|(cat, count)| format!("<tr><td>{}</td><td>{}</td></tr>", cat, count))
                 .collect::<Vec<_>>()
                 .join("\n")
@@ -1832,13 +2384,20 @@ impl App {
         let toggle_rows: String = if self.setting_toggles.is_empty() {
             "<tr><td colspan='2'>No settings configured</td></tr>".to_string()
         } else {
-            self.setting_toggles.iter()
-                .map(|(k, v)| format!(
-                    "<tr><td>{}</td><td class=\"{}\">{}</td></tr>",
-                    k.replace('_', " "),
-                    if *v { "status-deployed" } else { "status-disabled" },
-                    if *v { "Enabled" } else { "Disabled" }
-                ))
+            self.setting_toggles
+                .iter()
+                .map(|(k, v)| {
+                    format!(
+                        "<tr><td>{}</td><td class=\"{}\">{}</td></tr>",
+                        k.replace('_', " "),
+                        if *v {
+                            "status-deployed"
+                        } else {
+                            "status-disabled"
+                        },
+                        if *v { "Enabled" } else { "Disabled" }
+                    )
+                })
                 .collect::<Vec<_>>()
                 .join("\n")
         };
@@ -1849,7 +2408,8 @@ impl App {
             ""
         };
 
-        format!(r#"
+        format!(
+            r#"
         <div class="report-header">
             <h2>Client Overview</h2>
             <div class="client-badge">{}</div>
@@ -1908,17 +2468,17 @@ impl App {
             </table>
         </div>
         "#,
-        tenant,
-        policy_rows,
-        policy_count,
-        change_rows,
-        change_count,
-        toggle_rows,
-        recent_changes,
-        no_changes_msg,
-        timestamp,
-        tenant,
-        change_count
+            tenant,
+            policy_rows,
+            policy_count,
+            change_rows,
+            change_count,
+            toggle_rows,
+            recent_changes,
+            no_changes_msg,
+            timestamp,
+            tenant,
+            change_count
         )
     }
 
@@ -1927,12 +2487,15 @@ impl App {
         if self.table_data.is_empty() {
             self.status_message = Some((
                 "No policies to export. Load policies first.".to_string(),
-                StatusLevel::Warning
+                StatusLevel::Warning,
             ));
             return;
         }
 
-        let tenant = self.active_tenant.clone().unwrap_or_else(|| "unknown".to_string());
+        let tenant = self
+            .active_tenant
+            .clone()
+            .unwrap_or_else(|| "unknown".to_string());
         let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
 
         let export_dir = directories::UserDirs::new()
@@ -1942,7 +2505,7 @@ impl App {
         if let Err(e) = std::fs::create_dir_all(&export_dir) {
             self.status_message = Some((
                 format!("Failed to create exports directory: {}", e),
-                StatusLevel::Error
+                StatusLevel::Error,
             ));
             return;
         }
@@ -1951,32 +2514,32 @@ impl App {
         let json_filename = format!("{}_policies_{}.json", tenant, timestamp);
         let json_path = export_dir.join(&json_filename);
 
-        let json_data: Vec<serde_json::Value> = self.table_data.iter().map(|p| {
-            serde_json::json!({
-                "name": p.name,
-                "type": p.policy_type,
-                "status": p.status.as_str(),
-                "platform": p.platform,
-                "assignments": p.assignments,
-                "last_modified": p.last_modified
+        let json_data: Vec<serde_json::Value> = self
+            .table_data
+            .iter()
+            .map(|p| {
+                serde_json::json!({
+                    "name": p.name,
+                    "type": p.policy_type,
+                    "status": p.status.as_str(),
+                    "platform": p.platform,
+                    "assignments": p.assignments,
+                    "last_modified": p.last_modified
+                })
             })
-        }).collect();
+            .collect();
 
         match serde_json::to_string_pretty(&json_data) {
             Ok(json_str) => {
                 if let Err(e) = std::fs::write(&json_path, json_str) {
-                    self.status_message = Some((
-                        format!("Failed to write JSON: {}", e),
-                        StatusLevel::Error
-                    ));
+                    self.status_message =
+                        Some((format!("Failed to write JSON: {}", e), StatusLevel::Error));
                     return;
                 }
             }
             Err(e) => {
-                self.status_message = Some((
-                    format!("Failed to serialize: {}", e),
-                    StatusLevel::Error
-                ));
+                self.status_message =
+                    Some((format!("Failed to serialize: {}", e), StatusLevel::Error));
                 return;
             }
         }
@@ -1987,22 +2550,29 @@ impl App {
 
         let mut csv_content = "Name,Type,Status,Platform,Assignments,LastModified\n".to_string();
         for p in &self.table_data {
-            csv_content.push_str(&format!("{},{},{},{},{},{}\n",
-                p.name.replace(',', ";"), p.policy_type, p.status.as_str(),
-                p.platform, p.assignments, p.last_modified));
+            csv_content.push_str(&format!(
+                "{},{},{},{},{},{}\n",
+                p.name.replace(',', ";"),
+                p.policy_type,
+                p.status.as_str(),
+                p.platform,
+                p.assignments,
+                p.last_modified
+            ));
         }
 
         if let Err(e) = std::fs::write(&csv_path, csv_content) {
-            self.status_message = Some((
-                format!("Failed to write CSV: {}", e),
-                StatusLevel::Error
-            ));
+            self.status_message = Some((format!("Failed to write CSV: {}", e), StatusLevel::Error));
             return;
         }
 
         self.status_message = Some((
-            format!("Exported {} policies to {}", self.table_data.len(), export_dir.display()),
-            StatusLevel::Success
+            format!(
+                "Exported {} policies to {}",
+                self.table_data.len(),
+                export_dir.display()
+            ),
+            StatusLevel::Success,
         ));
     }
 
@@ -2011,7 +2581,7 @@ impl App {
         if self.audit_entries.is_empty() {
             self.status_message = Some((
                 "No audit entries to export".to_string(),
-                StatusLevel::Warning
+                StatusLevel::Warning,
             ));
             return;
         }
@@ -2026,7 +2596,7 @@ impl App {
         if let Err(e) = std::fs::create_dir_all(&export_dir) {
             self.status_message = Some((
                 format!("Failed to create exports directory: {}", e),
-                StatusLevel::Error
+                StatusLevel::Error,
             ));
             return;
         }
@@ -2034,27 +2604,25 @@ impl App {
         let export_path = export_dir.join(&filename);
 
         match serde_json::to_string_pretty(&self.audit_entries) {
-            Ok(json_str) => {
-                match std::fs::write(&export_path, json_str) {
-                    Ok(_) => {
-                        self.status_message = Some((
-                            format!("Exported {} entries to {}", self.audit_entries.len(), export_path.display()),
-                            StatusLevel::Success
-                        ));
-                    }
-                    Err(e) => {
-                        self.status_message = Some((
-                            format!("Failed to write file: {}", e),
-                            StatusLevel::Error
-                        ));
-                    }
+            Ok(json_str) => match std::fs::write(&export_path, json_str) {
+                Ok(_) => {
+                    self.status_message = Some((
+                        format!(
+                            "Exported {} entries to {}",
+                            self.audit_entries.len(),
+                            export_path.display()
+                        ),
+                        StatusLevel::Success,
+                    ));
                 }
-            }
+                Err(e) => {
+                    self.status_message =
+                        Some((format!("Failed to write file: {}", e), StatusLevel::Error));
+                }
+            },
             Err(e) => {
-                self.status_message = Some((
-                    format!("Failed to serialize: {}", e),
-                    StatusLevel::Error
-                ));
+                self.status_message =
+                    Some((format!("Failed to serialize: {}", e), StatusLevel::Error));
             }
         }
     }
@@ -2079,7 +2647,7 @@ impl App {
                             Ok(_) => {
                                 self.status_message = Some((
                                     format!("Client {} deleted successfully", abbrev),
-                                    StatusLevel::Success
+                                    StatusLevel::Success,
                                 ));
                                 // Return to client list
                                 self.active_tenant = None;
@@ -2088,7 +2656,7 @@ impl App {
                             Err(e) => {
                                 self.status_message = Some((
                                     format!("Failed to delete client: {}", e),
-                                    StatusLevel::Error
+                                    StatusLevel::Error,
                                 ));
                             }
                         }
@@ -2115,10 +2683,8 @@ impl App {
         let tenant_name = match &self.active_tenant {
             Some(name) => name.clone(),
             None => {
-                self.status_message = Some((
-                    "No active tenant selected".into(),
-                    StatusLevel::Error
-                ));
+                self.status_message =
+                    Some(("No active tenant selected".into(), StatusLevel::Error));
                 return;
             }
         };
@@ -2130,46 +2696,61 @@ impl App {
         let handle = match tokio::runtime::Handle::try_current() {
             Ok(h) => h,
             Err(_) => {
-                self.status_message = Some((
-                    "No async runtime available".into(),
-                    StatusLevel::Error
-                ));
+                self.status_message =
+                    Some(("No async runtime available".into(), StatusLevel::Error));
                 return;
             }
         };
 
         let config = self.config.clone();
         let result = match category {
-            SettingsCategory::Defender => {
-                handle.block_on(async {
-                    crate::tui::menu::apply_defender_settings_from_config(&config, &tenant_name, &tenant_config).await
-                })
-            }
-            SettingsCategory::Exchange => {
-                handle.block_on(async {
-                    crate::tui::menu::apply_exchange_settings_from_config(&config, &tenant_name, &tenant_config).await
-                })
-            }
-            SettingsCategory::SharePoint => {
-                handle.block_on(async {
-                    crate::tui::menu::apply_sharepoint_settings_from_config(&config, &tenant_name, &tenant_config).await
-                })
-            }
-            SettingsCategory::Teams => {
-                handle.block_on(async {
-                    crate::tui::menu::apply_teams_settings_from_config(&config, &tenant_name, &tenant_config).await
-                })
-            }
+            SettingsCategory::Defender => handle.block_on(async {
+                crate::tui::menu::apply_defender_settings_from_config(
+                    &config,
+                    &tenant_name,
+                    &tenant_config,
+                )
+                .await
+            }),
+            SettingsCategory::Exchange => handle.block_on(async {
+                crate::tui::menu::apply_exchange_settings_from_config(
+                    &config,
+                    &tenant_name,
+                    &tenant_config,
+                )
+                .await
+            }),
+            SettingsCategory::SharePoint => handle.block_on(async {
+                crate::tui::menu::apply_sharepoint_settings_from_config(
+                    &config,
+                    &tenant_name,
+                    &tenant_config,
+                )
+                .await
+            }),
+            SettingsCategory::Teams => handle.block_on(async {
+                crate::tui::menu::apply_teams_settings_from_config(
+                    &config,
+                    &tenant_name,
+                    &tenant_config,
+                )
+                .await
+            }),
             SettingsCategory::Main => {
                 // Apply all settings
                 handle.block_on(async {
-                    crate::tui::menu::apply_all_settings_from_config(&config, &tenant_name, &tenant_config).await
+                    crate::tui::menu::apply_all_settings_from_config(
+                        &config,
+                        &tenant_name,
+                        &tenant_config,
+                    )
+                    .await
                 })
             }
             _ => {
                 self.status_message = Some((
                     "Settings category not supported for API apply".into(),
-                    StatusLevel::Warning
+                    StatusLevel::Warning,
                 ));
                 return;
             }
@@ -2190,7 +2771,7 @@ impl App {
                     "Settings Applied",
                     None,
                     "Configured via TUI",
-                    &tenant_name
+                    &tenant_name,
                 );
                 self.status_message = Some((msg, StatusLevel::Success));
             }
@@ -2199,11 +2780,11 @@ impl App {
                     "Settings",
                     "Apply Settings",
                     &e.to_string(),
-                    &tenant_name
+                    &tenant_name,
                 );
                 self.status_message = Some((
                     format!("Failed to apply settings: {}", e),
-                    StatusLevel::Error
+                    StatusLevel::Error,
                 ));
             }
         }
@@ -2280,10 +2861,8 @@ impl App {
         let tenant_name = match &self.active_tenant {
             Some(name) => name.clone(),
             None => {
-                self.status_message = Some((
-                    "No active tenant selected".into(),
-                    StatusLevel::Error
-                ));
+                self.status_message =
+                    Some(("No active tenant selected".into(), StatusLevel::Error));
                 return;
             }
         };
@@ -2315,7 +2894,7 @@ impl App {
                 _ => {
                     self.status_message = Some((
                         format!("Unknown template: {}", template),
-                        StatusLevel::Error
+                        StatusLevel::Error,
                     ));
                     return;
                 }
@@ -2323,7 +2902,7 @@ impl App {
             _ => {
                 self.status_message = Some((
                     format!("Platform {} not yet supported in TUI", platform),
-                    StatusLevel::Warning
+                    StatusLevel::Warning,
                 ));
                 return;
             }
@@ -2334,14 +2913,17 @@ impl App {
             Err(e) => {
                 self.status_message = Some((
                     format!("Failed to generate baseline: {}", e),
-                    StatusLevel::Error
+                    StatusLevel::Error,
                 ));
                 return;
             }
         };
 
         // Start progress indicator
-        self.start_async_task("deploy_baseline", &format!("Deploying {} baseline...", template));
+        self.start_async_task(
+            "deploy_baseline",
+            &format!("Deploying {} baseline...", template),
+        );
 
         // Execute async deploy
         let handle = match tokio::runtime::Handle::try_current() {
@@ -2371,11 +2953,14 @@ impl App {
                 crate::tui::change_tracker::record_baseline_deployed(
                     &format!("{} baseline", template),
                     count,
-                    &tenant_name
+                    &tenant_name,
                 );
                 self.complete_async_task(
                     true,
-                    &format!("Successfully deployed {} policies from {} baseline", count, template)
+                    &format!(
+                        "Successfully deployed {} policies from {} baseline",
+                        count, template
+                    ),
                 );
             }
             Err(e) => {
@@ -2383,7 +2968,7 @@ impl App {
                     "Baseline",
                     &format!("{} baseline deployment", template),
                     &e.to_string(),
-                    &tenant_name
+                    &tenant_name,
                 );
                 self.complete_async_task(false, &format!("Failed to deploy baseline: {}", e));
             }
@@ -2395,10 +2980,8 @@ impl App {
         let tenant_name = match &self.active_tenant {
             Some(name) => name.clone(),
             None => {
-                self.status_message = Some((
-                    "No active tenant selected".into(),
-                    StatusLevel::Error
-                ));
+                self.status_message =
+                    Some(("No active tenant selected".into(), StatusLevel::Error));
                 return;
             }
         };
@@ -2417,9 +3000,8 @@ impl App {
         self.update_async_progress(5, "Generating 44 CA policies...");
 
         let config = self.config.clone();
-        let result = handle.block_on(async {
-            deploy_ca_policies_2025_with_progress(&config, &tenant_name).await
-        });
+        let result = handle
+            .block_on(async { deploy_ca_policies_2025_with_progress(&config, &tenant_name).await });
 
         match result {
             Ok(count) => {
@@ -2427,11 +3009,14 @@ impl App {
                 crate::tui::change_tracker::record_baseline_deployed(
                     "CA Baseline 2025",
                     count,
-                    &tenant_name
+                    &tenant_name,
                 );
                 self.complete_async_task(
                     true,
-                    &format!("Successfully deployed {} CA policies in Report-Only mode", count)
+                    &format!(
+                        "Successfully deployed {} CA policies in Report-Only mode",
+                        count
+                    ),
                 );
             }
             Err(e) => {
@@ -2439,7 +3024,7 @@ impl App {
                     "Conditional Access",
                     "CA Baseline 2025 deployment",
                     &e.to_string(),
-                    &tenant_name
+                    &tenant_name,
                 );
                 self.complete_async_task(false, &format!("Failed to deploy CA policies: {}", e));
             }
@@ -2657,37 +3242,40 @@ impl App {
                         match result {
                             TaskResult::PoliciesLoaded { policies } => {
                                 // Convert to table data
-                                self.table_data = policies.into_iter().map(|p| PolicyRow {
-                                    name: p.name,
-                                    policy_type: p.policy_type,
-                                    status: match p.status.as_str() {
-                                        "Deployed" => PolicyStatus::Deployed,
-                                        "Report-Only" => PolicyStatus::ReportOnly,
-                                        "Disabled" => PolicyStatus::Disabled,
-                                        _ => PolicyStatus::Deployed,
-                                    },
-                                    platform: p.platform,
-                                    assignments: p.assignments,
-                                    last_modified: p.last_modified,
-                                }).collect();
+                                self.table_data = policies
+                                    .into_iter()
+                                    .map(|p| PolicyRow {
+                                        name: p.name,
+                                        policy_type: p.policy_type,
+                                        status: match p.status.as_str() {
+                                            "Deployed" => PolicyStatus::Deployed,
+                                            "Report-Only" => PolicyStatus::ReportOnly,
+                                            "Disabled" => PolicyStatus::Disabled,
+                                            _ => PolicyStatus::Deployed,
+                                        },
+                                        platform: p.platform,
+                                        assignments: p.assignments,
+                                        last_modified: p.last_modified,
+                                    })
+                                    .collect();
                                 self.reset_table_pagination();
                                 self.status_message = Some((
                                     format!("Loaded {} policies", self.table_data.len()),
-                                    StatusLevel::Success
+                                    StatusLevel::Success,
                                 ));
                             }
                             TaskResult::BaselineDeployed { count, message } => {
                                 self.complete_async_task(true, &message);
                                 self.status_message = Some((
                                     format!("Deployed {} policies", count),
-                                    StatusLevel::Success
+                                    StatusLevel::Success,
                                 ));
                             }
                             TaskResult::CaDeployed { count, message } => {
                                 self.complete_async_task(true, &message);
                                 self.status_message = Some((
                                     format!("Deployed {} CA policies", count),
-                                    StatusLevel::Success
+                                    StatusLevel::Success,
                                 ));
                             }
                             TaskResult::SettingsApplied { message } => {
@@ -2747,7 +3335,8 @@ impl App {
         };
 
         if !self.send_task(request) {
-            self.status_message = Some(("Failed to start background task".into(), StatusLevel::Error));
+            self.status_message =
+                Some(("Failed to start background task".into(), StatusLevel::Error));
         }
     }
 
@@ -2833,13 +3422,21 @@ fn run_app<B: ratatui::backend::Backend>(
                     // Handle confirmation dialog first
                     if app.confirmation.is_some() {
                         match key.code {
-                            KeyCode::Left | KeyCode::Right | KeyCode::Tab | KeyCode::Char('h') | KeyCode::Char('l') => {
+                            KeyCode::Left
+                            | KeyCode::Right
+                            | KeyCode::Tab
+                            | KeyCode::Char('h')
+                            | KeyCode::Char('l') => {
                                 if let Some(ref mut dialog) = app.confirmation {
                                     dialog.selected = !dialog.selected;
                                 }
                             }
                             KeyCode::Enter => {
-                                let confirmed = app.confirmation.as_ref().map(|d| d.selected).unwrap_or(false);
+                                let confirmed = app
+                                    .confirmation
+                                    .as_ref()
+                                    .map(|d| d.selected)
+                                    .unwrap_or(false);
                                 app.handle_confirmation(confirmed);
                             }
                             KeyCode::Esc | KeyCode::Char('n') => {
@@ -2887,7 +3484,9 @@ fn run_app<B: ratatui::backend::Backend>(
                             }
                             KeyCode::Enter => {
                                 // Check if on last field - submit, otherwise next field
-                                let is_last = app.form_state.as_ref()
+                                let is_last = app
+                                    .form_state
+                                    .as_ref()
                                     .map(|f| f.current_field >= f.fields.len() - 1)
                                     .unwrap_or(false);
                                 if is_last {
@@ -2992,9 +3591,9 @@ fn ui(f: &mut Frame, app: &App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3),  // Header
-            Constraint::Min(10),    // Main content
-            Constraint::Length(3),  // Status bar
+            Constraint::Length(3), // Header
+            Constraint::Min(10),   // Main content
+            Constraint::Length(3), // Status bar
         ])
         .split(f.area());
 
@@ -3067,15 +3666,28 @@ fn render_header(f: &mut Frame, app: &App, area: Rect) {
 
     // Microsoft 365-inspired header with blue accent
     let header = Paragraph::new(Line::from(vec![
-        Span::styled(" M365 ", Style::default().bg(Color::Rgb(0, 120, 212)).fg(Color::White).add_modifier(Modifier::BOLD)),
-        Span::styled(" ctl365 ", Style::default().fg(Color::Rgb(0, 120, 212)).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            " M365 ",
+            Style::default()
+                .bg(Color::Rgb(0, 120, 212))
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            " ctl365 ",
+            Style::default()
+                .fg(Color::Rgb(0, 120, 212))
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::styled(" | ", Style::default().fg(Color::DarkGray)),
         Span::styled(&breadcrumb, Style::default().fg(Color::Gray)),
         Span::styled(" ", Style::default()),
     ]))
-    .block(Block::default()
-        .borders(Borders::BOTTOM)
-        .border_style(Style::default().fg(Color::Rgb(50, 50, 50))));
+    .block(
+        Block::default()
+            .borders(Borders::BOTTOM)
+            .border_style(Style::default().fg(Color::Rgb(50, 50, 50))),
+    );
 
     f.render_widget(header, area);
 
@@ -3090,7 +3702,9 @@ fn render_header(f: &mut Frame, app: &App, area: Rect) {
         };
         let tenant_badge = Paragraph::new(Span::styled(
             &tenant_info,
-            Style::default().fg(Color::Black).bg(Color::Rgb(255, 185, 0)) // M365 gold/yellow
+            Style::default()
+                .fg(Color::Black)
+                .bg(Color::Rgb(255, 185, 0)), // M365 gold/yellow
         ));
         f.render_widget(tenant_badge, tenant_area);
     }
@@ -3102,8 +3716,8 @@ fn render_main(f: &mut Frame, app: &App, area: Rect) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Min(10),    // Policy table
-                Constraint::Length(6),  // Action bar
+                Constraint::Min(10),   // Policy table
+                Constraint::Length(6), // Action bar
             ])
             .split(area);
 
@@ -3114,8 +3728,8 @@ fn render_main(f: &mut Frame, app: &App, area: Rect) {
         let chunks = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([
-                Constraint::Percentage(25),  // Menu
-                Constraint::Percentage(75),  // Audit table
+                Constraint::Percentage(25), // Menu
+                Constraint::Percentage(75), // Audit table
             ])
             .split(area);
 
@@ -3125,8 +3739,8 @@ fn render_main(f: &mut Frame, app: &App, area: Rect) {
         let chunks = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([
-                Constraint::Percentage(40),  // Menu
-                Constraint::Percentage(60),  // Details/Preview
+                Constraint::Percentage(40), // Menu
+                Constraint::Percentage(60), // Details/Preview
             ])
             .split(area);
 
@@ -3136,20 +3750,28 @@ fn render_main(f: &mut Frame, app: &App, area: Rect) {
 }
 
 fn render_menu(f: &mut Frame, app: &App, area: Rect) {
-    let items: Vec<ListItem> = app.menu_items.iter().enumerate().map(|(idx, item)| {
-        let shortcut = item.shortcut.map(|c| format!("[{}] ", c)).unwrap_or_else(|| format!("[{}] ", idx + 1));
-        let label = item.label.clone();
-        let style = if item.enabled {
-            Style::default()
-        } else {
-            Style::default().fg(Color::DarkGray)
-        };
+    let items: Vec<ListItem> = app
+        .menu_items
+        .iter()
+        .enumerate()
+        .map(|(idx, item)| {
+            let shortcut = item
+                .shortcut
+                .map(|c| format!("[{}] ", c))
+                .unwrap_or_else(|| format!("[{}] ", idx + 1));
+            let label = item.label.clone();
+            let style = if item.enabled {
+                Style::default()
+            } else {
+                Style::default().fg(Color::DarkGray)
+            };
 
-        ListItem::new(Line::from(vec![
-            Span::styled(shortcut, Style::default().fg(Color::Cyan)),
-            Span::styled(label, style),
-        ]))
-    }).collect();
+            ListItem::new(Line::from(vec![
+                Span::styled(shortcut, Style::default().fg(Color::Cyan)),
+                Span::styled(label, style),
+            ]))
+        })
+        .collect();
 
     let title = match &app.screen {
         Screen::Dashboard => "Main Menu".to_string(),
@@ -3164,14 +3786,18 @@ fn render_menu(f: &mut Frame, app: &App, area: Rect) {
     };
 
     let menu = List::new(items)
-        .block(Block::default()
-            .title(format!(" {} ", title))
-            .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::Cyan)))
-        .highlight_style(Style::default()
-            .bg(Color::Cyan)
-            .fg(Color::Black)
-            .add_modifier(Modifier::BOLD))
+        .block(
+            Block::default()
+                .title(format!(" {} ", title))
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(Color::Cyan)),
+        )
+        .highlight_style(
+            Style::default()
+                .bg(Color::Cyan)
+                .fg(Color::Black)
+                .add_modifier(Modifier::BOLD),
+        )
         .highlight_symbol("► ");
 
     f.render_stateful_widget(menu, area, &mut app.menu_state.clone());
@@ -3190,7 +3816,10 @@ fn render_details(f: &mut Frame, app: &App, area: Rect) {
                 if let Some(enabled) = app.setting_toggles.get(&item.id) {
                     let status = if *enabled { "✓ ON" } else { "✗ OFF" };
                     let color_hint = if *enabled { "(enabled)" } else { "(disabled)" };
-                    format!("\n\nCurrent: {} {}\n\nPress Enter to toggle", status, color_hint)
+                    format!(
+                        "\n\nCurrent: {} {}\n\nPress Enter to toggle",
+                        status, color_hint
+                    )
                 } else {
                     String::new()
                 }
@@ -3209,7 +3838,11 @@ fn render_details(f: &mut Frame, app: &App, area: Rect) {
                 item.label,
                 item.description,
                 toggle_info,
-                if toggle_info.is_empty() { format!("\n\n{}", shortcut_hint) } else { String::new() }
+                if toggle_info.is_empty() {
+                    format!("\n\n{}", shortcut_hint)
+                } else {
+                    String::new()
+                }
             )
         } else {
             "Select an option".into()
@@ -3225,10 +3858,12 @@ fn render_details(f: &mut Frame, app: &App, area: Rect) {
     };
 
     let details = Paragraph::new(content)
-        .block(Block::default()
-            .title(title)
-            .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::DarkGray)))
+        .block(
+            Block::default()
+                .title(title)
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(Color::DarkGray)),
+        )
         .wrap(Wrap { trim: true });
 
     f.render_widget(details, area);
@@ -3246,11 +3881,11 @@ fn render_status_bar(f: &mut Frame, app: &App, area: Rect) {
         ),
     };
 
-    let status = Paragraph::new(msg)
-        .style(style)
-        .block(Block::default()
+    let status = Paragraph::new(msg).style(style).block(
+        Block::default()
             .borders(Borders::TOP)
-            .border_style(Style::default().fg(Color::DarkGray)));
+            .border_style(Style::default().fg(Color::DarkGray)),
+    );
 
     f.render_widget(status, area);
 }
@@ -3348,10 +3983,12 @@ fn render_help_overlay(f: &mut Frame, app: &App) {
     help_text.push("");
 
     let help = Paragraph::new(help_text.join("\n"))
-        .block(Block::default()
-            .title(" ctl365 Help [?] ")
-            .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::Cyan)))
+        .block(
+            Block::default()
+                .title(" ctl365 Help [?] ")
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(Color::Cyan)),
+        )
         .style(Style::default().fg(Color::White));
 
     f.render_widget(help, area);
@@ -3383,12 +4020,13 @@ fn render_policy_table(f: &mut Frame, app: &App, area: Rect) {
     let header_cells = ["Name", "Type", "Status", "Platform", "Assigned", "Modified"]
         .iter()
         .map(|h| {
-            ratatui::widgets::Cell::from(*h)
-                .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+            ratatui::widgets::Cell::from(*h).style(
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            )
         });
-    let header = Row::new(header_cells)
-        .height(1)
-        .bottom_margin(1);
+    let header = Row::new(header_cells).height(1).bottom_margin(1);
 
     // Use paginated data instead of full filtered list
     let filtered_count = app.filtered_table_data().len();
@@ -3411,7 +4049,13 @@ fn render_policy_table(f: &mut Frame, app: &App, area: Rect) {
     let title = match &app.screen {
         Screen::PolicyList(pt) => {
             if total_pages > 1 {
-                format!(" {:?} Policies ({}) - Page {}/{} ", pt, filtered_count, app.table_page + 1, total_pages)
+                format!(
+                    " {:?} Policies ({}) - Page {}/{} ",
+                    pt,
+                    filtered_count,
+                    app.table_page + 1,
+                    total_pages
+                )
             } else {
                 format!(" {:?} Policies ({}) ", pt, filtered_count)
             }
@@ -3419,23 +4063,30 @@ fn render_policy_table(f: &mut Frame, app: &App, area: Rect) {
         _ => " Policies ".to_string(),
     };
 
-    let table = Table::new(rows, [
-        Constraint::Percentage(35),
-        Constraint::Percentage(15),
-        Constraint::Percentage(12),
-        Constraint::Percentage(12),
-        Constraint::Percentage(10),
-        Constraint::Percentage(16),
-    ])
+    let table = Table::new(
+        rows,
+        [
+            Constraint::Percentage(35),
+            Constraint::Percentage(15),
+            Constraint::Percentage(12),
+            Constraint::Percentage(12),
+            Constraint::Percentage(10),
+            Constraint::Percentage(16),
+        ],
+    )
     .header(header)
-    .block(Block::default()
-        .title(title)
-        .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::Cyan)))
-    .row_highlight_style(Style::default()
-        .bg(Color::Cyan)
-        .fg(Color::Black)
-        .add_modifier(Modifier::BOLD))
+    .block(
+        Block::default()
+            .title(title)
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(Color::Cyan)),
+    )
+    .row_highlight_style(
+        Style::default()
+            .bg(Color::Cyan)
+            .fg(Color::Black)
+            .add_modifier(Modifier::BOLD),
+    )
     .highlight_symbol("► ");
 
     f.render_stateful_widget(table, area, &mut app.table_state.clone());
@@ -3446,11 +4097,7 @@ fn render_policy_actions(f: &mut Frame, app: &App, area: Rect) {
     let total_pages = app.table_total_pages();
 
     // Build actions with pagination hints when multiple pages exist
-    let mut actions = vec![
-        "[r] Refresh",
-        "[/] Search",
-        "[e] Export",
-    ];
+    let mut actions = vec!["[r] Refresh", "[/] Search", "[e] Export"];
 
     if total_pages > 1 {
         actions.push("[PgUp/PgDn] Page");
@@ -3475,10 +4122,12 @@ fn render_policy_actions(f: &mut Frame, app: &App, area: Rect) {
     let content = format!("{}{}", action_text, selected_info);
 
     let actions_widget = Paragraph::new(content)
-        .block(Block::default()
-            .title(" Actions ")
-            .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::DarkGray)))
+        .block(
+            Block::default()
+                .title(" Actions ")
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(Color::DarkGray)),
+        )
         .alignment(Alignment::Center);
 
     f.render_widget(actions_widget, area);
@@ -3491,12 +4140,13 @@ fn render_audit_table(f: &mut Frame, app: &App, area: Rect) {
     let header_cells = ["Time", "Action", "Category", "Target", "Tenant", "Status"]
         .iter()
         .map(|h| {
-            ratatui::widgets::Cell::from(*h)
-                .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+            ratatui::widgets::Cell::from(*h).style(
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            )
         });
-    let header = Row::new(header_cells)
-        .height(1)
-        .bottom_margin(1);
+    let header = Row::new(header_cells).height(1).bottom_margin(1);
 
     let rows = app.audit_entries.iter().map(|entry| {
         // Color code by severity
@@ -3521,7 +4171,8 @@ fn render_audit_table(f: &mut Frame, app: &App, area: Rect) {
 
         let cells = vec![
             ratatui::widgets::Cell::from(entry.timestamp.clone()),
-            ratatui::widgets::Cell::from(entry.action.as_str()).style(Style::default().fg(action_color)),
+            ratatui::widgets::Cell::from(entry.action.as_str())
+                .style(Style::default().fg(action_color)),
             ratatui::widgets::Cell::from(entry.category.clone()),
             ratatui::widgets::Cell::from(truncate_string(&entry.target, 30)),
             ratatui::widgets::Cell::from(entry.tenant.clone()),
@@ -3537,25 +4188,36 @@ fn render_audit_table(f: &mut Frame, app: &App, area: Rect) {
         n => &format!("Last {} Days", n),
     };
 
-    let title = format!(" Audit History - {} ({} entries) ", days_label, app.audit_entries.len());
+    let title = format!(
+        " Audit History - {} ({} entries) ",
+        days_label,
+        app.audit_entries.len()
+    );
 
-    let table = Table::new(rows, [
-        Constraint::Length(19),      // Time (YYYY-MM-DD HH:MM:SS)
-        Constraint::Length(18),      // Action
-        Constraint::Length(14),      // Category
-        Constraint::Percentage(30),  // Target
-        Constraint::Length(10),      // Tenant
-        Constraint::Length(6),       // Status
-    ])
+    let table = Table::new(
+        rows,
+        [
+            Constraint::Length(19),     // Time (YYYY-MM-DD HH:MM:SS)
+            Constraint::Length(18),     // Action
+            Constraint::Length(14),     // Category
+            Constraint::Percentage(30), // Target
+            Constraint::Length(10),     // Tenant
+            Constraint::Length(6),      // Status
+        ],
+    )
     .header(header)
-    .block(Block::default()
-        .title(title)
-        .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::Cyan)))
-    .row_highlight_style(Style::default()
-        .bg(Color::Cyan)
-        .fg(Color::Black)
-        .add_modifier(Modifier::BOLD))
+    .block(
+        Block::default()
+            .title(title)
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(Color::Cyan)),
+    )
+    .row_highlight_style(
+        Style::default()
+            .bg(Color::Cyan)
+            .fg(Color::Black)
+            .add_modifier(Modifier::BOLD),
+    )
     .highlight_symbol("► ");
 
     f.render_stateful_widget(table, area, &mut app.table_state.clone());
@@ -3568,9 +4230,10 @@ fn render_audit_table(f: &mut Frame, app: &App, area: Rect) {
             width: area.width.saturating_sub(4),
             height: 3,
         };
-        let empty_msg = Paragraph::new("No audit entries found. Changes made through ctl365 will appear here.")
-            .style(Style::default().fg(Color::DarkGray))
-            .alignment(Alignment::Center);
+        let empty_msg =
+            Paragraph::new("No audit entries found. Changes made through ctl365 will appear here.")
+                .style(Style::default().fg(Color::DarkGray))
+                .alignment(Alignment::Center);
         f.render_widget(empty_msg, empty_area);
     }
 }
@@ -3589,7 +4252,11 @@ fn render_confirmation_dialog(f: &mut Frame, dialog: &ConfirmationDialog) {
     use crate::tui::context::ImpactLevel;
 
     // Larger area if we have an impact summary
-    let (width, height) = if dialog.impact.is_some() { (60, 50) } else { (50, 40) };
+    let (width, height) = if dialog.impact.is_some() {
+        (60, 50)
+    } else {
+        (50, 40)
+    };
     let area = centered_rect(width, height, f.area());
     f.render_widget(Clear, area);
 
@@ -3609,8 +4276,8 @@ fn render_confirmation_dialog(f: &mut Frame, dialog: &ConfirmationDialog) {
         .direction(Direction::Vertical)
         .margin(2)
         .constraints([
-            Constraint::Min(3),     // Message
-            Constraint::Length(3),  // Buttons
+            Constraint::Min(3),    // Message
+            Constraint::Length(3), // Buttons
         ])
         .split(area);
 
@@ -3638,19 +4305,30 @@ fn render_confirmation_dialog(f: &mut Frame, dialog: &ConfirmationDialog) {
     f.render_widget(message, chunks[0]);
 
     // Buttons - swap colors based on impact for critical actions
-    let (confirm_color, cancel_color) = if dialog.impact.as_ref().map(|i| i.level >= ImpactLevel::High).unwrap_or(false) {
+    let (confirm_color, cancel_color) = if dialog
+        .impact
+        .as_ref()
+        .map(|i| i.level >= ImpactLevel::High)
+        .unwrap_or(false)
+    {
         (Color::Red, Color::Green) // Make cancel the "safe" green option
     } else {
         (Color::Green, Color::Red)
     };
 
     let yes_style = if dialog.selected {
-        Style::default().bg(confirm_color).fg(Color::Black).add_modifier(Modifier::BOLD)
+        Style::default()
+            .bg(confirm_color)
+            .fg(Color::Black)
+            .add_modifier(Modifier::BOLD)
     } else {
         Style::default().fg(confirm_color)
     };
     let no_style = if !dialog.selected {
-        Style::default().bg(cancel_color).fg(Color::Black).add_modifier(Modifier::BOLD)
+        Style::default()
+            .bg(cancel_color)
+            .fg(Color::Black)
+            .add_modifier(Modifier::BOLD)
     } else {
         Style::default().fg(cancel_color)
     };
@@ -3663,8 +4341,7 @@ fn render_confirmation_dialog(f: &mut Frame, dialog: &ConfirmationDialog) {
         Span::raw("  "),
     ]);
 
-    let buttons_widget = Paragraph::new(buttons)
-        .alignment(Alignment::Center);
+    let buttons_widget = Paragraph::new(buttons).alignment(Alignment::Center);
     f.render_widget(buttons_widget, chunks[1]);
 }
 
@@ -3677,8 +4354,8 @@ fn render_progress_overlay(f: &mut Frame, progress: &ProgressState) {
         .direction(Direction::Vertical)
         .margin(2)
         .constraints([
-            Constraint::Length(2),  // Message
-            Constraint::Length(3),  // Progress bar
+            Constraint::Length(2), // Message
+            Constraint::Length(3), // Progress bar
         ])
         .split(area);
 
@@ -3725,10 +4402,12 @@ fn render_search_overlay(f: &mut Frame, app: &App) {
     let display = format!("{}{}", search_text, cursor);
 
     let search = Paragraph::new(display)
-        .block(Block::default()
-            .title(" Search (Esc to close) ")
-            .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::Yellow)))
+        .block(
+            Block::default()
+                .title(" Search (Esc to close) ")
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(Color::Yellow)),
+        )
         .style(Style::default().fg(Color::White));
 
     f.render_widget(search, area);
@@ -3758,11 +4437,10 @@ fn render_form_overlay(f: &mut Frame, form: &FormState) {
         height: area.height.saturating_sub(2),
     };
 
-    let mut constraints: Vec<Constraint> = form.fields.iter()
-        .map(|_| Constraint::Length(3))
-        .collect();
+    let mut constraints: Vec<Constraint> =
+        form.fields.iter().map(|_| Constraint::Length(3)).collect();
     constraints.push(Constraint::Length(3)); // Submit button area
-    constraints.push(Constraint::Min(0));    // Remaining space
+    constraints.push(Constraint::Min(0)); // Remaining space
 
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -3772,15 +4450,20 @@ fn render_form_overlay(f: &mut Frame, form: &FormState) {
     // Render each field
     for (i, field) in form.fields.iter().enumerate() {
         let is_active = i == form.current_field;
-        let border_color = if is_active { Color::Yellow } else { Color::DarkGray };
-
-        let display_value = if matches!(field.field_type, FormFieldType::Password) && !field.value.is_empty() {
-            "*".repeat(field.value.len())
-        } else if field.value.is_empty() {
-            field.placeholder.clone()
+        let border_color = if is_active {
+            Color::Yellow
         } else {
-            field.value.clone()
+            Color::DarkGray
         };
+
+        let display_value =
+            if matches!(field.field_type, FormFieldType::Password) && !field.value.is_empty() {
+                "*".repeat(field.value.len())
+            } else if field.value.is_empty() {
+                field.placeholder.clone()
+            } else {
+                field.value.clone()
+            };
 
         let cursor = if is_active { "_" } else { "" };
         let text_style = if field.value.is_empty() && !is_active {
@@ -3794,10 +4477,12 @@ fn render_form_overlay(f: &mut Frame, form: &FormState) {
 
         let input = Paragraph::new(format!("{}{}", display_value, cursor))
             .style(text_style)
-            .block(Block::default()
-                .title(title)
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(border_color)));
+            .block(
+                Block::default()
+                    .title(title)
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(border_color)),
+            );
 
         f.render_widget(input, chunks[i]);
     }
@@ -3808,7 +4493,11 @@ fn render_form_overlay(f: &mut Frame, form: &FormState) {
         " Field {}/{} │ Tab/↓: Next │ Shift+Tab/↑: Prev │ Enter: {} │ Esc: Cancel ",
         form.current_field + 1,
         form.fields.len(),
-        if form.current_field >= form.fields.len() - 1 { "Submit" } else { "Next" }
+        if form.current_field >= form.fields.len() - 1 {
+            "Submit"
+        } else {
+            "Next"
+        }
     );
 
     let help = Paragraph::new(help_text)
@@ -3898,7 +4587,9 @@ async fn load_policies_from_api(
         }
         PolicyListType::Apps => {
             // Apps require different API - show sample for now
-            return Err(crate::error::Error::NotImplemented("App listing not yet implemented".into()));
+            return Err(crate::error::Error::NotImplemented(
+                "App listing not yet implemented".into(),
+            ));
         }
         PolicyListType::All => {
             // Combine all types
@@ -3927,12 +4618,14 @@ fn parse_ca_policies(response: &serde_json::Value) -> Vec<PolicyRow> {
 
     if let Some(value) = response.get("value").and_then(|v| v.as_array()) {
         for policy in value {
-            let name = policy.get("displayName")
+            let name = policy
+                .get("displayName")
                 .and_then(|v| v.as_str())
                 .unwrap_or("Unknown")
                 .to_string();
 
-            let state = policy.get("state")
+            let state = policy
+                .get("state")
                 .and_then(|v| v.as_str())
                 .unwrap_or("disabled");
 
@@ -3943,7 +4636,8 @@ fn parse_ca_policies(response: &serde_json::Value) -> Vec<PolicyRow> {
                 _ => PolicyStatus::Draft,
             };
 
-            let modified = policy.get("modifiedDateTime")
+            let modified = policy
+                .get("modifiedDateTime")
                 .and_then(|v| v.as_str())
                 .map(|s| s.split('T').next().unwrap_or(s).to_string())
                 .unwrap_or_else(|| "N/A".into());
@@ -3968,24 +4662,33 @@ fn parse_compliance_policies(response: &serde_json::Value) -> Vec<PolicyRow> {
 
     if let Some(value) = response.get("value").and_then(|v| v.as_array()) {
         for policy in value {
-            let name = policy.get("displayName")
+            let name = policy
+                .get("displayName")
                 .and_then(|v| v.as_str())
                 .unwrap_or("Unknown")
                 .to_string();
 
-            let platform = policy.get("@odata.type")
+            let platform = policy
+                .get("@odata.type")
                 .and_then(|v| v.as_str())
                 .map(|t| {
-                    if t.contains("windows") { "Windows" }
-                    else if t.contains("macOS") { "macOS" }
-                    else if t.contains("iOS") { "iOS" }
-                    else if t.contains("android") { "Android" }
-                    else { "Other" }
+                    if t.contains("windows") {
+                        "Windows"
+                    } else if t.contains("macOS") {
+                        "macOS"
+                    } else if t.contains("iOS") {
+                        "iOS"
+                    } else if t.contains("android") {
+                        "Android"
+                    } else {
+                        "Other"
+                    }
                 })
                 .unwrap_or("Unknown")
                 .to_string();
 
-            let modified = policy.get("lastModifiedDateTime")
+            let modified = policy
+                .get("lastModifiedDateTime")
                 .and_then(|v| v.as_str())
                 .map(|s| s.split('T').next().unwrap_or(s).to_string())
                 .unwrap_or_else(|| "N/A".into());
@@ -4010,13 +4713,15 @@ fn parse_config_policies(response: &serde_json::Value) -> Vec<PolicyRow> {
 
     if let Some(value) = response.get("value").and_then(|v| v.as_array()) {
         for policy in value {
-            let name = policy.get("displayName")
+            let name = policy
+                .get("displayName")
                 .or_else(|| policy.get("name"))
                 .and_then(|v| v.as_str())
                 .unwrap_or("Unknown")
                 .to_string();
 
-            let odata_type = policy.get("@odata.type")
+            let odata_type = policy
+                .get("@odata.type")
                 .and_then(|v| v.as_str())
                 .unwrap_or("");
 
@@ -4032,7 +4737,8 @@ fn parse_config_policies(response: &serde_json::Value) -> Vec<PolicyRow> {
                 ("Config".into(), "Other".into())
             };
 
-            let modified = policy.get("lastModifiedDateTime")
+            let modified = policy
+                .get("lastModifiedDateTime")
                 .and_then(|v| v.as_str())
                 .map(|s| s.split('T').next().unwrap_or(s).to_string())
                 .unwrap_or_else(|| "N/A".into());
@@ -4122,7 +4828,12 @@ async fn deploy_ca_policies_2025_with_progress(
         crate::graph::conditional_access::create_policy(&graph, &policy_json).await?;
         deployed += 1;
 
-        tracing::debug!("Deployed CA policy {}/{}: {}", deployed, total, policy.display_name);
+        tracing::debug!(
+            "Deployed CA policy {}/{}: {}",
+            deployed,
+            total,
+            policy.display_name
+        );
     }
 
     Ok(deployed)

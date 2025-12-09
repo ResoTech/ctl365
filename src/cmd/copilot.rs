@@ -4,8 +4,8 @@
 
 use crate::config::ConfigManager;
 use crate::error::Result;
-use crate::graph::copilot::{AgentQueryBuilder, CopilotClient};
 use crate::graph::GraphClient;
+use crate::graph::copilot::{AgentQueryBuilder, CopilotClient};
 use clap::Args;
 use colored::Colorize;
 
@@ -122,9 +122,11 @@ pub struct MeetingInsightsArgs {
 
 pub async fn agents_list(args: AgentsListArgs) -> Result<()> {
     let config = ConfigManager::new()?;
-    let active_tenant = config
-        .get_active_tenant()?
-        .ok_or_else(|| crate::error::Ctl365Error::ConfigError("No active tenant. Run 'ctl365 tenant switch <name>' first.".into()))?;
+    let active_tenant = config.get_active_tenant()?.ok_or_else(|| {
+        crate::error::Ctl365Error::ConfigError(
+            "No active tenant. Run 'ctl365 tenant switch <name>' first.".into(),
+        )
+    })?;
     let client = GraphClient::from_config(&config, &active_tenant.name).await?;
     let copilot_client = CopilotClient::new(&client);
 
@@ -218,7 +220,10 @@ pub async fn agents_list(args: AgentsListArgs) -> Result<()> {
             Some(false) => "No".red().to_string(),
             None => "-".to_string(),
         };
-        println!("{:<40} {:<15} {:<20} {}", name, pkg_type, publisher, enabled);
+        println!(
+            "{:<40} {:<15} {:<20} {}",
+            name, pkg_type, publisher, enabled
+        );
     }
 
     Ok(())
@@ -226,17 +231,15 @@ pub async fn agents_list(args: AgentsListArgs) -> Result<()> {
 
 pub async fn agents_get(args: AgentsGetArgs) -> Result<()> {
     let config = ConfigManager::new()?;
-    let active_tenant = config
-        .get_active_tenant()?
-        .ok_or_else(|| crate::error::Ctl365Error::ConfigError("No active tenant. Run 'ctl365 tenant switch <name>' first.".into()))?;
+    let active_tenant = config.get_active_tenant()?.ok_or_else(|| {
+        crate::error::Ctl365Error::ConfigError(
+            "No active tenant. Run 'ctl365 tenant switch <name>' first.".into(),
+        )
+    })?;
     let client = GraphClient::from_config(&config, &active_tenant.name).await?;
     let copilot_client = CopilotClient::new(&client);
 
-    println!(
-        "{} Fetching agent {}...",
-        "Copilot".blue().bold(),
-        args.id
-    );
+    println!("{} Fetching agent {}...", "Copilot".blue().bold(), args.id);
 
     let agent = copilot_client.get_agent(&args.id).await?;
 
@@ -303,9 +306,11 @@ pub async fn agents_get(args: AgentsGetArgs) -> Result<()> {
 
 pub async fn search(args: SearchArgs) -> Result<()> {
     let config = ConfigManager::new()?;
-    let active_tenant = config
-        .get_active_tenant()?
-        .ok_or_else(|| crate::error::Ctl365Error::ConfigError("No active tenant. Run 'ctl365 tenant switch <name>' first.".into()))?;
+    let active_tenant = config.get_active_tenant()?.ok_or_else(|| {
+        crate::error::Ctl365Error::ConfigError(
+            "No active tenant. Run 'ctl365 tenant switch <name>' first.".into(),
+        )
+    })?;
     let client = GraphClient::from_config(&config, &active_tenant.name).await?;
     let copilot_client = CopilotClient::new(&client);
 
@@ -331,11 +336,7 @@ pub async fn search(args: SearchArgs) -> Result<()> {
             for container in containers {
                 if let Some(hits) = &container.hits {
                     total_hits += hits.len();
-                    println!(
-                        "\n{} Search Results ({} found)",
-                        "=".repeat(60),
-                        hits.len()
-                    );
+                    println!("\n{} Search Results ({} found)", "=".repeat(60), hits.len());
 
                     for (i, hit) in hits.iter().enumerate() {
                         println!("\n{}. {}", i + 1, "-".repeat(50));
@@ -365,9 +366,11 @@ pub async fn search(args: SearchArgs) -> Result<()> {
 
 pub async fn interactions_export(args: InteractionsExportArgs) -> Result<()> {
     let config = ConfigManager::new()?;
-    let active_tenant = config
-        .get_active_tenant()?
-        .ok_or_else(|| crate::error::Ctl365Error::ConfigError("No active tenant. Run 'ctl365 tenant switch <name>' first.".into()))?;
+    let active_tenant = config.get_active_tenant()?.ok_or_else(|| {
+        crate::error::Ctl365Error::ConfigError(
+            "No active tenant. Run 'ctl365 tenant switch <name>' first.".into(),
+        )
+    })?;
     let client = GraphClient::from_config(&config, &active_tenant.name).await?;
     let copilot_client = CopilotClient::new(&client);
 
@@ -405,10 +408,7 @@ pub async fn interactions_export(args: InteractionsExportArgs) -> Result<()> {
         output.push_str(&format!("{}\n", "-".repeat(120)));
 
         for interaction in &interactions {
-            let created = interaction
-                .created_date_time
-                .as_deref()
-                .unwrap_or("-");
+            let created = interaction.created_date_time.as_deref().unwrap_or("-");
             let user = interaction.user_id.as_deref().unwrap_or("-");
             let app = interaction.app_id.as_deref().unwrap_or("-");
             output.push_str(&format!(
@@ -436,9 +436,11 @@ pub async fn interactions_export(args: InteractionsExportArgs) -> Result<()> {
 
 pub async fn meeting_insights(args: MeetingInsightsArgs) -> Result<()> {
     let config = ConfigManager::new()?;
-    let active_tenant = config
-        .get_active_tenant()?
-        .ok_or_else(|| crate::error::Ctl365Error::ConfigError("No active tenant. Run 'ctl365 tenant switch <name>' first.".into()))?;
+    let active_tenant = config.get_active_tenant()?.ok_or_else(|| {
+        crate::error::Ctl365Error::ConfigError(
+            "No active tenant. Run 'ctl365 tenant switch <name>' first.".into(),
+        )
+    })?;
     let client = GraphClient::from_config(&config, &active_tenant.name).await?;
     let copilot_client = CopilotClient::new(&client);
 

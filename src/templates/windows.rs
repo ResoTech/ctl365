@@ -1,6 +1,6 @@
 use crate::cmd::baseline::NewArgs;
 use crate::error::Result;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::fs;
 
 /// Generate a complete Windows 11 baseline configuration
@@ -34,10 +34,7 @@ pub fn generate_baseline(args: &NewArgs) -> Result<Value> {
 
 /// Generate Windows 10/11 Compliance Policy
 fn generate_compliance_policy(args: &NewArgs) -> Value {
-    let min_os = args
-        .min_os
-        .as_deref()
-        .unwrap_or("10.0.26100.0"); // Windows 11 25H2 default
+    let min_os = args.min_os.as_deref().unwrap_or("10.0.26100.0"); // Windows 11 25H2 default
 
     json!({
         "@odata.type": "#microsoft.graph.windows10CompliancePolicy",
@@ -277,10 +274,9 @@ fn generate_bitlocker_policy(args: &NewArgs) -> Value {
 
 /// Generate Microsoft Defender for Endpoint Onboarding Configuration
 fn generate_mde_onboarding(args: &NewArgs) -> Result<Value> {
-    let mde_path = args
-        .mde_onboarding
-        .as_ref()
-        .ok_or_else(|| crate::error::Error::ConfigError("MDE onboarding path not provided".into()))?;
+    let mde_path = args.mde_onboarding.as_ref().ok_or_else(|| {
+        crate::error::Error::ConfigError("MDE onboarding path not provided".into())
+    })?;
 
     // Read the MDE onboarding XML file
     let mde_xml = fs::read_to_string(mde_path).map_err(|e| {

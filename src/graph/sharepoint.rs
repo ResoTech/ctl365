@@ -299,7 +299,10 @@ impl<'a> SharePointClient<'a> {
 
     /// List hub sites in the tenant (beta API)
     pub async fn list_hub_sites(&self) -> Result<Vec<HubSite>> {
-        let response: HubSiteListResponse = self.client.get_beta("sites?$filter=isHubSite eq true").await?;
+        let response: HubSiteListResponse = self
+            .client
+            .get_beta("sites?$filter=isHubSite eq true")
+            .await?;
         Ok(response.value)
     }
 

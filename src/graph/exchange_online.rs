@@ -10,12 +10,14 @@
 
 use crate::error::Result;
 use crate::graph::GraphClient;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 /// Enable archive mailbox for all users tenant-wide
 pub async fn enable_archive_mailbox_tenant_wide(client: &GraphClient) -> Result<Value> {
     // Get all users with mailboxes
-    let users: Value = client.get("users?$filter=assignedLicenses/any(x:x ne null)&$select=id,userPrincipalName,mail").await?;
+    let users: Value = client
+        .get("users?$filter=assignedLicenses/any(x:x ne null)&$select=id,userPrincipalName,mail")
+        .await?;
 
     let mut results = Vec::new();
 
@@ -32,7 +34,7 @@ pub async fn enable_archive_mailbox_tenant_wide(client: &GraphClient) -> Result<
                         "userPrincipalName": upn,
                         "status": "error",
                         "error": e.to_string()
-                    }))
+                    })),
                 }
             }
         }
@@ -45,7 +47,10 @@ pub async fn enable_archive_mailbox_tenant_wide(client: &GraphClient) -> Result<
 }
 
 /// Enable archive mailbox for a specific user
-pub async fn enable_user_archive_mailbox(client: &GraphClient, user_principal_name: &str) -> Result<Value> {
+pub async fn enable_user_archive_mailbox(
+    client: &GraphClient,
+    user_principal_name: &str,
+) -> Result<Value> {
     // Exchange Online uses PowerShell cmdlets via Graph API
     // Enable-Mailbox -Identity <UPN> -Archive
 
@@ -54,10 +59,12 @@ pub async fn enable_user_archive_mailbox(client: &GraphClient, user_principal_na
         "archiveEnabled": true
     });
 
-    client.patch(
-        &format!("users/{}/mailboxSettings", user_principal_name),
-        &payload
-    ).await
+    client
+        .patch(
+            &format!("users/{}/mailboxSettings", user_principal_name),
+            &payload,
+        )
+        .await
 }
 
 /// Configure retention policy for archive after specified years
@@ -65,7 +72,7 @@ pub async fn enable_user_archive_mailbox(client: &GraphClient, user_principal_na
 pub async fn configure_retention_policy(
     client: &GraphClient,
     policy_name: &str,
-    retain_years: u32
+    retain_years: u32,
 ) -> Result<Value> {
     // Create or update retention policy
     // Exchange retention tags: MoveToArchive after X years
@@ -87,13 +94,15 @@ pub async fn configure_retention_policy(
     });
 
     // POST to create retention label
-    client.post("security/labels/retentionLabels", &policy).await
+    client
+        .post("security/labels/retentionLabels", &policy)
+        .await
 }
 
 /// Apply retention policy to all mailboxes
 pub async fn apply_retention_policy_tenant_wide(
     client: &GraphClient,
-    policy_id: &str
+    policy_id: &str,
 ) -> Result<Value> {
     // Create retention label policy to auto-apply
     let policy = json!({
@@ -108,7 +117,9 @@ pub async fn apply_retention_policy_tenant_wide(
         }
     });
 
-    client.post("security/labels/retentionLabelPolicies", &policy).await
+    client
+        .post("security/labels/retentionLabelPolicies", &policy)
+        .await
 }
 
 /// Disable quarantine email notifications for end users
@@ -123,14 +134,13 @@ pub async fn disable_quarantine_notifications(client: &GraphClient) -> Result<Va
     });
 
     // Update default quarantine policy
-    client.patch("security/threatIntelligence/quarantinePolicy", &policy).await
+    client
+        .patch("security/threatIntelligence/quarantinePolicy", &policy)
+        .await
 }
 
 /// Configure anti-spam policy with recommended settings
-pub async fn configure_antispam_policy(
-    client: &GraphClient,
-    policy_name: &str
-) -> Result<Value> {
+pub async fn configure_antispam_policy(client: &GraphClient, policy_name: &str) -> Result<Value> {
     // Create or update anti-spam (hosted content filter) policy
 
     let policy = json!({
@@ -166,18 +176,25 @@ pub async fn configure_antispam_policy(
         "blockedSenderDomains": []
     });
 
-    client.post("security/threatIntelligence/hostedContentFilterPolicies", &policy).await
+    client
+        .post(
+            "security/threatIntelligence/hostedContentFilterPolicies",
+            &policy,
+        )
+        .await
 }
 
 /// Get current anti-spam policies
 pub async fn list_antispam_policies(client: &GraphClient) -> Result<Value> {
-    client.get("security/threatIntelligence/hostedContentFilterPolicies").await
+    client
+        .get("security/threatIntelligence/hostedContentFilterPolicies")
+        .await
 }
 
 /// Configure anti-malware policy
 pub async fn configure_antimalware_policy(
     client: &GraphClient,
-    policy_name: &str
+    policy_name: &str,
 ) -> Result<Value> {
     let policy = json!({
         "@odata.type": "#microsoft.graph.malwareFilterPolicy",
@@ -198,7 +215,9 @@ pub async fn configure_antimalware_policy(
         }
     });
 
-    client.post("security/threatIntelligence/malwareFilterPolicies", &policy).await
+    client
+        .post("security/threatIntelligence/malwareFilterPolicies", &policy)
+        .await
 }
 
 /// Configure outbound spam filter policy
@@ -214,14 +233,16 @@ pub async fn configure_outbound_spam_policy(client: &GraphClient) -> Result<Valu
         "autoForwardingMode": "off" // Prevent auto-forwarding to external domains
     });
 
-    client.patch("security/threatIntelligence/outboundSpamFilterPolicy", &policy).await
+    client
+        .patch(
+            "security/threatIntelligence/outboundSpamFilterPolicy",
+            &policy,
+        )
+        .await
 }
 
 /// Configure Safe Links policy (Defender for Office 365)
-pub async fn configure_safe_links_policy(
-    client: &GraphClient,
-    policy_name: &str
-) -> Result<Value> {
+pub async fn configure_safe_links_policy(client: &GraphClient, policy_name: &str) -> Result<Value> {
     let policy = json!({
         "@odata.type": "#microsoft.graph.safeLinkPolicy",
         "name": policy_name,
@@ -237,13 +258,15 @@ pub async fn configure_safe_links_policy(
         "doNotRewriteUrls": []
     });
 
-    client.post("security/threatIntelligence/safeLinkPolicies", &policy).await
+    client
+        .post("security/threatIntelligence/safeLinkPolicies", &policy)
+        .await
 }
 
 /// Configure Safe Attachments policy (Defender for Office 365)
 pub async fn configure_safe_attachments_policy(
     client: &GraphClient,
-    policy_name: &str
+    policy_name: &str,
 ) -> Result<Value> {
     let policy = json!({
         "@odata.type": "#microsoft.graph.safeAttachmentPolicy",
@@ -255,7 +278,12 @@ pub async fn configure_safe_attachments_policy(
         "enableForInternalSenders": true
     });
 
-    client.post("security/threatIntelligence/safeAttachmentPolicies", &policy).await
+    client
+        .post(
+            "security/threatIntelligence/safeAttachmentPolicies",
+            &policy,
+        )
+        .await
 }
 
 /// Get Exchange Online organization config
@@ -267,7 +295,7 @@ pub async fn get_organization_config(client: &GraphClient) -> Result<Value> {
 pub async fn create_transport_rule(
     client: &GraphClient,
     rule_name: &str,
-    rule_config: &Value
+    rule_config: &Value,
 ) -> Result<Value> {
     let rule = json!({
         "@odata.type": "#microsoft.graph.transportRule",
@@ -279,5 +307,7 @@ pub async fn create_transport_rule(
         "actions": rule_config["actions"]
     });
 
-    client.post("security/threatIntelligence/transportRules", &rule).await
+    client
+        .post("security/threatIntelligence/transportRules", &rule)
+        .await
 }

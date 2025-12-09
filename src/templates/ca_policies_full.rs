@@ -7,8 +7,8 @@
 
 #![allow(dead_code)]
 
-use serde_json::json;
 use super::ca_baseline_2025::CAPolicyTemplate;
+use serde_json::json;
 
 // ============================================================================
 // CAD: Device/Platform Policies (13 policies)
@@ -47,7 +47,8 @@ pub fn cad003_ios_android_approved_app() -> CAPolicyTemplate {
 pub fn cad004_browser_mfa_non_compliant() -> CAPolicyTemplate {
     CAPolicyTemplate {
         id: "CAD004".to_string(),
-        display_name: "CAD004-O365 Require MFA for All users when Browser on non-compliant device".to_string(),
+        display_name: "CAD004-O365 Require MFA for All users when Browser on non-compliant device"
+            .to_string(),
         description: "Require MFA when accessing from browser on non-compliant device".to_string(),
         category: "Device".to_string(),
         state: "enabledForReportingButNotEnforced".to_string(),
@@ -414,8 +415,10 @@ pub fn cad016_token_protection() -> CAPolicyTemplate {
 pub fn cal002_mfa_registration_trusted_locations() -> CAPolicyTemplate {
     CAPolicyTemplate {
         id: "CAL002".to_string(),
-        display_name: "CAL002-Require MFA for security info registration outside trusted locations".to_string(),
-        description: "Require MFA when registering security info from untrusted networks".to_string(),
+        display_name: "CAL002-Require MFA for security info registration outside trusted locations"
+            .to_string(),
+        description: "Require MFA when registering security info from untrusted networks"
+            .to_string(),
         category: "Location".to_string(),
         state: "enabledForReportingButNotEnforced".to_string(),
         conditions: json!({
@@ -674,7 +677,8 @@ pub fn car004_password_change_high_user_risk() -> CAPolicyTemplate {
     CAPolicyTemplate {
         id: "CAR004".to_string(),
         display_name: "CAR004-Require secure password change for high user risk".to_string(),
-        description: "Force password change when user risk is high (compromised credential)".to_string(),
+        description: "Force password change when user risk is high (compromised credential)"
+            .to_string(),
         category: "Risk".to_string(),
         state: "enabledForReportingButNotEnforced".to_string(),
         conditions: json!({
@@ -700,7 +704,8 @@ pub fn car005_block_anonymous_ip() -> CAPolicyTemplate {
     CAPolicyTemplate {
         id: "CAR005".to_string(),
         display_name: "CAR005-Block access from anonymous IP addresses".to_string(),
-        description: "Block VPN, proxy, and Tor exit nodes detected by Identity Protection".to_string(),
+        description: "Block VPN, proxy, and Tor exit nodes detected by Identity Protection"
+            .to_string(),
         category: "Risk".to_string(),
         state: "enabledForReportingButNotEnforced".to_string(),
         conditions: json!({
@@ -1145,7 +1150,8 @@ pub fn cau009_require_password_change() -> CAPolicyTemplate {
     CAPolicyTemplate {
         id: "CAU009".to_string(),
         display_name: "CAU009-Require password change for flagged users".to_string(),
-        description: "Force password change for users in password change required group".to_string(),
+        description: "Force password change for users in password change required group"
+            .to_string(),
         category: "User".to_string(),
         state: "enabledForReportingButNotEnforced".to_string(),
         conditions: json!({

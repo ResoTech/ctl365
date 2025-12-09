@@ -55,8 +55,14 @@ pub fn enhance_graph_error(error_response: &str) -> String {
     // Try to parse as JSON to extract error details
     if let Ok(error_json) = serde_json::from_str::<serde_json::Value>(error_response) {
         if let Some(error_obj) = error_json.get("error") {
-            let code = error_obj.get("code").and_then(|c| c.as_str()).unwrap_or("Unknown");
-            let message = error_obj.get("message").and_then(|m| m.as_str()).unwrap_or("No message");
+            let code = error_obj
+                .get("code")
+                .and_then(|c| c.as_str())
+                .unwrap_or("Unknown");
+            let message = error_obj
+                .get("message")
+                .and_then(|m| m.as_str())
+                .unwrap_or("No message");
 
             // Provide helpful context for common errors
             let hint = match code {
@@ -81,7 +87,7 @@ pub fn enhance_graph_error(error_response: &str) -> String {
                 "TooManyRequests" => {
                     "\n💡 Hint: API rate limit exceeded. Wait a moment and try again."
                 }
-                _ => ""
+                _ => "",
             };
 
             return format!("{}: {}{}", code, message, hint);

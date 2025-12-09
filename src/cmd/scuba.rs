@@ -202,7 +202,8 @@ pub async fn run_audit(args: RunAuditArgs) -> Result<()> {
     let total = total_passed + total_failed + total_warning;
 
     println!("\n{} Overall Summary:", "→".cyan().bold());
-    println!("  Passed: {} ({})",
+    println!(
+        "  Passed: {} ({})",
         total_passed.to_string().green(),
         format!("{:.1}%", (total_passed as f32 / total as f32) * 100.0).green()
     );
@@ -260,7 +261,9 @@ pub async fn check_status(args: CheckStatusArgs) -> Result<()> {
                 for entry in entries.flatten() {
                     if let Ok(metadata) = entry.metadata() {
                         if let Ok(modified) = metadata.modified() {
-                            if latest_date.is_none() || latest_date.as_ref().map(|d| modified > *d).unwrap_or(false) {
+                            if latest_date.is_none()
+                                || latest_date.as_ref().map(|d| modified > *d).unwrap_or(false)
+                            {
                                 latest_date = Some(modified);
                             }
                         }
@@ -308,11 +311,14 @@ pub async fn baselines(args: BaselineArgs) -> Result<()> {
 
             for control in &baseline.controls {
                 println!("\n  {} {}", control.id.green(), control.title);
-                println!("    Severity: {}", match control.severity.as_str() {
-                    "High" | "Critical" => control.severity.red(),
-                    "Medium" => control.severity.yellow(),
-                    _ => control.severity.normal(),
-                });
+                println!(
+                    "    Severity: {}",
+                    match control.severity.as_str() {
+                        "High" | "Critical" => control.severity.red(),
+                        "Medium" => control.severity.yellow(),
+                        _ => control.severity.normal(),
+                    }
+                );
                 println!("    {}", control.requirement.dimmed());
             }
 
@@ -337,18 +343,32 @@ async fn audit_aad(graph: &GraphClient, tenant_name: &str) -> Result<ScubaAuditR
     let mut warning = 0u32;
 
     // MS.AAD.1.1v1 - Legacy authentication SHALL be blocked
-    match graph.get_beta::<Value>("identity/conditionalAccess/policies").await {
+    match graph
+        .get_beta::<Value>("identity/conditionalAccess/policies")
+        .await
+    {
         Ok(response) => {
             let has_legacy_block = response["value"]
                 .as_array()
-                .map(|policies| policies.iter().any(|p| {
-                    p["conditions"]["clientAppTypes"].as_array()
-                        .map(|types| types.iter().any(|t| t.as_str() == Some("exchangeActiveSync") || t.as_str() == Some("other")))
-                        .unwrap_or(false)
-                    && p["grantControls"]["builtInControls"].as_array()
-                        .map(|controls| controls.iter().any(|c| c.as_str() == Some("block")))
-                        .unwrap_or(false)
-                }))
+                .map(|policies| {
+                    policies.iter().any(|p| {
+                        p["conditions"]["clientAppTypes"]
+                            .as_array()
+                            .map(|types| {
+                                types.iter().any(|t| {
+                                    t.as_str() == Some("exchangeActiveSync")
+                                        || t.as_str() == Some("other")
+                                })
+                            })
+                            .unwrap_or(false)
+                            && p["grantControls"]["builtInControls"]
+                                .as_array()
+                                .map(|controls| {
+                                    controls.iter().any(|c| c.as_str() == Some("block"))
+                                })
+                                .unwrap_or(false)
+                    })
+                })
                 .unwrap_or(false);
 
             findings.push(ScubaFinding {
@@ -361,7 +381,11 @@ async fn audit_aad(graph: &GraphClient, tenant_name: &str) -> Result<ScubaAuditR
                 remediation: "Create Conditional Access policy to block legacy auth".to_string(),
                 reference_url: Some("https://learn.microsoft.com/en-us/azure/active-directory/conditional-access/block-legacy-authentication".into()),
             });
-            if has_legacy_block { passed += 1; } else { failed += 1; }
+            if has_legacy_block {
+                passed += 1;
+            } else {
+                failed += 1;
+            }
         }
         Err(_) => {
             findings.push(ScubaFinding {
@@ -387,19 +411,27 @@ async fn audit_aad(graph: &GraphClient, tenant_name: &str) -> Result<ScubaAuditR
         severity: "High".to_string(),
         description: "Identity Protection should block high-risk users".to_string(),
         remediation: "Configure Identity Protection user risk policy".to_string(),
-        reference_url: Some("https://learn.microsoft.com/en-us/azure/active-directory/identity-protection/".into()),
+        reference_url: Some(
+            "https://learn.microsoft.com/en-us/azure/active-directory/identity-protection/".into(),
+        ),
     });
 
     // MS.AAD.3.1v1 - MFA SHALL be required
-    match graph.get_beta::<Value>("identity/conditionalAccess/policies").await {
+    match graph
+        .get_beta::<Value>("identity/conditionalAccess/policies")
+        .await
+    {
         Ok(response) => {
             let has_mfa = response["value"]
                 .as_array()
-                .map(|policies| policies.iter().any(|p| {
-                    p["grantControls"]["builtInControls"].as_array()
-                        .map(|controls| controls.iter().any(|c| c.as_str() == Some("mfa")))
-                        .unwrap_or(false)
-                }))
+                .map(|policies| {
+                    policies.iter().any(|p| {
+                        p["grantControls"]["builtInControls"]
+                            .as_array()
+                            .map(|controls| controls.iter().any(|c| c.as_str() == Some("mfa")))
+                            .unwrap_or(false)
+                    })
+                })
                 .unwrap_or(false);
 
             findings.push(ScubaFinding {
@@ -412,9 +444,15 @@ async fn audit_aad(graph: &GraphClient, tenant_name: &str) -> Result<ScubaAuditR
                 remediation: "Enable MFA via Conditional Access".to_string(),
                 reference_url: Some("https://learn.microsoft.com/en-us/azure/active-directory/authentication/concept-mfa-howitworks".into()),
             });
-            if has_mfa { passed += 1; } else { failed += 1; }
+            if has_mfa {
+                passed += 1;
+            } else {
+                failed += 1;
+            }
         }
-        Err(_) => { warning += 1; }
+        Err(_) => {
+            warning += 1;
+        }
     }
 
     // MS.AAD.3.6v1 - Phishing-resistant MFA SHALL be used for privileged roles
@@ -430,7 +468,10 @@ async fn audit_aad(graph: &GraphClient, tenant_name: &str) -> Result<ScubaAuditR
     });
 
     // MS.AAD.7.1v1 - Security defaults SHALL be disabled
-    match graph.get_beta::<Value>("policies/identitySecurityDefaultsEnforcementPolicy").await {
+    match graph
+        .get_beta::<Value>("policies/identitySecurityDefaultsEnforcementPolicy")
+        .await
+    {
         Ok(response) => {
             let defaults_enabled = response["isEnabled"].as_bool().unwrap_or(false);
 
@@ -438,19 +479,35 @@ async fn audit_aad(graph: &GraphClient, tenant_name: &str) -> Result<ScubaAuditR
                 control_id: "MS.AAD.7.1v1".to_string(),
                 control_title: "Security Defaults".to_string(),
                 requirement: "Security defaults SHALL be disabled (use CA instead)".to_string(),
-                status: if !defaults_enabled { ScubaStatus::Pass } else { ScubaStatus::Warning },
+                status: if !defaults_enabled {
+                    ScubaStatus::Pass
+                } else {
+                    ScubaStatus::Warning
+                },
                 severity: "Medium".to_string(),
-                description: "Security defaults conflict with granular Conditional Access".to_string(),
-                remediation: "Disable security defaults and use Conditional Access policies".to_string(),
+                description: "Security defaults conflict with granular Conditional Access"
+                    .to_string(),
+                remediation: "Disable security defaults and use Conditional Access policies"
+                    .to_string(),
                 reference_url: None,
             });
-            if !defaults_enabled { passed += 1; } else { warning += 1; }
+            if !defaults_enabled {
+                passed += 1;
+            } else {
+                warning += 1;
+            }
         }
-        Err(_) => { warning += 1; }
+        Err(_) => {
+            warning += 1;
+        }
     }
 
     let total = findings.len() as u32;
-    let overall_score = if total > 0 { (passed as f32 / total as f32) * 100.0 } else { 0.0 };
+    let overall_score = if total > 0 {
+        (passed as f32 / total as f32) * 100.0
+    } else {
+        0.0
+    };
 
     Ok(ScubaAuditResult {
         product: "Azure Active Directory".to_string(),
@@ -461,7 +518,10 @@ async fn audit_aad(graph: &GraphClient, tenant_name: &str) -> Result<ScubaAuditR
         controls_passed: passed,
         controls_failed: failed,
         controls_warning: warning,
-        controls_manual: findings.iter().filter(|f| matches!(f.status, ScubaStatus::Manual)).count() as u32,
+        controls_manual: findings
+            .iter()
+            .filter(|f| matches!(f.status, ScubaStatus::Manual))
+            .count() as u32,
         findings,
     })
 }
@@ -521,7 +581,11 @@ async fn audit_defender(_graph: &GraphClient, tenant_name: &str) -> Result<Scuba
     });
 
     let total = findings.len() as u32;
-    let overall_score = if total > 0 { (passed as f32 / total as f32) * 100.0 } else { 0.0 };
+    let overall_score = if total > 0 {
+        (passed as f32 / total as f32) * 100.0
+    } else {
+        0.0
+    };
 
     Ok(ScubaAuditResult {
         product: "Microsoft Defender for Office 365".to_string(),
@@ -592,7 +656,11 @@ async fn audit_exchange(_graph: &GraphClient, tenant_name: &str) -> Result<Scuba
     });
 
     let total = findings.len() as u32;
-    let overall_score = if total > 0 { (passed as f32 / total as f32) * 100.0 } else { 0.0 };
+    let overall_score = if total > 0 {
+        (passed as f32 / total as f32) * 100.0
+    } else {
+        0.0
+    };
 
     Ok(ScubaAuditResult {
         product: "Exchange Online".to_string(),
@@ -620,7 +688,9 @@ async fn audit_sharepoint(_graph: &GraphClient, tenant_name: &str) -> Result<Scu
         severity: "High".to_string(),
         description: "Restrict external sharing to prevent data leakage".to_string(),
         remediation: "Configure sharing settings in SharePoint admin center".to_string(),
-        reference_url: Some("https://learn.microsoft.com/en-us/sharepoint/turn-external-sharing-on-or-off".into()),
+        reference_url: Some(
+            "https://learn.microsoft.com/en-us/sharepoint/turn-external-sharing-on-or-off".into(),
+        ),
     });
 
     // MS.SHAREPOINT.2.1v1 - File and folder links SHALL be restricted
@@ -673,7 +743,9 @@ async fn audit_teams(_graph: &GraphClient, tenant_name: &str) -> Result<ScubaAud
         severity: "High".to_string(),
         description: "External federation should be controlled".to_string(),
         remediation: "Configure external access in Teams admin center".to_string(),
-        reference_url: Some("https://learn.microsoft.com/en-us/microsoftteams/manage-external-access".into()),
+        reference_url: Some(
+            "https://learn.microsoft.com/en-us/microsoftteams/manage-external-access".into(),
+        ),
     });
 
     // MS.TEAMS.2.1v1 - Guest access SHALL be restricted
@@ -697,7 +769,9 @@ async fn audit_teams(_graph: &GraphClient, tenant_name: &str) -> Result<ScubaAud
         severity: "High".to_string(),
         description: "Data Loss Prevention protects sensitive information".to_string(),
         remediation: "Configure DLP policies for Teams messages".to_string(),
-        reference_url: Some("https://learn.microsoft.com/en-us/microsoft-365/compliance/dlp-microsoft-teams".into()),
+        reference_url: Some(
+            "https://learn.microsoft.com/en-us/microsoft-365/compliance/dlp-microsoft-teams".into(),
+        ),
     });
 
     Ok(ScubaAuditResult {
@@ -717,7 +791,8 @@ async fn audit_teams(_graph: &GraphClient, tenant_name: &str) -> Result<ScubaAud
 fn display_product_summary(result: &ScubaAuditResult) {
     println!("  {} {} Assessment:", "•".green(), result.product);
     println!("    Score: {:.1}%", result.overall_score);
-    println!("    Passed: {} | Failed: {} | Warning: {} | Manual: {}",
+    println!(
+        "    Passed: {} | Failed: {} | Warning: {} | Manual: {}",
         result.controls_passed.to_string().green(),
         result.controls_failed.to_string().red(),
         result.controls_warning.to_string().yellow(),
@@ -725,7 +800,11 @@ fn display_product_summary(result: &ScubaAuditResult) {
     );
 }
 
-fn generate_scuba_report(results: &[ScubaAuditResult], output_dir: &PathBuf, format: &str) -> Result<()> {
+fn generate_scuba_report(
+    results: &[ScubaAuditResult],
+    output_dir: &PathBuf,
+    format: &str,
+) -> Result<()> {
     match format {
         "json" => {
             let json = serde_json::to_string_pretty(&results)?;
@@ -749,7 +828,8 @@ fn generate_scuba_report(results: &[ScubaAuditResult], output_dir: &PathBuf, for
 }
 
 fn generate_html_report(results: &[ScubaAuditResult]) -> String {
-    let mut html = String::from(r#"<!DOCTYPE html>
+    let mut html = String::from(
+        r#"<!DOCTYPE html>
 <html>
 <head>
     <title>SCuBA Baseline Assessment Report</title>
@@ -775,7 +855,8 @@ fn generate_html_report(results: &[ScubaAuditResult]) -> String {
 <body>
     <div class="container">
         <h1>CISA SCuBA Baseline Assessment</h1>
-        <p>Generated: "#);
+        <p>Generated: "#,
+    );
 
     html.push_str(&chrono::Utc::now().format("%Y-%m-%d %H:%M UTC").to_string());
     html.push_str(r#"</p>"#);
@@ -786,21 +867,35 @@ fn generate_html_report(results: &[ScubaAuditResult]) -> String {
     let total_warning: u32 = results.iter().map(|r| r.controls_warning).sum();
     let total_manual: u32 = results.iter().map(|r| r.controls_manual).sum();
     let total = total_passed + total_failed + total_warning;
-    let overall = if total > 0 { (total_passed as f32 / total as f32) * 100.0 } else { 0.0 };
+    let overall = if total > 0 {
+        (total_passed as f32 / total as f32) * 100.0
+    } else {
+        0.0
+    };
 
-    let score_class = if overall >= 80.0 { "pass" } else if overall >= 50.0 { "warning" } else { "fail" };
+    let score_class = if overall >= 80.0 {
+        "pass"
+    } else if overall >= 50.0 {
+        "warning"
+    } else {
+        "fail"
+    };
 
-    html.push_str(&format!(r#"
+    html.push_str(&format!(
+        r#"
         <div class="card">
             <h2>Overall Summary</h2>
             <div class="score {}">{:.0}%</div>
             <p>Passed: {} | Failed: {} | Warning: {} | Manual Review: {}</p>
         </div>
-    "#, score_class, overall, total_passed, total_failed, total_warning, total_manual));
+    "#,
+        score_class, overall, total_passed, total_failed, total_warning, total_manual
+    ));
 
     // Product details
     for result in results {
-        html.push_str(&format!(r#"
+        html.push_str(&format!(
+            r#"
         <div class="card">
             <h2>{}</h2>
             <p>Baseline Version: {} | Audit Date: {}</p>
@@ -812,7 +907,15 @@ fn generate_html_report(results: &[ScubaAuditResult]) -> String {
                     <th>Severity</th>
                     <th>Remediation</th>
                 </tr>
-        "#, result.product, result.baseline_version, result.audit_date.split('T').next().unwrap_or(&result.audit_date)));
+        "#,
+            result.product,
+            result.baseline_version,
+            result
+                .audit_date
+                .split('T')
+                .next()
+                .unwrap_or(&result.audit_date)
+        ));
 
         for finding in &result.findings {
             let status_class = match finding.status {
@@ -830,7 +933,8 @@ fn generate_html_report(results: &[ScubaAuditResult]) -> String {
                 ScubaStatus::Error => "Error",
             };
 
-            html.push_str(&format!(r#"
+            html.push_str(&format!(
+                r#"
                 <tr>
                     <td>{}</td>
                     <td>{}</td>
@@ -838,26 +942,36 @@ fn generate_html_report(results: &[ScubaAuditResult]) -> String {
                     <td>{}</td>
                     <td>{}</td>
                 </tr>
-            "#, finding.control_id, finding.control_title, status_class, status_text, finding.severity, finding.remediation));
+            "#,
+                finding.control_id,
+                finding.control_title,
+                status_class,
+                status_text,
+                finding.severity,
+                finding.remediation
+            ));
         }
 
         html.push_str("</table></div>");
     }
 
-    html.push_str(r#"
+    html.push_str(
+        r#"
         <footer style="margin-top: 40px; color: #666; text-align: center;">
             <p>Generated by ctl365 - CISA SCuBA Baseline Assessment</p>
             <p><a href="https://github.com/cisagov/ScubaGear">ScubaGear on GitHub</a></p>
         </footer>
     </div>
 </body>
-</html>"#);
+</html>"#,
+    );
 
     html
 }
 
 fn generate_csv_report(results: &[ScubaAuditResult]) -> String {
-    let mut csv = String::from("Product,Control ID,Title,Status,Severity,Requirement,Remediation\n");
+    let mut csv =
+        String::from("Product,Control ID,Title,Status,Severity,Requirement,Remediation\n");
 
     for result in results {
         for finding in &result.findings {
@@ -869,7 +983,8 @@ fn generate_csv_report(results: &[ScubaAuditResult]) -> String {
                 ScubaStatus::NotApplicable => "N/A",
                 ScubaStatus::Error => "Error",
             };
-            csv.push_str(&format!("\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\"\n",
+            csv.push_str(&format!(
+                "\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\"\n",
                 result.product,
                 finding.control_id,
                 finding.control_title,
@@ -928,68 +1043,60 @@ fn get_all_baselines() -> Vec<ScubaBaseline> {
             name: "Microsoft Defender for Office 365".to_string(),
             version: "1.0".to_string(),
             product: "Defender".to_string(),
-            controls: vec![
-                ScubaControl {
-                    id: "MS.DEFENDER.1.1v1".to_string(),
-                    title: "Standard Protection".to_string(),
-                    description: "Enable preset security policies".to_string(),
-                    requirement: "Standard protection SHALL be enabled".to_string(),
-                    severity: "High".to_string(),
-                    check_type: "Manual".to_string(),
-                    remediation: "Enable Standard or Strict preset policy".to_string(),
-                },
-            ],
+            controls: vec![ScubaControl {
+                id: "MS.DEFENDER.1.1v1".to_string(),
+                title: "Standard Protection".to_string(),
+                description: "Enable preset security policies".to_string(),
+                requirement: "Standard protection SHALL be enabled".to_string(),
+                severity: "High".to_string(),
+                check_type: "Manual".to_string(),
+                remediation: "Enable Standard or Strict preset policy".to_string(),
+            }],
         },
         ScubaBaseline {
             id: "exchange".to_string(),
             name: "Exchange Online".to_string(),
             version: "1.0".to_string(),
             product: "Exchange".to_string(),
-            controls: vec![
-                ScubaControl {
-                    id: "MS.EXO.1.1v1".to_string(),
-                    title: "Auto-Forwarding".to_string(),
-                    description: "Disable automatic mail forwarding".to_string(),
-                    requirement: "Auto-forwarding SHALL be disabled".to_string(),
-                    severity: "High".to_string(),
-                    check_type: "Manual".to_string(),
-                    remediation: "Create transport rule to block forwarding".to_string(),
-                },
-            ],
+            controls: vec![ScubaControl {
+                id: "MS.EXO.1.1v1".to_string(),
+                title: "Auto-Forwarding".to_string(),
+                description: "Disable automatic mail forwarding".to_string(),
+                requirement: "Auto-forwarding SHALL be disabled".to_string(),
+                severity: "High".to_string(),
+                check_type: "Manual".to_string(),
+                remediation: "Create transport rule to block forwarding".to_string(),
+            }],
         },
         ScubaBaseline {
             id: "sharepoint".to_string(),
             name: "SharePoint Online".to_string(),
             version: "1.0".to_string(),
             product: "SharePoint".to_string(),
-            controls: vec![
-                ScubaControl {
-                    id: "MS.SHAREPOINT.1.1v1".to_string(),
-                    title: "External Sharing".to_string(),
-                    description: "Restrict external sharing".to_string(),
-                    requirement: "External sharing SHALL be restricted".to_string(),
-                    severity: "High".to_string(),
-                    check_type: "Manual".to_string(),
-                    remediation: "Configure sharing in SharePoint admin".to_string(),
-                },
-            ],
+            controls: vec![ScubaControl {
+                id: "MS.SHAREPOINT.1.1v1".to_string(),
+                title: "External Sharing".to_string(),
+                description: "Restrict external sharing".to_string(),
+                requirement: "External sharing SHALL be restricted".to_string(),
+                severity: "High".to_string(),
+                check_type: "Manual".to_string(),
+                remediation: "Configure sharing in SharePoint admin".to_string(),
+            }],
         },
         ScubaBaseline {
             id: "teams".to_string(),
             name: "Microsoft Teams".to_string(),
             version: "1.0".to_string(),
             product: "Teams".to_string(),
-            controls: vec![
-                ScubaControl {
-                    id: "MS.TEAMS.1.1v1".to_string(),
-                    title: "External Access".to_string(),
-                    description: "Restrict external federation".to_string(),
-                    requirement: "External access SHALL be restricted".to_string(),
-                    severity: "High".to_string(),
-                    check_type: "Manual".to_string(),
-                    remediation: "Configure external access in Teams admin".to_string(),
-                },
-            ],
+            controls: vec![ScubaControl {
+                id: "MS.TEAMS.1.1v1".to_string(),
+                title: "External Access".to_string(),
+                description: "Restrict external federation".to_string(),
+                requirement: "External access SHALL be restricted".to_string(),
+                severity: "High".to_string(),
+                check_type: "Manual".to_string(),
+                remediation: "Configure external access in Teams admin".to_string(),
+            }],
         },
     ]
 }

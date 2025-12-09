@@ -13,7 +13,7 @@ use crate::graph::GraphClient;
 use clap::Args;
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::fs;
 use std::path::PathBuf;
 
@@ -144,10 +144,16 @@ pub async fn deploy_script(args: DeployScriptArgs) -> Result<()> {
     println!("→ Script: {}", script_name.cyan());
     println!("→ Platform: {}", args.platform.cyan());
     println!("→ File: {}", args.file.display().to_string().cyan());
-    println!("→ Run as: {}", if args.run_as_user { "User" } else { "System" }.cyan());
+    println!(
+        "→ Run as: {}",
+        if args.run_as_user { "User" } else { "System" }.cyan()
+    );
 
     if args.dry_run {
-        println!("\n{} DRY RUN - Script would be deployed:", "ℹ".yellow().bold());
+        println!(
+            "\n{} DRY RUN - Script would be deployed:",
+            "ℹ".yellow().bold()
+        );
         println!("  Name: {}", script_name);
         println!("  Platform: {}", args.platform);
         println!("  Lines: {}", script_content.lines().count());
@@ -205,15 +211,27 @@ pub async fn deploy_remediation(args: DeployRemediationArgs) -> Result<()> {
     let remediation_content = fs::read_to_string(&args.remediation)?;
 
     println!("→ Name: {}", args.name.cyan());
-    println!("→ Detection: {}", args.detection.display().to_string().cyan());
-    println!("→ Remediation: {}", args.remediation.display().to_string().cyan());
+    println!(
+        "→ Detection: {}",
+        args.detection.display().to_string().cyan()
+    );
+    println!(
+        "→ Remediation: {}",
+        args.remediation.display().to_string().cyan()
+    );
     println!("→ Schedule: {}", args.schedule.cyan());
 
     if args.dry_run {
-        println!("\n{} DRY RUN - Remediation would be deployed:", "ℹ".yellow().bold());
+        println!(
+            "\n{} DRY RUN - Remediation would be deployed:",
+            "ℹ".yellow().bold()
+        );
         println!("  Name: {}", args.name);
         println!("  Detection lines: {}", detection_content.lines().count());
-        println!("  Remediation lines: {}", remediation_content.lines().count());
+        println!(
+            "  Remediation lines: {}",
+            remediation_content.lines().count()
+        );
         return Ok(());
     }
 
@@ -246,7 +264,10 @@ pub async fn deploy_remediation(args: DeployRemediationArgs) -> Result<()> {
 
     println!("\n{} Creating proactive remediation...", "→".cyan());
 
-    match graph.post_beta::<Value, Value>("deviceManagement/deviceHealthScripts", &script_body).await {
+    match graph
+        .post_beta::<Value, Value>("deviceManagement/deviceHealthScripts", &script_body)
+        .await
+    {
         Ok(response) => {
             let script_id = response["id"].as_str().unwrap_or("unknown");
             println!("  {} Remediation created: {}", "✓".green(), script_id);
@@ -283,7 +304,10 @@ pub async fn list_scripts(args: ListScriptsArgs) -> Result<()> {
     if args.platform == "all" || args.platform == "windows" {
         println!("\n{} Windows PowerShell Scripts:", "→".cyan().bold());
 
-        match graph.get_beta::<Value>("deviceManagement/deviceManagementScripts").await {
+        match graph
+            .get_beta::<Value>("deviceManagement/deviceManagementScripts")
+            .await
+        {
             Ok(response) => {
                 if let Some(scripts) = response["value"].as_array() {
                     if scripts.is_empty() {
@@ -314,7 +338,10 @@ pub async fn list_scripts(args: ListScriptsArgs) -> Result<()> {
         // List Proactive Remediations
         println!("\n{} Proactive Remediations:", "→".cyan().bold());
 
-        match graph.get_beta::<Value>("deviceManagement/deviceHealthScripts").await {
+        match graph
+            .get_beta::<Value>("deviceManagement/deviceHealthScripts")
+            .await
+        {
             Ok(response) => {
                 if let Some(scripts) = response["value"].as_array() {
                     if scripts.is_empty() {
@@ -341,7 +368,10 @@ pub async fn list_scripts(args: ListScriptsArgs) -> Result<()> {
     if args.platform == "all" || args.platform == "macos" {
         println!("\n{} macOS Shell Scripts:", "→".cyan().bold());
 
-        match graph.get_beta::<Value>("deviceManagement/deviceShellScripts").await {
+        match graph
+            .get_beta::<Value>("deviceManagement/deviceShellScripts")
+            .await
+        {
             Ok(response) => {
                 if let Some(scripts) = response["value"].as_array() {
                     if scripts.is_empty() {
@@ -386,7 +416,10 @@ async fn deploy_windows_script(
 
     println!("\n{} Creating Windows PowerShell script...", "→".cyan());
 
-    match graph.post_beta::<Value, Value>("deviceManagement/deviceManagementScripts", &script_body).await {
+    match graph
+        .post_beta::<Value, Value>("deviceManagement/deviceManagementScripts", &script_body)
+        .await
+    {
         Ok(response) => {
             let script_id = response["id"].as_str().unwrap_or("unknown");
             println!("  {} Script created: {}", "✓".green(), script_id);
@@ -424,7 +457,10 @@ async fn deploy_macos_script(
 
     println!("\n{} Creating macOS shell script...", "→".cyan());
 
-    match graph.post_beta::<Value, Value>("deviceManagement/deviceShellScripts", &script_body).await {
+    match graph
+        .post_beta::<Value, Value>("deviceManagement/deviceShellScripts", &script_body)
+        .await
+    {
         Ok(response) => {
             let script_id = response["id"].as_str().unwrap_or("unknown");
             println!("  {} Script created: {}", "✓".green(), script_id);
@@ -448,7 +484,10 @@ async fn deploy_linux_script(
     _encoded_content: &str,
 ) -> Result<()> {
     // Linux scripts via Intune use custom compliance scripts
-    println!("\n{} Linux script deployment uses custom compliance...", "ℹ".yellow());
+    println!(
+        "\n{} Linux script deployment uses custom compliance...",
+        "ℹ".yellow()
+    );
     println!("  Creating as custom compliance script...");
 
     // Linux scripts are deployed via custom compliance policies
@@ -475,10 +514,16 @@ async fn assign_script_to_group(
 
     let endpoint = match platform {
         "macos" => format!("deviceManagement/deviceShellScripts/{}/assign", script_id),
-        _ => format!("deviceManagement/deviceManagementScripts/{}/assign", script_id),
+        _ => format!(
+            "deviceManagement/deviceManagementScripts/{}/assign",
+            script_id
+        ),
     };
 
-    match graph.post_beta::<Value, Value>(&endpoint, &assignment).await {
+    match graph
+        .post_beta::<Value, Value>(&endpoint, &assignment)
+        .await
+    {
         Ok(_) => println!("  {} Assigned to group: {}", "✓".green(), group_id),
         Err(e) => println!("  {} Assignment failed: {}", "✗".red(), e),
     }
@@ -510,8 +555,15 @@ async fn assign_remediation_to_group(
 
     let endpoint = format!("deviceManagement/deviceHealthScripts/{}/assign", script_id);
 
-    match graph.post_beta::<Value, Value>(&endpoint, &assignment).await {
-        Ok(_) => println!("  {} Assigned remediation to group: {}", "✓".green(), group_id),
+    match graph
+        .post_beta::<Value, Value>(&endpoint, &assignment)
+        .await
+    {
+        Ok(_) => println!(
+            "  {} Assigned remediation to group: {}",
+            "✓".green(),
+            group_id
+        ),
         Err(e) => println!("  {} Assignment failed: {}", "✗".red(), e),
     }
 

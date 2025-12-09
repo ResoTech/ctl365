@@ -23,13 +23,13 @@
 //! - Change tracking and client reporting
 
 pub mod app;
-pub mod prompts;
-pub mod menu;
-pub mod settings;
-pub mod msp;
 pub mod change_tracker;
-pub mod tasks;
 pub mod context;
+pub mod menu;
+pub mod msp;
+pub mod prompts;
+pub mod settings;
+pub mod tasks;
 
 pub use app::run_tui;
 pub use menu::*;

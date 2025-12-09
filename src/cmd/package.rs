@@ -15,7 +15,7 @@ use crate::graph::GraphClient;
 use clap::Args;
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::fs;
 use std::io::{Read, Write};
 use std::path::PathBuf;
@@ -143,7 +143,10 @@ pub async fn package(args: PackageArgs) -> Result<()> {
         )));
     }
 
-    println!("→ Source: {}", args.source_folder.display().to_string().cyan());
+    println!(
+        "→ Source: {}",
+        args.source_folder.display().to_string().cyan()
+    );
     println!("→ Setup file: {}", args.setup_file.cyan());
     println!("→ Output: {}", args.output.display().to_string().cyan());
 
@@ -167,18 +170,27 @@ pub async fn package(args: PackageArgs) -> Result<()> {
     // Package the application
     println!("\n{} Creating .intunewin package...", "→".cyan());
 
-    let output_file = args.output.join(format!("{}.intunewin", sanitize_filename(&app_name)));
+    let output_file = args
+        .output
+        .join(format!("{}.intunewin", sanitize_filename(&app_name)));
 
     // Create the intunewin package (ZIP with specific structure)
     create_intunewin_package(&args.source_folder, &args.setup_file, &output_file)?;
 
-    println!("  {} Package created: {}", "✓".green(), output_file.display());
+    println!(
+        "  {} Package created: {}",
+        "✓".green(),
+        output_file.display()
+    );
 
     // Generate metadata
     let metadata = IntunewinMetadata {
         name: app_name.clone(),
         version: app_version.clone(),
-        publisher: args.publisher.clone().unwrap_or_else(|| "Unknown".to_string()),
+        publisher: args
+            .publisher
+            .clone()
+            .unwrap_or_else(|| "Unknown".to_string()),
         setup_file: args.setup_file.clone(),
         install_command: install_cmd.clone(),
         uninstall_command: uninstall_cmd.clone(),
@@ -188,15 +200,27 @@ pub async fn package(args: PackageArgs) -> Result<()> {
     };
 
     // Save metadata
-    let metadata_file = args.output.join(format!("{}_metadata.json", sanitize_filename(&app_name)));
+    let metadata_file = args
+        .output
+        .join(format!("{}_metadata.json", sanitize_filename(&app_name)));
     fs::write(&metadata_file, serde_json::to_string_pretty(&metadata)?)?;
-    println!("  {} Metadata saved: {}", "✓".green(), metadata_file.display());
+    println!(
+        "  {} Metadata saved: {}",
+        "✓".green(),
+        metadata_file.display()
+    );
 
     // Generate detection rules file if requested
     if args.detection_rules {
-        let rules_file = args.output.join(format!("{}_detection.json", sanitize_filename(&app_name)));
+        let rules_file = args
+            .output
+            .join(format!("{}_detection.json", sanitize_filename(&app_name)));
         fs::write(&rules_file, serde_json::to_string_pretty(&detection_rules)?)?;
-        println!("  {} Detection rules: {}", "✓".green(), rules_file.display());
+        println!(
+            "  {} Detection rules: {}",
+            "✓".green(),
+            rules_file.display()
+        );
     }
 
     // Upload to Intune if requested
@@ -205,10 +229,16 @@ pub async fn package(args: PackageArgs) -> Result<()> {
         upload_intunewin_to_intune(&output_file, &metadata).await?;
     }
 
-    println!("\n{} Application packaged successfully!", "✓".green().bold());
+    println!(
+        "\n{} Application packaged successfully!",
+        "✓".green().bold()
+    );
     println!("\nNext steps:");
     println!("  1. Review the metadata file for accuracy");
-    println!("  2. Upload to Intune: ctl365 package upload --file {}", output_file.display());
+    println!(
+        "  2. Upload to Intune: ctl365 package upload --file {}",
+        output_file.display()
+    );
     println!("  3. Or upload via Intune portal");
 
     Ok(())
@@ -263,7 +293,10 @@ pub async fn upload(args: UploadArgs) -> Result<()> {
 
     println!("\n{} Creating Win32 app...", "→".cyan());
 
-    match graph.post::<Value, Value>("deviceAppManagement/mobileApps", &app_body).await {
+    match graph
+        .post::<Value, Value>("deviceAppManagement/mobileApps", &app_body)
+        .await
+    {
         Ok(response) => {
             let app_id = response["id"].as_str().unwrap_or("unknown");
             println!("  {} Win32 app created: {}", "✓".green(), app_id);
@@ -277,7 +310,10 @@ pub async fn upload(args: UploadArgs) -> Result<()> {
 
             println!("\n{} App created in Intune!", "✓".green().bold());
             println!("  App ID: {}", app_id);
-            println!("\n{} Content upload requires additional steps.", "ℹ".yellow());
+            println!(
+                "\n{} Content upload requires additional steps.",
+                "ℹ".yellow()
+            );
             println!("  Please upload the .intunewin file via Intune portal.");
         }
         Err(e) => {
@@ -288,11 +324,15 @@ pub async fn upload(args: UploadArgs) -> Result<()> {
     Ok(())
 }
 
-fn detect_msi_info(path: &PathBuf, args: &PackageArgs) -> Result<(String, String, String, String, Vec<DetectionRule>)> {
+fn detect_msi_info(
+    path: &PathBuf,
+    args: &PackageArgs,
+) -> Result<(String, String, String, String, Vec<DetectionRule>)> {
     // For MSI files, we can extract info using msiinfo or similar tools
     // For now, use provided values or defaults
 
-    let file_name = path.file_stem()
+    let file_name = path
+        .file_stem()
         .and_then(|s| s.to_str())
         .unwrap_or("Unknown");
 
@@ -317,8 +357,12 @@ fn detect_msi_info(path: &PathBuf, args: &PackageArgs) -> Result<(String, String
     Ok((name, version, install_cmd, uninstall_cmd, detection_rules))
 }
 
-fn detect_exe_info(path: &PathBuf, args: &PackageArgs) -> Result<(String, String, String, String, Vec<DetectionRule>)> {
-    let file_name = path.file_stem()
+fn detect_exe_info(
+    path: &PathBuf,
+    args: &PackageArgs,
+) -> Result<(String, String, String, String, Vec<DetectionRule>)> {
+    let file_name = path
+        .file_stem()
         .and_then(|s| s.to_str())
         .unwrap_or("Unknown");
 
@@ -345,7 +389,11 @@ fn detect_exe_info(path: &PathBuf, args: &PackageArgs) -> Result<(String, String
     Ok((name, version, install_cmd, uninstall_cmd, detection_rules))
 }
 
-fn create_intunewin_package(source_folder: &PathBuf, setup_file: &str, output_file: &PathBuf) -> Result<()> {
+fn create_intunewin_package(
+    source_folder: &PathBuf,
+    setup_file: &str,
+    output_file: &PathBuf,
+) -> Result<()> {
     // Create a ZIP file with the required structure
     // The .intunewin format is essentially a ZIP with:
     // - Contents/ folder with encrypted app data
@@ -364,7 +412,8 @@ fn create_intunewin_package(source_folder: &PathBuf, setup_file: &str, output_fi
         let path = entry.path();
 
         if path.is_file() {
-            let relative_path = path.strip_prefix(source_folder)
+            let relative_path = path
+                .strip_prefix(source_folder)
                 .unwrap_or(path)
                 .to_string_lossy();
 
@@ -379,7 +428,8 @@ fn create_intunewin_package(source_folder: &PathBuf, setup_file: &str, output_fi
     }
 
     // Add detection metadata
-    let detection_xml = format!(r#"<?xml version="1.0" encoding="utf-8"?>
+    let detection_xml = format!(
+        r#"<?xml version="1.0" encoding="utf-8"?>
 <ApplicationInfo xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
   <Name>{}</Name>
   <SetupFile>{}</SetupFile>
@@ -393,7 +443,10 @@ fn create_intunewin_package(source_folder: &PathBuf, setup_file: &str, output_fi
     <FileDigestAlgorithm>SHA256</FileDigestAlgorithm>
   </EncryptionInfo>
 </ApplicationInfo>"#,
-        output_file.file_stem().and_then(|s| s.to_str()).unwrap_or("App"),
+        output_file
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("App"),
         setup_file
     );
 
@@ -443,9 +496,10 @@ fn build_detection_rules(args: &UploadArgs) -> Vec<Value> {
             })]
         }
         "file" | _ => {
-            let path = args.detection_path.clone().unwrap_or_else(||
-                format!("C:\\Program Files\\{}", args.name)
-            );
+            let path = args
+                .detection_path
+                .clone()
+                .unwrap_or_else(|| format!("C:\\Program Files\\{}", args.name));
             vec![json!({
                 "@odata.type": "#microsoft.graph.win32LobAppFileSystemDetection",
                 "path": path,
@@ -467,7 +521,10 @@ async fn upload_intunewin_to_intune(file: &PathBuf, _metadata: &IntunewinMetadat
     // 5. Commit the file
 
     println!("  {} Full upload implementation coming soon", "ℹ".yellow());
-    println!("  For now, please upload {} via Intune portal", file.display());
+    println!(
+        "  For now, please upload {} via Intune portal",
+        file.display()
+    );
 
     Ok(())
 }

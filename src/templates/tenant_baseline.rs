@@ -2,10 +2,9 @@
 ///
 /// Handles tenant-level settings across Exchange Online, SharePoint, Teams, etc.
 /// These are organization-wide settings that apply to all users/resources
-
 use crate::cmd::baseline::NewArgs;
 use crate::error::Result;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 /// Generate complete tenant baseline configuration
 pub fn generate_tenant_baseline(args: &NewArgs) -> Result<Value> {

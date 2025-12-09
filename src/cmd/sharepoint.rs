@@ -4,8 +4,8 @@
 
 use crate::config::ConfigManager;
 use crate::error::Result;
-use crate::graph::sharepoint::{PageLayout, SharePointClient, SiteType};
 use crate::graph::GraphClient;
+use crate::graph::sharepoint::{PageLayout, SharePointClient, SiteType};
 use clap::Args;
 use colored::Colorize;
 
@@ -248,9 +248,11 @@ pub async fn site_create(args: SiteCreateArgs) -> Result<()> {
     }
 
     let config = ConfigManager::new()?;
-    let active_tenant = config
-        .get_active_tenant()?
-        .ok_or_else(|| crate::error::Ctl365Error::ConfigError("No active tenant. Run 'ctl365 tenant switch <name>' first.".into()))?;
+    let active_tenant = config.get_active_tenant()?.ok_or_else(|| {
+        crate::error::Ctl365Error::ConfigError(
+            "No active tenant. Run 'ctl365 tenant switch <name>' first.".into(),
+        )
+    })?;
     let client = GraphClient::from_config(&config, &active_tenant.name).await?;
     let sp_client = SharePointClient::new(&client);
 
@@ -280,9 +282,11 @@ pub async fn site_create(args: SiteCreateArgs) -> Result<()> {
 
 pub async fn site_list(args: SiteListArgs) -> Result<()> {
     let config = ConfigManager::new()?;
-    let active_tenant = config
-        .get_active_tenant()?
-        .ok_or_else(|| crate::error::Ctl365Error::ConfigError("No active tenant. Run 'ctl365 tenant switch <name>' first.".into()))?;
+    let active_tenant = config.get_active_tenant()?.ok_or_else(|| {
+        crate::error::Ctl365Error::ConfigError(
+            "No active tenant. Run 'ctl365 tenant switch <name>' first.".into(),
+        )
+    })?;
     let client = GraphClient::from_config(&config, &active_tenant.name).await?;
     let sp_client = SharePointClient::new(&client);
 
@@ -303,13 +307,12 @@ pub async fn site_list(args: SiteListArgs) -> Result<()> {
         return Ok(());
     }
 
-    println!("\n{} SharePoint Sites ({} found)", "=".repeat(60), sites.len());
     println!(
-        "{:<40} {:<50} {}",
-        "NAME".bold(),
-        "URL".bold(),
-        "ID".bold()
+        "\n{} SharePoint Sites ({} found)",
+        "=".repeat(60),
+        sites.len()
     );
+    println!("{:<40} {:<50} {}", "NAME".bold(), "URL".bold(), "ID".bold());
     println!("{}", "-".repeat(120));
 
     for site in sites {
@@ -324,9 +327,11 @@ pub async fn site_list(args: SiteListArgs) -> Result<()> {
 
 pub async fn site_get(args: SiteGetArgs) -> Result<()> {
     let config = ConfigManager::new()?;
-    let active_tenant = config
-        .get_active_tenant()?
-        .ok_or_else(|| crate::error::Ctl365Error::ConfigError("No active tenant. Run 'ctl365 tenant switch <name>' first.".into()))?;
+    let active_tenant = config.get_active_tenant()?.ok_or_else(|| {
+        crate::error::Ctl365Error::ConfigError(
+            "No active tenant. Run 'ctl365 tenant switch <name>' first.".into(),
+        )
+    })?;
     let client = GraphClient::from_config(&config, &active_tenant.name).await?;
     let sp_client = SharePointClient::new(&client);
 
@@ -380,13 +385,19 @@ pub async fn site_delete(args: SiteDeleteArgs) -> Result<()> {
     }
 
     let config = ConfigManager::new()?;
-    let active_tenant = config
-        .get_active_tenant()?
-        .ok_or_else(|| crate::error::Ctl365Error::ConfigError("No active tenant. Run 'ctl365 tenant switch <name>' first.".into()))?;
+    let active_tenant = config.get_active_tenant()?.ok_or_else(|| {
+        crate::error::Ctl365Error::ConfigError(
+            "No active tenant. Run 'ctl365 tenant switch <name>' first.".into(),
+        )
+    })?;
     let client = GraphClient::from_config(&config, &active_tenant.name).await?;
     let sp_client = SharePointClient::new(&client);
 
-    println!("{} Deleting site {}...", "SharePoint".cyan().bold(), args.id);
+    println!(
+        "{} Deleting site {}...",
+        "SharePoint".cyan().bold(),
+        args.id
+    );
     sp_client.delete_site(&args.id).await?;
 
     println!("{} Site deleted successfully!", "Success".green().bold());
@@ -410,9 +421,11 @@ pub async fn page_create(args: PageCreateArgs) -> Result<()> {
     };
 
     let config = ConfigManager::new()?;
-    let active_tenant = config
-        .get_active_tenant()?
-        .ok_or_else(|| crate::error::Ctl365Error::ConfigError("No active tenant. Run 'ctl365 tenant switch <name>' first.".into()))?;
+    let active_tenant = config.get_active_tenant()?.ok_or_else(|| {
+        crate::error::Ctl365Error::ConfigError(
+            "No active tenant. Run 'ctl365 tenant switch <name>' first.".into(),
+        )
+    })?;
 
     println!("→ Active tenant: {}", active_tenant.name.cyan().bold());
 
@@ -470,9 +483,11 @@ pub async fn page_create(args: PageCreateArgs) -> Result<()> {
 
 pub async fn page_list(args: PageListArgs) -> Result<()> {
     let config = ConfigManager::new()?;
-    let active_tenant = config
-        .get_active_tenant()?
-        .ok_or_else(|| crate::error::Ctl365Error::ConfigError("No active tenant. Run 'ctl365 tenant switch <name>' first.".into()))?;
+    let active_tenant = config.get_active_tenant()?.ok_or_else(|| {
+        crate::error::Ctl365Error::ConfigError(
+            "No active tenant. Run 'ctl365 tenant switch <name>' first.".into(),
+        )
+    })?;
     let client = GraphClient::from_config(&config, &active_tenant.name).await?;
     let sp_client = SharePointClient::new(&client);
 
@@ -528,9 +543,11 @@ pub async fn page_delete(args: PageDeleteArgs) -> Result<()> {
     }
 
     let config = ConfigManager::new()?;
-    let active_tenant = config
-        .get_active_tenant()?
-        .ok_or_else(|| crate::error::Ctl365Error::ConfigError("No active tenant. Run 'ctl365 tenant switch <name>' first.".into()))?;
+    let active_tenant = config.get_active_tenant()?.ok_or_else(|| {
+        crate::error::Ctl365Error::ConfigError(
+            "No active tenant. Run 'ctl365 tenant switch <name>' first.".into(),
+        )
+    })?;
     let client = GraphClient::from_config(&config, &active_tenant.name).await?;
     let sp_client = SharePointClient::new(&client);
 
@@ -548,9 +565,11 @@ pub async fn page_delete(args: PageDeleteArgs) -> Result<()> {
 
 pub async fn hub_list(args: HubListArgs) -> Result<()> {
     let config = ConfigManager::new()?;
-    let active_tenant = config
-        .get_active_tenant()?
-        .ok_or_else(|| crate::error::Ctl365Error::ConfigError("No active tenant. Run 'ctl365 tenant switch <name>' first.".into()))?;
+    let active_tenant = config.get_active_tenant()?.ok_or_else(|| {
+        crate::error::Ctl365Error::ConfigError(
+            "No active tenant. Run 'ctl365 tenant switch <name>' first.".into(),
+        )
+    })?;
     let client = GraphClient::from_config(&config, &active_tenant.name).await?;
     let sp_client = SharePointClient::new(&client);
 
@@ -588,9 +607,11 @@ pub async fn hub_list(args: HubListArgs) -> Result<()> {
 
 pub async fn hub_set(args: HubSetArgs) -> Result<()> {
     let config = ConfigManager::new()?;
-    let active_tenant = config
-        .get_active_tenant()?
-        .ok_or_else(|| crate::error::Ctl365Error::ConfigError("No active tenant. Run 'ctl365 tenant switch <name>' first.".into()))?;
+    let active_tenant = config.get_active_tenant()?.ok_or_else(|| {
+        crate::error::Ctl365Error::ConfigError(
+            "No active tenant. Run 'ctl365 tenant switch <name>' first.".into(),
+        )
+    })?;
 
     println!("→ Active tenant: {}", active_tenant.name.cyan().bold());
 
@@ -625,7 +646,9 @@ pub async fn hub_set(args: HubSetArgs) -> Result<()> {
         args.title
     );
 
-    let hub = sp_client.register_hub_site(&args.site_id, &args.title).await?;
+    let hub = sp_client
+        .register_hub_site(&args.site_id, &args.title)
+        .await?;
 
     println!(
         "\n{} Hub site registered successfully!",
@@ -638,9 +661,11 @@ pub async fn hub_set(args: HubSetArgs) -> Result<()> {
 
 pub async fn hub_join(args: HubJoinArgs) -> Result<()> {
     let config = ConfigManager::new()?;
-    let active_tenant = config
-        .get_active_tenant()?
-        .ok_or_else(|| crate::error::Ctl365Error::ConfigError("No active tenant. Run 'ctl365 tenant switch <name>' first.".into()))?;
+    let active_tenant = config.get_active_tenant()?.ok_or_else(|| {
+        crate::error::Ctl365Error::ConfigError(
+            "No active tenant. Run 'ctl365 tenant switch <name>' first.".into(),
+        )
+    })?;
 
     println!("→ Active tenant: {}", active_tenant.name.cyan().bold());
 

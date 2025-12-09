@@ -60,8 +60,9 @@ pub struct ConfigManager {
 
 impl ConfigManager {
     pub fn new() -> Result<Self> {
-        let project_dirs = ProjectDirs::from("com", "ctl365", "ctl365")
-            .ok_or_else(|| Ctl365Error::ConfigError("Failed to determine config directory".into()))?;
+        let project_dirs = ProjectDirs::from("com", "ctl365", "ctl365").ok_or_else(|| {
+            Ctl365Error::ConfigError("Failed to determine config directory".into())
+        })?;
 
         let config_dir = project_dirs.config_dir().to_path_buf();
 
@@ -92,7 +93,9 @@ impl ConfigManager {
     }
 
     pub fn token_cache_file(&self, tenant_name: &str) -> PathBuf {
-        self.config_dir.join("cache").join(format!("{}.token", tenant_name))
+        self.config_dir
+            .join("cache")
+            .join(format!("{}.token", tenant_name))
     }
 
     /// Load main config
@@ -296,25 +299,32 @@ impl ConfigManager {
         let contents = fs::read_to_string(&path)?;
         let env_vars = Self::parse_env_file(&contents);
 
-        let tenant_id = env_vars.get("TENANT_ID").or_else(|| env_vars.get("tenant_id"));
-        let client_id = env_vars.get("CLIENT_ID").or_else(|| env_vars.get("client_id"));
-        let client_secret = env_vars.get("CLIENT_SECRET").or_else(|| env_vars.get("client_secret"));
+        let tenant_id = env_vars
+            .get("TENANT_ID")
+            .or_else(|| env_vars.get("tenant_id"));
+        let client_id = env_vars
+            .get("CLIENT_ID")
+            .or_else(|| env_vars.get("client_id"));
+        let client_secret = env_vars
+            .get("CLIENT_SECRET")
+            .or_else(|| env_vars.get("client_secret"));
 
         match (tenant_id, client_id) {
-            (Some(tid), Some(cid)) => {
-                Ok(Some(TenantConfig {
-                    name: name.to_string(),
-                    tenant_id: tid.clone(),
-                    client_id: cid.clone(),
-                    client_secret: client_secret.cloned(),
-                    auth_type: if client_secret.is_some() {
-                        AuthType::ClientCredentials
-                    } else {
-                        AuthType::DeviceCode
-                    },
-                    description: env_vars.get("DESCRIPTION").or_else(|| env_vars.get("description")).cloned(),
-                }))
-            }
+            (Some(tid), Some(cid)) => Ok(Some(TenantConfig {
+                name: name.to_string(),
+                tenant_id: tid.clone(),
+                client_id: cid.clone(),
+                client_secret: client_secret.cloned(),
+                auth_type: if client_secret.is_some() {
+                    AuthType::ClientCredentials
+                } else {
+                    AuthType::DeviceCode
+                },
+                description: env_vars
+                    .get("DESCRIPTION")
+                    .or_else(|| env_vars.get("description"))
+                    .cloned(),
+            })),
             _ => Ok(None),
         }
     }
@@ -412,7 +422,7 @@ impl ConfigManager {
                     }
                 }
 
-                current_section = Some(line[1..line.len()-1].to_string());
+                current_section = Some(line[1..line.len() - 1].to_string());
                 current_vars.clear();
                 continue;
             }
@@ -449,7 +459,10 @@ impl ConfigManager {
         let tenant_id = vars.get("TENANT_ID")?;
         let client_id = vars.get("CLIENT_ID")?;
         let client_secret = vars.get("CLIENT_SECRET");
-        let name = vars.get("NAME").cloned().unwrap_or_else(|| abbrev.to_string());
+        let name = vars
+            .get("NAME")
+            .cloned()
+            .unwrap_or_else(|| abbrev.to_string());
 
         Some(TenantConfig {
             name: abbrev.to_uppercase(),
@@ -486,7 +499,10 @@ impl ConfigManager {
 
         // Check multi-tenant env file
         let env_tenants = self.load_tenants_env()?;
-        if let Some(tenant) = env_tenants.into_iter().find(|t| t.name.eq_ignore_ascii_case(name)) {
+        if let Some(tenant) = env_tenants
+            .into_iter()
+            .find(|t| t.name.eq_ignore_ascii_case(name))
+        {
             // Save to tenants.toml for future use
             self.add_tenant(tenant.clone())?;
             return Ok(tenant);

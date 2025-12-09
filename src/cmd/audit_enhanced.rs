@@ -6,14 +6,13 @@
 /// - Auto-remediation
 /// - HTML/CSV/JSON reports with charts
 /// - Compliance scoring
-
 use crate::config::ConfigManager;
 use crate::error::Result;
-use crate::graph::{conditional_access, intune, GraphClient};
+use crate::graph::{GraphClient, conditional_access, intune};
 use clap::Args;
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
@@ -104,9 +103,9 @@ pub struct ReportArgs {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Finding {
-    pub severity: String,      // CRITICAL, HIGH, MEDIUM, LOW, INFO
-    pub category: String,       // Compliance, CA, Configuration, Security
-    pub control: String,        // Control ID (e.g., COMP-001, CA-002)
+    pub severity: String, // CRITICAL, HIGH, MEDIUM, LOW, INFO
+    pub category: String, // Compliance, CA, Configuration, Security
+    pub control: String,  // Control ID (e.g., COMP-001, CA-002)
     pub description: String,
     pub remediation: String,
     pub affected_resource: Option<String>,
@@ -239,11 +238,7 @@ pub async fn audit_enhanced(args: AuditArgs) -> Result<()> {
     match intune::list_device_configurations(&graph).await {
         Ok(configs) => {
             let count = configs["value"].as_array().map(|a| a.len()).unwrap_or(0);
-            println!(
-                "  {} Found {} device configurations",
-                "✓".green(),
-                count
-            );
+            println!("  {} Found {} device configurations", "✓".green(), count);
         }
         Err(e) => println!("  {} Failed: {}", "✗".red(), e),
     }
@@ -285,7 +280,10 @@ pub async fn audit_enhanced(args: AuditArgs) -> Result<()> {
     println!("\n{} Conditional Access Policies...", "→".cyan());
     match conditional_access::list_policies(&graph).await {
         Ok(ca_policies) => {
-            let count = ca_policies["value"].as_array().map(|a| a.len()).unwrap_or(0);
+            let count = ca_policies["value"]
+                .as_array()
+                .map(|a| a.len())
+                .unwrap_or(0);
             println!("  {} Found {} CA policies", "✓".green(), count);
 
             total_controls += 1;
@@ -299,7 +297,10 @@ pub async fn audit_enhanced(args: AuditArgs) -> Result<()> {
                     remediation: "Deploy CA baseline with: ctl365 ca deploy --all".to_string(),
                     affected_resource: None,
                     current_value: Some("0 policies".to_string()),
-                    expected_value: Some("At least 4 CA policies (MFA, compliant device, location, legacy auth)".to_string()),
+                    expected_value: Some(
+                        "At least 4 CA policies (MFA, compliant device, location, legacy auth)"
+                            .to_string(),
+                    ),
                 });
             } else {
                 passed_controls += 1;
@@ -354,7 +355,8 @@ pub async fn audit_enhanced(args: AuditArgs) -> Result<()> {
                     severity: "MEDIUM".to_string(),
                     category: "Conditional Access".to_string(),
                     control: "CA-003".to_string(),
-                    description: "Security defaults enabled (blocks custom CA policies)".to_string(),
+                    description: "Security defaults enabled (blocks custom CA policies)"
+                        .to_string(),
                     remediation: "Disable with: ctl365 ca deploy --disable-security-defaults"
                         .to_string(),
                     affected_resource: Some("Security Defaults".to_string()),
@@ -406,7 +408,11 @@ pub async fn audit_enhanced(args: AuditArgs) -> Result<()> {
             );
         }
         if summary.medium_issues > 0 {
-            println!("{} {} medium severity issues", "ℹ".cyan(), summary.medium_issues);
+            println!(
+                "{} {} medium severity issues",
+                "ℹ".cyan(),
+                summary.medium_issues
+            );
         }
 
         println!("\n{}", "Findings:".bold());
@@ -520,10 +526,8 @@ pub async fn drift_enhanced(args: DriftArgs) -> Result<()> {
         if let Some(policies) = response["value"].as_array() {
             for policy in policies {
                 if let Some(name) = policy["displayName"].as_str() {
-                    current_policies.insert(
-                        name.to_string(),
-                        ("compliance".to_string(), policy.clone()),
-                    );
+                    current_policies
+                        .insert(name.to_string(), ("compliance".to_string(), policy.clone()));
                 }
             }
         }
@@ -653,10 +657,7 @@ pub async fn drift_enhanced(args: DriftArgs) -> Result<()> {
     println!("────────────────────────────────────────────");
     println!("Expected policies: {}", total_expected);
     println!("Current policies: {}", current_policies.len());
-    println!(
-        "Drift score: {}",
-        format_drift_score(drift_score)
-    );
+    println!("Drift score: {}", format_drift_score(drift_score));
 
     if missing_policies.is_empty() && modified_policies.is_empty() && extra_policies.is_empty() {
         println!("\n{} No drift detected!", "✓".green().bold());
@@ -711,7 +712,10 @@ pub async fn drift_enhanced(args: DriftArgs) -> Result<()> {
         println!("\n{}", "Remediation:".cyan().bold());
 
         if args.dry_run {
-            println!("{} (dry run - no changes applied)", "DRY RUN".yellow().bold());
+            println!(
+                "{} (dry run - no changes applied)",
+                "DRY RUN".yellow().bold()
+            );
             println!("\nWould apply:");
             for policy in &missing_policies {
                 println!("  {} Create: {}", "→".cyan(), policy.policy_name);
@@ -724,15 +728,10 @@ pub async fn drift_enhanced(args: DriftArgs) -> Result<()> {
 
             for policy in &missing_policies {
                 // Find policy in baseline and create it
-                if let Some(baseline_policy) = baseline_policies
-                    .iter()
-                    .find(|p| {
-                        p["displayName"]
-                            .as_str()
-                            .or_else(|| p["name"].as_str())
-                            == Some(&policy.policy_name)
-                    })
-                {
+                if let Some(baseline_policy) = baseline_policies.iter().find(|p| {
+                    p["displayName"].as_str().or_else(|| p["name"].as_str())
+                        == Some(&policy.policy_name)
+                }) {
                     match create_policy_from_baseline(&graph, baseline_policy).await {
                         Ok(_) => {
                             println!("  {} Created: {}", "✓".green(), policy.policy_name);
@@ -748,11 +747,7 @@ pub async fn drift_enhanced(args: DriftArgs) -> Result<()> {
                 }
             }
 
-            println!(
-                "\n{} Fixed {} issues",
-                "✓".green().bold(),
-                fixed_count
-            );
+            println!("\n{} Fixed {} issues", "✓".green().bold(), fixed_count);
         }
     }
 
@@ -777,7 +772,11 @@ pub async fn drift_enhanced(args: DriftArgs) -> Result<()> {
         };
 
         fs::write(output_path, output_content)?;
-        println!("\n{} Drift report saved to: {}", "✓".green(), output_path.display());
+        println!(
+            "\n{} Drift report saved to: {}",
+            "✓".green(),
+            output_path.display()
+        );
     }
 
     Ok(())
@@ -839,18 +838,12 @@ fn validate_ca_baseline(
     passed_controls: &mut usize,
 ) {
     // Check for essential CA policies
-    let has_mfa_policy = policies
-        .iter()
-        .any(|p| {
-            p["grantControls"]["builtInControls"]
-                .as_array()
-                .map(|controls| {
-                    controls
-                        .iter()
-                        .any(|c| c.as_str() == Some("mfa"))
-                })
-                .unwrap_or(false)
-        });
+    let has_mfa_policy = policies.iter().any(|p| {
+        p["grantControls"]["builtInControls"]
+            .as_array()
+            .map(|controls| controls.iter().any(|c| c.as_str() == Some("mfa")))
+            .unwrap_or(false)
+    });
 
     *total_controls += 1;
     if !has_mfa_policy {
@@ -869,18 +862,16 @@ fn validate_ca_baseline(
     }
 
     // Check for compliant device policy
-    let has_compliant_device = policies
-        .iter()
-        .any(|p| {
-            p["grantControls"]["builtInControls"]
-                .as_array()
-                .map(|controls| {
-                    controls
-                        .iter()
-                        .any(|c| c.as_str() == Some("compliantDevice"))
-                })
-                .unwrap_or(false)
-        });
+    let has_compliant_device = policies.iter().any(|p| {
+        p["grantControls"]["builtInControls"]
+            .as_array()
+            .map(|controls| {
+                controls
+                    .iter()
+                    .any(|c| c.as_str() == Some("compliantDevice"))
+            })
+            .unwrap_or(false)
+    });
 
     *total_controls += 1;
     if !has_compliant_device {
@@ -904,9 +895,9 @@ fn validate_ca_baseline(
         p["conditions"]["clientAppTypes"]
             .as_array()
             .map(|types| {
-                types
-                    .iter()
-                    .any(|t| t.as_str() == Some("exchangeActiveSync") || t.as_str() == Some("other"))
+                types.iter().any(|t| {
+                    t.as_str() == Some("exchangeActiveSync") || t.as_str() == Some("other")
+                })
             })
             .unwrap_or(false)
             && p["grantControls"]["builtInControls"]
@@ -1264,10 +1255,7 @@ fn generate_html_drift_report(drift: &DriftResult) -> Result<String> {
         drift
             .missing_policies
             .iter()
-            .map(|p| format!(
-                "<div class='drift-item missing'>{}</div>",
-                p.policy_name
-            ))
+            .map(|p| format!("<div class='drift-item missing'>{}</div>", p.policy_name))
             .collect::<Vec<_>>()
             .join("\n"),
         drift.modified_policies.len(),
@@ -1390,10 +1378,18 @@ async fn generate_security_report_data(graph: &GraphClient, tenant_name: &str) -
     let ca_list = ca_policies["value"].as_array();
     let total_ca = ca_list.map(|a| a.len()).unwrap_or(0);
     let enabled_ca = ca_list
-        .map(|a| a.iter().filter(|p| p["state"].as_str() == Some("enabled")).count())
+        .map(|a| {
+            a.iter()
+                .filter(|p| p["state"].as_str() == Some("enabled"))
+                .count()
+        })
         .unwrap_or(0);
     let report_only_ca = ca_list
-        .map(|a| a.iter().filter(|p| p["state"].as_str() == Some("enabledForReportingButNotEnforced")).count())
+        .map(|a| {
+            a.iter()
+                .filter(|p| p["state"].as_str() == Some("enabledForReportingButNotEnforced"))
+                .count()
+        })
         .unwrap_or(0);
 
     Ok(json!({
@@ -1551,9 +1547,18 @@ fn format_report_html(data: &Value, report_type: &str, _include_charts: bool) ->
 
 fn format_report_csv(data: &Value) -> Result<String> {
     let mut csv = String::from("Field,Value\n");
-    csv.push_str(&format!("Report Type,{}\n", data["report_type"].as_str().unwrap_or("")));
-    csv.push_str(&format!("Tenant,{}\n", data["tenant"].as_str().unwrap_or("")));
-    csv.push_str(&format!("Generated,{}\n", data["generated"].as_str().unwrap_or("")));
+    csv.push_str(&format!(
+        "Report Type,{}\n",
+        data["report_type"].as_str().unwrap_or("")
+    ));
+    csv.push_str(&format!(
+        "Tenant,{}\n",
+        data["tenant"].as_str().unwrap_or("")
+    ));
+    csv.push_str(&format!(
+        "Generated,{}\n",
+        data["generated"].as_str().unwrap_or("")
+    ));
 
     if let Some(summary) = data.get("summary").and_then(|s| s.as_object()) {
         for (key, value) in summary {

@@ -12,7 +12,7 @@
 
 #![allow(dead_code)]
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 /// CIS Benchmark Level
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -578,56 +578,54 @@ pub fn generate_cis_level2(name_prefix: &str) -> Vec<Value> {
 
 /// Generate CIS BitLocker recommendations
 pub fn generate_cis_bitlocker(name_prefix: &str) -> Vec<Value> {
-    vec![
-        json!({
-            "@odata.type": "#microsoft.graph.windows10EndpointProtectionConfiguration",
-            "displayName": format!("{} - CIS BitLocker Configuration", name_prefix),
-            "description": "CIS Benchmark - BitLocker Drive Encryption",
-            "bitLockerAllowStandardUserEncryption": true,
-            "bitLockerDisableWarningForOtherDiskEncryption": true,
-            "bitLockerEnableStorageCardEncryptionOnMobile": false,
-            "bitLockerEncryptDevice": true,
-            "bitLockerRecoveryPasswordRotation": "enabledForAzureAd",
-            "bitLockerSystemDrivePolicy": {
-                "encryptionMethod": "xtsAes256",
-                "minimumPinLength": 6,
-                "prebootRecoveryEnableMessageAndUrl": true,
-                "recoveryOptions": {
-                    "blockDataRecoveryAgent": true,
-                    "enableBitLockerAfterRecoveryInformationToStore": "passwordAndKey",
-                    "enableRecoveryInformationSaveToStore": true,
-                    "hideRecoveryOptions": true,
-                    "recoveryInformationToStore": "passwordAndKey",
-                    "recoveryKeyUsage": "allowed",
-                    "recoveryPasswordUsage": "allowed"
-                },
-                "startupAuthenticationBlockWithoutTpmChip": true,
-                "startupAuthenticationRequired": true,
-                "startupAuthenticationTpmKeyUsage": "allowed",
-                "startupAuthenticationTpmPinAndKeyUsage": "allowed",
-                "startupAuthenticationTpmPinUsage": "required",
-                "startupAuthenticationTpmUsage": "required"
+    vec![json!({
+        "@odata.type": "#microsoft.graph.windows10EndpointProtectionConfiguration",
+        "displayName": format!("{} - CIS BitLocker Configuration", name_prefix),
+        "description": "CIS Benchmark - BitLocker Drive Encryption",
+        "bitLockerAllowStandardUserEncryption": true,
+        "bitLockerDisableWarningForOtherDiskEncryption": true,
+        "bitLockerEnableStorageCardEncryptionOnMobile": false,
+        "bitLockerEncryptDevice": true,
+        "bitLockerRecoveryPasswordRotation": "enabledForAzureAd",
+        "bitLockerSystemDrivePolicy": {
+            "encryptionMethod": "xtsAes256",
+            "minimumPinLength": 6,
+            "prebootRecoveryEnableMessageAndUrl": true,
+            "recoveryOptions": {
+                "blockDataRecoveryAgent": true,
+                "enableBitLockerAfterRecoveryInformationToStore": "passwordAndKey",
+                "enableRecoveryInformationSaveToStore": true,
+                "hideRecoveryOptions": true,
+                "recoveryInformationToStore": "passwordAndKey",
+                "recoveryKeyUsage": "allowed",
+                "recoveryPasswordUsage": "allowed"
             },
-            "bitLockerFixedDrivePolicy": {
-                "encryptionMethod": "xtsAes256",
-                "recoveryOptions": {
-                    "blockDataRecoveryAgent": true,
-                    "enableBitLockerAfterRecoveryInformationToStore": "passwordAndKey",
-                    "enableRecoveryInformationSaveToStore": true,
-                    "hideRecoveryOptions": true,
-                    "recoveryInformationToStore": "passwordAndKey",
-                    "recoveryKeyUsage": "allowed",
-                    "recoveryPasswordUsage": "allowed"
-                },
-                "requireEncryptionForWriteAccess": true
+            "startupAuthenticationBlockWithoutTpmChip": true,
+            "startupAuthenticationRequired": true,
+            "startupAuthenticationTpmKeyUsage": "allowed",
+            "startupAuthenticationTpmPinAndKeyUsage": "allowed",
+            "startupAuthenticationTpmPinUsage": "required",
+            "startupAuthenticationTpmUsage": "required"
+        },
+        "bitLockerFixedDrivePolicy": {
+            "encryptionMethod": "xtsAes256",
+            "recoveryOptions": {
+                "blockDataRecoveryAgent": true,
+                "enableBitLockerAfterRecoveryInformationToStore": "passwordAndKey",
+                "enableRecoveryInformationSaveToStore": true,
+                "hideRecoveryOptions": true,
+                "recoveryInformationToStore": "passwordAndKey",
+                "recoveryKeyUsage": "allowed",
+                "recoveryPasswordUsage": "allowed"
             },
-            "bitLockerRemovableDrivePolicy": {
-                "blockCrossOrganizationWriteAccess": true,
-                "encryptionMethod": "aesCbc256",
-                "requireEncryptionForWriteAccess": true
-            }
-        })
-    ]
+            "requireEncryptionForWriteAccess": true
+        },
+        "bitLockerRemovableDrivePolicy": {
+            "blockCrossOrganizationWriteAccess": true,
+            "encryptionMethod": "aesCbc256",
+            "requireEncryptionForWriteAccess": true
+        }
+    })]
 }
 
 /// Generate complete CIS baseline (L1 + L2 + BitLocker)
@@ -666,7 +664,8 @@ pub fn get_cis_control_info(control_id: &str) -> Option<CisControlInfo> {
         }),
     ];
 
-    controls.into_iter()
+    controls
+        .into_iter()
         .find(|(id, _)| *id == control_id)
         .map(|(_, info)| info)
 }
@@ -704,11 +703,20 @@ pub fn audit_against_cis(current_config: &Value, level: CisLevel) -> CisAuditRes
             // Check if equivalent policy exists in current config
             let exists = current_config["policies"]
                 .as_array()
-                .map(|arr| arr.iter().any(|p| {
-                    p["displayName"].as_str()
-                        .map(|n| n.contains(&policy_name.replace(" - CIS L1 ", " - ").replace(" - CIS L2 ", " - ")))
-                        .unwrap_or(false)
-                }))
+                .map(|arr| {
+                    arr.iter().any(|p| {
+                        p["displayName"]
+                            .as_str()
+                            .map(|n| {
+                                n.contains(
+                                    &policy_name
+                                        .replace(" - CIS L1 ", " - ")
+                                        .replace(" - CIS L2 ", " - "),
+                                )
+                            })
+                            .unwrap_or(false)
+                    })
+                })
                 .unwrap_or(false);
 
             if exists {

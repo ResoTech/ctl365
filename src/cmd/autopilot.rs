@@ -8,14 +8,13 @@
 /// - Enrollment status page configuration
 ///
 /// Based on Microsoft Autopilot best practices and modern device management
-
 use crate::config::ConfigManager;
 use crate::error::Result;
 use crate::graph::GraphClient;
 use clap::{Args, Subcommand};
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::path::PathBuf;
 
 #[derive(Subcommand, Debug)]
@@ -227,10 +226,7 @@ pub async fn import(args: ImportArgs) -> Result<()> {
     let mut rdr = csv::Reader::from_reader(csv_content.as_bytes());
 
     // Parse all records first
-    let records: Vec<CsvRecord> = rdr
-        .deserialize()
-        .filter_map(|r| r.ok())
-        .collect();
+    let records: Vec<CsvRecord> = rdr.deserialize().filter_map(|r| r.ok()).collect();
 
     if records.is_empty() {
         println!("\n{} No valid devices found in CSV file", "✗".red());
@@ -240,7 +236,11 @@ pub async fn import(args: ImportArgs) -> Result<()> {
     // Dry run mode
     if args.dry_run {
         println!("\n{}", "DRY RUN - No changes will be made".yellow().bold());
-        println!("\n{} Devices that would be imported from: {}", "→".cyan(), args.file.display());
+        println!(
+            "\n{} Devices that would be imported from: {}",
+            "→".cyan(),
+            args.file.display()
+        );
         for record in &records {
             println!("  • Serial: {}", record.device_serial_number);
             if let Some(tag) = args.group_tag.as_ref().or(record.group_tag.as_ref()) {
@@ -260,7 +260,8 @@ pub async fn import(args: ImportArgs) -> Result<()> {
     // Confirmation prompt
     if !args.yes {
         use std::io::{self, Write};
-        println!("\n{} This will import {} devices to tenant '{}'",
+        println!(
+            "\n{} This will import {} devices to tenant '{}'",
             "⚠".yellow().bold(),
             records.len(),
             active_tenant.name
@@ -281,7 +282,11 @@ pub async fn import(args: ImportArgs) -> Result<()> {
     let mut import_count = 0;
     let mut error_count = 0;
 
-    println!("\n{} Importing devices from: {}", "→".cyan(), args.file.display());
+    println!(
+        "\n{} Importing devices from: {}",
+        "→".cyan(),
+        args.file.display()
+    );
 
     for record in records {
         let device_payload = json!({
@@ -299,7 +304,11 @@ pub async fn import(args: ImportArgs) -> Result<()> {
             "assignedUserPrincipalName": record.assigned_user.as_deref().unwrap_or("")
         });
 
-        print!("  {} Importing device: {}... ", "→".cyan(), record.device_serial_number);
+        print!(
+            "  {} Importing device: {}... ",
+            "→".cyan(),
+            record.device_serial_number
+        );
 
         match graph
             .post::<Value, Value>(
@@ -320,7 +329,10 @@ pub async fn import(args: ImportArgs) -> Result<()> {
     }
 
     println!("\n{} Import Summary:", "→".cyan().bold());
-    println!("  {} devices imported successfully", import_count.to_string().green());
+    println!(
+        "  {} devices imported successfully",
+        import_count.to_string().green()
+    );
     if error_count > 0 {
         println!("  {} devices failed", error_count.to_string().red());
     }
@@ -333,7 +345,11 @@ pub async fn import(args: ImportArgs) -> Result<()> {
 
     // Assign to profile if specified
     if let Some(profile_id) = &args.profile_id {
-        println!("\n{} Assigning devices to profile: {}", "→".cyan(), profile_id);
+        println!(
+            "\n{} Assigning devices to profile: {}",
+            "→".cyan(),
+            profile_id
+        );
         // Assignment logic would go here
     }
 
@@ -356,7 +372,10 @@ struct CsvRecord {
 
 /// Create an Autopilot deployment profile
 pub async fn profile(args: ProfileArgs) -> Result<()> {
-    println!("{} Autopilot deployment profile...", "Creating".cyan().bold());
+    println!(
+        "{} Autopilot deployment profile...",
+        "Creating".cyan().bold()
+    );
 
     let config = ConfigManager::load()?;
     let active_tenant = config
@@ -446,7 +465,8 @@ pub async fn profile(args: ProfileArgs) -> Result<()> {
     // Confirmation prompt
     if !args.yes {
         use std::io::{self, Write};
-        println!("\n{} This will create an Autopilot profile in tenant '{}'",
+        println!(
+            "\n{} This will create an Autopilot profile in tenant '{}'",
             "⚠".yellow().bold(),
             active_tenant.name
         );
@@ -464,12 +484,19 @@ pub async fn profile(args: ProfileArgs) -> Result<()> {
     let graph = GraphClient::from_config(&config, &active_tenant.name).await?;
 
     let profile: Value = graph
-        .post("deviceManagement/windowsAutopilotDeploymentProfiles", &profile_payload)
+        .post(
+            "deviceManagement/windowsAutopilotDeploymentProfiles",
+            &profile_payload,
+        )
         .await?;
 
     let profile_id = profile["id"].as_str().unwrap_or("unknown");
 
-    println!("\n{} Profile created: {}", "✓".green().bold(), profile_id.cyan());
+    println!(
+        "\n{} Profile created: {}",
+        "✓".green().bold(),
+        profile_id.cyan()
+    );
 
     // Assign to group if specified
     if let Some(group_id) = &args.group_id {
@@ -495,7 +522,10 @@ pub async fn profile(args: ProfileArgs) -> Result<()> {
         println!("  {} Profile assigned", "✓".green());
     }
 
-    println!("\n{} Autopilot profile created successfully", "✓".green().bold());
+    println!(
+        "\n{} Autopilot profile created successfully",
+        "✓".green().bold()
+    );
 
     Ok(())
 }
@@ -527,14 +557,20 @@ pub async fn assign(args: AssignArgs) -> Result<()> {
     // Dry run mode
     if args.dry_run {
         println!("\n{}", "DRY RUN - No changes will be made".yellow().bold());
-        println!("{} Would assign profile '{}' to {}", "→".cyan(), args.profile_id, target_desc);
+        println!(
+            "{} Would assign profile '{}' to {}",
+            "→".cyan(),
+            args.profile_id,
+            target_desc
+        );
         return Ok(());
     }
 
     // Confirmation prompt
     if !args.yes {
         use std::io::{self, Write};
-        println!("\n{} This will assign profile '{}' to {}",
+        println!(
+            "\n{} This will assign profile '{}' to {}",
             "⚠".yellow().bold(),
             args.profile_id,
             target_desc
@@ -573,13 +609,23 @@ pub async fn assign(args: AssignArgs) -> Result<()> {
 
         println!("{} Profile assigned to all devices", "✓".green().bold());
     } else if let Some(group_tag) = &args.group_tag {
-        println!("{} Assigning to devices with group tag: {}", "→".cyan(), group_tag);
+        println!(
+            "{} Assigning to devices with group tag: {}",
+            "→".cyan(),
+            group_tag
+        );
 
         // This requires fetching devices with the group tag and assigning individually
         // Or creating a dynamic group based on group tag
-        println!("{} Group tag assignment requires dynamic group creation", "ℹ".blue());
+        println!(
+            "{} Group tag assignment requires dynamic group creation",
+            "ℹ".blue()
+        );
         println!("  Create a dynamic device group with rule:");
-        println!("  (device.devicePhysicalIds -any (_ -contains \"[OrderID]:{}\"))", group_tag);
+        println!(
+            "  (device.devicePhysicalIds -any (_ -contains \"[OrderID]:{}\"))",
+            group_tag
+        );
     } else if let Some(device) = &args.device {
         println!("{} Assigning to device: {}", "→".cyan(), device);
 
@@ -608,7 +654,10 @@ pub async fn assign(args: AssignArgs) -> Result<()> {
 
             graph
                 .patch::<Value, Value>(
-                    &format!("deviceManagement/windowsAutopilotDeviceIdentities/{}", device_id),
+                    &format!(
+                        "deviceManagement/windowsAutopilotDeviceIdentities/{}",
+                        device_id
+                    ),
                     &update_payload,
                 )
                 .await?;
@@ -649,7 +698,10 @@ pub async fn list(args: ListArgs) -> Result<()> {
     };
 
     let devices: Value = graph
-        .get(&format!("deviceManagement/windowsAutopilotDeviceIdentities{}", filter_query))
+        .get(&format!(
+            "deviceManagement/windowsAutopilotDeviceIdentities{}",
+            filter_query
+        ))
         .await?;
 
     if let Some(device_list) = devices["value"].as_array() {
@@ -665,7 +717,10 @@ pub async fn list(args: ListArgs) -> Result<()> {
                 print_device_detailed(device);
             }
         } else {
-            println!("\n{:<20} {:<30} {:<20} {:<15}", "Serial Number", "Model", "Group Tag", "State");
+            println!(
+                "\n{:<20} {:<30} {:<20} {:<15}",
+                "Serial Number", "Model", "Group Tag", "State"
+            );
             println!("{}", "─".repeat(90));
 
             for device in device_list {
@@ -674,7 +729,10 @@ pub async fn list(args: ListArgs) -> Result<()> {
                 let group_tag = device["groupTag"].as_str().unwrap_or("-");
                 let state = device["enrollmentState"].as_str().unwrap_or("unknown");
 
-                println!("{:<20} {:<30} {:<20} {:<15}", serial, model, group_tag, state);
+                println!(
+                    "{:<20} {:<30} {:<20} {:<15}",
+                    serial, model, group_tag, state
+                );
             }
         }
     }
@@ -684,7 +742,11 @@ pub async fn list(args: ListArgs) -> Result<()> {
 
 fn print_device_detailed(device: &Value) {
     println!("\n{}", "─".repeat(80));
-    println!("{}: {}", "Serial Number".bold(), device["serialNumber"].as_str().unwrap_or("Unknown"));
+    println!(
+        "{}: {}",
+        "Serial Number".bold(),
+        device["serialNumber"].as_str().unwrap_or("Unknown")
+    );
 
     if let Some(id) = device["id"].as_str() {
         println!("{}: {}", "Device ID".bold(), id);
@@ -740,7 +802,10 @@ pub async fn status(args: StatusArgs) -> Result<()> {
         if device_list.is_empty() {
             // Try by ID
             graph
-                .get(&format!("deviceManagement/windowsAutopilotDeviceIdentities/{}", args.device_id))
+                .get(&format!(
+                    "deviceManagement/windowsAutopilotDeviceIdentities/{}",
+                    args.device_id
+                ))
                 .await?
         } else {
             device_list[0].clone()
@@ -757,11 +822,20 @@ pub async fn status(args: StatusArgs) -> Result<()> {
             println!("\n{}", "Deployment Profile:".bold());
 
             let profile: Value = graph
-                .get(&format!("deviceManagement/windowsAutopilotDeploymentProfiles/{}", profile_id))
+                .get(&format!(
+                    "deviceManagement/windowsAutopilotDeploymentProfiles/{}",
+                    profile_id
+                ))
                 .await?;
 
-            println!("  Name: {}", profile["displayName"].as_str().unwrap_or("Unknown"));
-            println!("  Mode: {}", profile["deploymentMode"].as_str().unwrap_or("unknown"));
+            println!(
+                "  Name: {}",
+                profile["displayName"].as_str().unwrap_or("Unknown")
+            );
+            println!(
+                "  Mode: {}",
+                profile["deploymentMode"].as_str().unwrap_or("unknown")
+            );
         }
     }
 
@@ -770,7 +844,10 @@ pub async fn status(args: StatusArgs) -> Result<()> {
 
 /// Sync Autopilot devices with Intune
 pub async fn sync() -> Result<()> {
-    println!("{} Autopilot devices with Intune...", "Syncing".cyan().bold());
+    println!(
+        "{} Autopilot devices with Intune...",
+        "Syncing".cyan().bold()
+    );
 
     let config = ConfigManager::load()?;
     let active_tenant = config
@@ -852,7 +929,10 @@ pub async fn delete(args: DeleteArgs) -> Result<()> {
     }
 
     graph
-        .delete(&format!("deviceManagement/windowsAutopilotDeviceIdentities/{}", device_id))
+        .delete(&format!(
+            "deviceManagement/windowsAutopilotDeviceIdentities/{}",
+            device_id
+        ))
         .await?;
 
     println!("{} Device deleted successfully", "✓".green().bold());

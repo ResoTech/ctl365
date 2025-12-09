@@ -26,7 +26,9 @@ pub enum MainMenuOption {
 impl std::fmt::Display for MainMenuOption {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::DefenderForOffice365 => write!(f, "Defender for Office 365 (Safe Links, Safe Attachments)"),
+            Self::DefenderForOffice365 => {
+                write!(f, "Defender for Office 365 (Safe Links, Safe Attachments)")
+            }
             Self::ExchangeOnline => write!(f, "Exchange Online (Spam, Malware, Archive)"),
             Self::SharePointOneDrive => write!(f, "SharePoint & OneDrive (Sharing, Sync)"),
             Self::Teams => write!(f, "Microsoft Teams (External Access, Meetings)"),
@@ -54,13 +56,16 @@ const MAIN_MENU_OPTIONS: [MainMenuOption; 9] = [
 /// Run the interactive tenant configuration menu
 pub async fn run_interactive_menu() -> Result<()> {
     let config = ConfigManager::load()?;
-    let active_tenant = config
-        .get_active_tenant()?
-        .ok_or_else(|| crate::error::Error::ConfigError("No active tenant. Run 'ctl365 login' first.".into()))?;
+    let active_tenant = config.get_active_tenant()?.ok_or_else(|| {
+        crate::error::Error::ConfigError("No active tenant. Run 'ctl365 login' first.".into())
+    })?;
 
     println!();
     println!("{}", "═".repeat(60).cyan());
-    println!("{}", "  ctl365 Interactive Tenant Configuration".cyan().bold());
+    println!(
+        "{}",
+        "  ctl365 Interactive Tenant Configuration".cyan().bold()
+    );
     println!("{}", "═".repeat(60).cyan());
     println!();
     println!("  Tenant: {}", active_tenant.name.yellow().bold());
@@ -117,7 +122,10 @@ pub async fn run_interactive_menu() -> Result<()> {
 }
 
 /// Interactive Defender for Office 365 configuration
-pub async fn configure_defender_interactive(config: &ConfigManager, tenant_name: &str) -> Result<TenantConfiguration> {
+pub async fn configure_defender_interactive(
+    config: &ConfigManager,
+    tenant_name: &str,
+) -> Result<TenantConfiguration> {
     prompts::section_header("Defender for Office 365 Configuration");
 
     let mut tenant_config = TenantConfiguration::recommended();
@@ -125,57 +133,63 @@ pub async fn configure_defender_interactive(config: &ConfigManager, tenant_name:
     // Safe Links
     println!();
     println!("{}", "Safe Links".white().bold());
-    println!("  {}", "Protects users from malicious URLs in emails, Teams, and Office docs".dimmed());
+    println!(
+        "  {}",
+        "Protects users from malicious URLs in emails, Teams, and Office docs".dimmed()
+    );
     println!();
 
     tenant_config.safe_links_enabled = prompts::confirm_with_help(
         "Enable Safe Links?",
         "Scans URLs in real-time when clicked to detect malicious sites",
-        true
+        true,
     )?;
 
     if tenant_config.safe_links_enabled {
         tenant_config.safe_links_scan_urls = prompts::confirm_with_help(
             "Enable URL scanning at time of click?",
             "Re-checks URLs when user clicks, even if previously scanned",
-            true
+            true,
         )?;
 
         tenant_config.safe_links_teams = prompts::confirm_with_help(
             "Enable Safe Links for Microsoft Teams?",
             "Protects URLs shared in Teams chats and channels",
-            true
+            true,
         )?;
 
         tenant_config.safe_links_office = prompts::confirm_with_help(
             "Enable Safe Links for Office apps?",
             "Protects URLs in Word, Excel, PowerPoint documents",
-            true
+            true,
         )?;
 
         tenant_config.safe_links_track_clicks = prompts::confirm_with_help(
             "Track user clicks on URLs?",
             "Logs URL clicks for security analysis and reporting",
-            true
+            true,
         )?;
 
         tenant_config.safe_links_internal_senders = prompts::confirm_with_help(
             "Scan URLs from internal senders?",
             "Also protects against compromised internal accounts",
-            true
+            true,
         )?;
     }
 
     // Safe Attachments
     println!();
     println!("{}", "Safe Attachments".white().bold());
-    println!("  {}", "Sandboxes and scans email attachments before delivery".dimmed());
+    println!(
+        "  {}",
+        "Sandboxes and scans email attachments before delivery".dimmed()
+    );
     println!();
 
     tenant_config.safe_attachments_enabled = prompts::confirm_with_help(
         "Enable Safe Attachments?",
         "Opens attachments in a virtual environment to detect malware",
-        true
+        true,
     )?;
 
     if tenant_config.safe_attachments_enabled {
@@ -195,7 +209,7 @@ pub async fn configure_defender_interactive(config: &ConfigManager, tenant_name:
         let action_idx = prompts::select(
             "Safe Attachments action",
             &actions,
-            0  // DynamicDelivery as default
+            0, // DynamicDelivery as default
         )?;
         tenant_config.safe_attachments_action = actions[action_idx].to_string();
     }
@@ -212,7 +226,10 @@ pub async fn configure_defender_interactive(config: &ConfigManager, tenant_name:
 }
 
 /// Interactive Exchange Online configuration
-pub async fn configure_exchange_interactive(config: &ConfigManager, tenant_name: &str) -> Result<TenantConfiguration> {
+pub async fn configure_exchange_interactive(
+    config: &ConfigManager,
+    tenant_name: &str,
+) -> Result<TenantConfiguration> {
     prompts::section_header("Exchange Online Configuration");
 
     let mut tenant_config = TenantConfiguration::recommended();
@@ -220,63 +237,61 @@ pub async fn configure_exchange_interactive(config: &ConfigManager, tenant_name:
     // Archive Settings
     println!();
     println!("{}", "Archive Mailbox".white().bold());
-    println!("  {}", "Enables online archive for long-term email storage".dimmed());
+    println!(
+        "  {}",
+        "Enables online archive for long-term email storage".dimmed()
+    );
     println!();
 
     tenant_config.archive_mailbox = prompts::confirm_with_help(
         "Enable archive mailboxes for all users?",
         "Provides additional storage and helps with mailbox size management",
-        true
+        true,
     )?;
 
     if tenant_config.archive_mailbox {
         tenant_config.auto_expanding_archive = prompts::confirm_with_help(
             "Enable auto-expanding archive?",
             "Automatically grows archive beyond 100GB as needed",
-            true
+            true,
         )?;
 
-        tenant_config.archive_after_years = prompts::input_number(
-            "Move emails to archive after how many years?",
-            3
-        )?;
+        tenant_config.archive_after_years =
+            prompts::input_number("Move emails to archive after how many years?", 3)?;
     }
 
     // Anti-Spam/Malware
     println!();
     println!("{}", "Anti-Spam & Anti-Malware".white().bold());
-    println!("  {}", "Configure spam filtering and malware protection".dimmed());
+    println!(
+        "  {}",
+        "Configure spam filtering and malware protection".dimmed()
+    );
     println!();
 
     tenant_config.external_forwarding_blocked = prompts::confirm_with_help(
         "Block external auto-forwarding?",
         "CRITICAL: Prevents data exfiltration via compromised mailbox rules",
-        true
+        true,
     )?;
 
     tenant_config.zap_enabled = prompts::confirm_with_help(
         "Enable Zero-Hour Auto Purge (ZAP)?",
         "Automatically removes malicious messages delivered before detection",
-        true
+        true,
     )?;
 
-    tenant_config.spam_bulk_threshold = prompts::input_number(
-        "Bulk email threshold (1-9, lower = more aggressive)?",
-        6
-    )?;
+    tenant_config.spam_bulk_threshold =
+        prompts::input_number("Bulk email threshold (1-9, lower = more aggressive)?", 6)?;
 
     let spam_actions = ["Quarantine", "MoveToJmf", "Delete", "Redirect"];
-    let spam_idx = prompts::select(
-        "Action for high-confidence spam?",
-        &spam_actions,
-        0
-    )?;
+    let spam_idx = prompts::select("Action for high-confidence spam?", &spam_actions, 0)?;
     tenant_config.high_confidence_spam_action = spam_actions[spam_idx].to_string();
 
     let phish_idx = prompts::select(
         "Action for phishing emails?",
         &["Quarantine", "MoveToJmf", "Delete"],
-        0
+        0,
     )?;
     tenant_config.phish_action = ["Quarantine", "MoveToJmf", "Delete"][phish_idx].to_string();
 
@@ -284,7 +299,7 @@ pub async fn configure_exchange_interactive(config: &ConfigManager, tenant_name:
     tenant_config.quarantine_notifications = prompts::confirm_with_help(
         "Send quarantine notifications to end users?",
         "Users receive emails when messages are quarantined (can increase support tickets)",
-        false
+        false,
     )?;
 
     // Apply changes?
@@ -299,7 +314,10 @@ pub async fn configure_exchange_interactive(config: &ConfigManager, tenant_name:
 }
 
 /// Interactive SharePoint/OneDrive configuration
-pub async fn configure_sharepoint_interactive(config: &ConfigManager, tenant_name: &str) -> Result<TenantConfiguration> {
+pub async fn configure_sharepoint_interactive(
+    config: &ConfigManager,
+    tenant_name: &str,
+) -> Result<TenantConfiguration> {
     prompts::section_header("SharePoint & OneDrive Configuration");
 
     let mut tenant_config = TenantConfiguration::recommended();
@@ -307,7 +325,10 @@ pub async fn configure_sharepoint_interactive(config: &ConfigManager, tenant_nam
     // External Sharing
     println!();
     println!("{}", "External Sharing".white().bold());
-    println!("  {}", "Control how content can be shared outside your organization".dimmed());
+    println!(
+        "  {}",
+        "Control how content can be shared outside your organization".dimmed()
+    );
     println!();
 
     let sharing_levels = [
@@ -323,35 +344,33 @@ pub async fn configure_sharepoint_interactive(config: &ConfigManager, tenant_nam
         "Anyone links allowed (least secure)",
     ];
 
-    for (i, (level, desc)) in sharing_levels.iter().zip(sharing_descriptions.iter()).enumerate() {
+    for (i, (level, desc)) in sharing_levels
+        .iter()
+        .zip(sharing_descriptions.iter())
+        .enumerate()
+    {
         println!("  {}. {} - {}", i + 1, level.yellow(), desc);
     }
 
     let sharing_idx = prompts::select(
         "External sharing level?",
         &sharing_levels,
-        1  // ExistingExternalUserSharingOnly
+        1, // ExistingExternalUserSharingOnly
     )?;
     tenant_config.external_sharing = sharing_levels[sharing_idx].to_string();
 
     if sharing_idx > 0 {
-        tenant_config.anonymous_link_expiry = prompts::input_number(
-            "Anonymous link expiry (days)?",
-            30
-        )?;
+        tenant_config.anonymous_link_expiry =
+            prompts::input_number("Anonymous link expiry (days)?", 30)?;
 
         let link_types = ["Internal", "Direct", "AnonymousAccess"];
-        let link_idx = prompts::select(
-            "Default sharing link type?",
-            &link_types,
-            0
-        )?;
+        let link_idx = prompts::select("Default sharing link type?", &link_types, 0)?;
         tenant_config.default_sharing_link = link_types[link_idx].to_string();
 
         tenant_config.prevent_external_resharing = prompts::confirm_with_help(
             "Prevent guests from re-sharing?",
             "Stops external users from sharing content with additional people",
-            true
+            true,
         )?;
     }
 
@@ -364,7 +383,7 @@ pub async fn configure_sharepoint_interactive(config: &ConfigManager, tenant_nam
     tenant_config.sync_client_restriction = prompts::confirm_with_help(
         "Restrict OneDrive sync to managed devices?",
         "Only domain-joined or Intune-compliant devices can sync",
-        true
+        true,
     )?;
 
     // Apply changes?
@@ -379,7 +398,10 @@ pub async fn configure_sharepoint_interactive(config: &ConfigManager, tenant_nam
 }
 
 /// Interactive Teams configuration
-pub async fn configure_teams_interactive(config: &ConfigManager, tenant_name: &str) -> Result<TenantConfiguration> {
+pub async fn configure_teams_interactive(
+    config: &ConfigManager,
+    tenant_name: &str,
+) -> Result<TenantConfiguration> {
     prompts::section_header("Microsoft Teams Configuration");
 
     let mut tenant_config = TenantConfiguration::recommended();
@@ -387,19 +409,22 @@ pub async fn configure_teams_interactive(config: &ConfigManager, tenant_name: &s
     // External Access
     println!();
     println!("{}", "External Access".white().bold());
-    println!("  {}", "Control communication with people outside your organization".dimmed());
+    println!(
+        "  {}",
+        "Control communication with people outside your organization".dimmed()
+    );
     println!();
 
     tenant_config.external_access = prompts::confirm_with_help(
         "Allow federation with external Teams organizations?",
         "Enables chat/calls with other M365 tenants",
-        true
+        true,
     )?;
 
     tenant_config.teams_consumer_access = prompts::confirm_with_help(
         "Allow chat with personal Microsoft accounts?",
         "Enables communication with consumer Skype/Teams users",
-        false
+        false,
     )?;
 
     // Meeting Settings
@@ -411,7 +436,7 @@ pub async fn configure_teams_interactive(config: &ConfigManager, tenant_name: &s
     tenant_config.anonymous_meeting_join = prompts::confirm_with_help(
         "Allow anonymous users to join meetings?",
         "Unauthenticated users can join via meeting link",
-        false
+        false,
     )?;
 
     let lobby_options = [
@@ -427,27 +452,27 @@ pub async fn configure_teams_interactive(config: &ConfigManager, tenant_name: &s
         "Only invited users bypass lobby",
     ];
 
-    for (i, (opt, desc)) in lobby_options.iter().zip(lobby_descriptions.iter()).enumerate() {
+    for (i, (opt, desc)) in lobby_options
+        .iter()
+        .zip(lobby_descriptions.iter())
+        .enumerate()
+    {
         println!("  {}. {} - {}", i + 1, opt.yellow(), desc);
     }
 
-    let lobby_idx = prompts::select(
-        "Who can bypass the meeting lobby?",
-        &lobby_options,
-        1
-    )?;
+    let lobby_idx = prompts::select("Who can bypass the meeting lobby?", &lobby_options, 1)?;
     tenant_config.meeting_lobby = lobby_options[lobby_idx].to_string();
 
     tenant_config.meeting_recording = prompts::confirm_with_help(
         "Allow cloud meeting recording?",
         "Enables recording meetings to OneDrive/SharePoint",
-        true
+        true,
     )?;
 
     tenant_config.meeting_transcription = prompts::confirm_with_help(
         "Allow meeting transcription?",
         "Enables automatic transcription of meetings",
-        true
+        true,
     )?;
 
     // Apply changes?
@@ -501,13 +526,13 @@ pub async fn apply_all_recommended(config: &ConfigManager, tenant_name: &str) ->
 }
 
 /// Export current configuration to JSON
-pub async fn export_current_configuration(_config: &ConfigManager, tenant_name: &str) -> Result<()> {
+pub async fn export_current_configuration(
+    _config: &ConfigManager,
+    tenant_name: &str,
+) -> Result<()> {
     prompts::section_header("Export Configuration");
 
-    let filename = prompts::input(
-        "Export filename",
-        &format!("{}-config.json", tenant_name)
-    )?;
+    let filename = prompts::input("Export filename", &format!("{}-config.json", tenant_name))?;
 
     prompts::info(&format!("Exporting configuration to {}...", filename));
 
@@ -526,12 +551,17 @@ pub async fn export_current_configuration(_config: &ConfigManager, tenant_name: 
 // Apply functions - actually push settings to Graph API
 // ============================================================================
 
-async fn apply_defender_settings(config: &ConfigManager, tenant_name: &str, settings: &TenantConfiguration) -> Result<()> {
+async fn apply_defender_settings(
+    config: &ConfigManager,
+    tenant_name: &str,
+    settings: &TenantConfiguration,
+) -> Result<()> {
     let graph = GraphClient::from_config(config, tenant_name).await?;
 
     if settings.safe_links_enabled {
         let policy_name = "ctl365 - Safe Links Policy";
-        match crate::graph::exchange_online::configure_safe_links_policy(&graph, policy_name).await {
+        match crate::graph::exchange_online::configure_safe_links_policy(&graph, policy_name).await
+        {
             Ok(_) => prompts::success(&format!("Configured Safe Links: {}", policy_name)),
             Err(e) => prompts::error(&format!("Failed to configure Safe Links: {}", e)),
         }
@@ -539,7 +569,9 @@ async fn apply_defender_settings(config: &ConfigManager, tenant_name: &str, sett
 
     if settings.safe_attachments_enabled {
         let policy_name = "ctl365 - Safe Attachments Policy";
-        match crate::graph::exchange_online::configure_safe_attachments_policy(&graph, policy_name).await {
+        match crate::graph::exchange_online::configure_safe_attachments_policy(&graph, policy_name)
+            .await
+        {
             Ok(_) => prompts::success(&format!("Configured Safe Attachments: {}", policy_name)),
             Err(e) => prompts::error(&format!("Failed to configure Safe Attachments: {}", e)),
         }
@@ -548,7 +580,11 @@ async fn apply_defender_settings(config: &ConfigManager, tenant_name: &str, sett
     Ok(())
 }
 
-async fn apply_exchange_settings(config: &ConfigManager, tenant_name: &str, settings: &TenantConfiguration) -> Result<()> {
+async fn apply_exchange_settings(
+    config: &ConfigManager,
+    tenant_name: &str,
+    settings: &TenantConfiguration,
+) -> Result<()> {
     let graph = GraphClient::from_config(config, tenant_name).await?;
 
     if settings.archive_mailbox {
@@ -592,32 +628,71 @@ async fn apply_exchange_settings(config: &ConfigManager, tenant_name: &str, sett
     Ok(())
 }
 
-async fn apply_sharepoint_settings(_config: &ConfigManager, _tenant_name: &str, settings: &TenantConfiguration) -> Result<()> {
+async fn apply_sharepoint_settings(
+    _config: &ConfigManager,
+    _tenant_name: &str,
+    settings: &TenantConfiguration,
+) -> Result<()> {
     // SharePoint settings typically require SharePoint Admin PowerShell or specific APIs
     // For now, we'll indicate what would be configured
 
     prompts::info(&format!("External sharing: {}", settings.external_sharing));
-    prompts::info(&format!("Anonymous link expiry: {} days", settings.anonymous_link_expiry));
-    prompts::info(&format!("Default link type: {}", settings.default_sharing_link));
+    prompts::info(&format!(
+        "Anonymous link expiry: {} days",
+        settings.anonymous_link_expiry
+    ));
+    prompts::info(&format!(
+        "Default link type: {}",
+        settings.default_sharing_link
+    ));
 
     if settings.sync_client_restriction {
         prompts::info("OneDrive sync restricted to managed devices");
     }
 
-    prompts::warning("SharePoint settings require SharePoint Admin API - use 'Set-SPOTenant' cmdlet");
+    prompts::warning(
+        "SharePoint settings require SharePoint Admin API - use 'Set-SPOTenant' cmdlet",
+    );
 
     Ok(())
 }
 
-async fn apply_teams_settings(_config: &ConfigManager, _tenant_name: &str, settings: &TenantConfiguration) -> Result<()> {
+async fn apply_teams_settings(
+    _config: &ConfigManager,
+    _tenant_name: &str,
+    settings: &TenantConfiguration,
+) -> Result<()> {
     // Teams settings require Teams PowerShell or specific APIs
 
-    prompts::info(&format!("External access: {}", if settings.external_access { "Enabled" } else { "Disabled" }));
-    prompts::info(&format!("Consumer access: {}", if settings.teams_consumer_access { "Enabled" } else { "Disabled" }));
-    prompts::info(&format!("Anonymous meeting join: {}", if settings.anonymous_meeting_join { "Enabled" } else { "Disabled" }));
+    prompts::info(&format!(
+        "External access: {}",
+        if settings.external_access {
+            "Enabled"
+        } else {
+            "Disabled"
+        }
+    ));
+    prompts::info(&format!(
+        "Consumer access: {}",
+        if settings.teams_consumer_access {
+            "Enabled"
+        } else {
+            "Disabled"
+        }
+    ));
+    prompts::info(&format!(
+        "Anonymous meeting join: {}",
+        if settings.anonymous_meeting_join {
+            "Enabled"
+        } else {
+            "Disabled"
+        }
+    ));
     prompts::info(&format!("Meeting lobby: {}", settings.meeting_lobby));
 
-    prompts::warning("Teams settings require Teams Admin API - use 'Set-CsTeamsMeetingPolicy' cmdlet");
+    prompts::warning(
+        "Teams settings require Teams Admin API - use 'Set-CsTeamsMeetingPolicy' cmdlet",
+    );
 
     Ok(())
 }
@@ -630,7 +705,7 @@ async fn apply_teams_settings(_config: &ConfigManager, _tenant_name: &str, setti
 pub async fn apply_defender_settings_from_config(
     config: &ConfigManager,
     tenant_name: &str,
-    settings: &TenantConfiguration
+    settings: &TenantConfiguration,
 ) -> Result<String> {
     apply_defender_settings(config, tenant_name, settings).await?;
     Ok("Defender for Office 365 settings applied successfully".into())
@@ -640,7 +715,7 @@ pub async fn apply_defender_settings_from_config(
 pub async fn apply_exchange_settings_from_config(
     config: &ConfigManager,
     tenant_name: &str,
-    settings: &TenantConfiguration
+    settings: &TenantConfiguration,
 ) -> Result<String> {
     apply_exchange_settings(config, tenant_name, settings).await?;
     Ok("Exchange Online settings applied successfully".into())
@@ -650,17 +725,20 @@ pub async fn apply_exchange_settings_from_config(
 pub async fn apply_sharepoint_settings_from_config(
     config: &ConfigManager,
     tenant_name: &str,
-    settings: &TenantConfiguration
+    settings: &TenantConfiguration,
 ) -> Result<String> {
     apply_sharepoint_settings(config, tenant_name, settings).await?;
-    Ok("SharePoint & OneDrive settings applied (Note: Some settings require SharePoint Admin API)".into())
+    Ok(
+        "SharePoint & OneDrive settings applied (Note: Some settings require SharePoint Admin API)"
+            .into(),
+    )
 }
 
 /// Apply Teams settings from TUI (returns status message)
 pub async fn apply_teams_settings_from_config(
     config: &ConfigManager,
     tenant_name: &str,
-    settings: &TenantConfiguration
+    settings: &TenantConfiguration,
 ) -> Result<String> {
     apply_teams_settings(config, tenant_name, settings).await?;
     Ok("Teams settings applied (Note: Some settings require Teams Admin API)".into())
@@ -670,7 +748,7 @@ pub async fn apply_teams_settings_from_config(
 pub async fn apply_all_settings_from_config(
     config: &ConfigManager,
     tenant_name: &str,
-    settings: &TenantConfiguration
+    settings: &TenantConfiguration,
 ) -> Result<String> {
     apply_defender_settings(config, tenant_name, settings).await?;
     apply_exchange_settings(config, tenant_name, settings).await?;
@@ -690,7 +768,8 @@ pub async fn quick_setting_change() -> Result<()> {
     println!("  Tenant: {}", active_tenant.name.yellow());
 
     let settings = all_settings();
-    let setting_names: Vec<String> = settings.iter()
+    let setting_names: Vec<String> = settings
+        .iter()
         .map(|s| format!("[{}] {}", s.category, s.name))
         .collect();
 
@@ -714,7 +793,11 @@ pub async fn quick_setting_change() -> Result<()> {
                 _ => true,
             };
             let new_value = prompts::confirm(&format!("Enable {}?", setting.name), current)?;
-            prompts::success(&format!("Set {} to {}", setting.name, if new_value { "Enabled" } else { "Disabled" }));
+            prompts::success(&format!(
+                "Set {} to {}",
+                setting.name,
+                if new_value { "Enabled" } else { "Disabled" }
+            ));
         }
         SettingType::Choice { options } => {
             let idx = prompts::select(&format!("Select value for {}", setting.name), options, 0)?;
@@ -725,7 +808,15 @@ pub async fn quick_setting_change() -> Result<()> {
                 SettingValue::Number(n) => *n as u32,
                 _ => 0,
             };
-            let new_value = prompts::input_number(&format!("Enter value for {} ({}-{})", setting.name, min.unwrap_or(0), max.unwrap_or(999)), default)?;
+            let new_value = prompts::input_number(
+                &format!(
+                    "Enter value for {} ({}-{})",
+                    setting.name,
+                    min.unwrap_or(0),
+                    max.unwrap_or(999)
+                ),
+                default,
+            )?;
             prompts::success(&format!("Set {} to {}", setting.name, new_value));
         }
         _ => {

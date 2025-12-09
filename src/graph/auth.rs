@@ -1,8 +1,8 @@
 use crate::config::{ConfigManager, TenantConfig, TokenCache};
 use crate::error::{Ctl365Error, Result};
 use oauth2::{
-    basic::BasicClient, reqwest::async_http_client, AuthUrl, ClientId, ClientSecret,
-    DeviceAuthorizationUrl, EmptyExtraDeviceAuthorizationFields, Scope, TokenResponse, TokenUrl,
+    AuthUrl, ClientId, ClientSecret, DeviceAuthorizationUrl, EmptyExtraDeviceAuthorizationFields,
+    Scope, TokenResponse, TokenUrl, basic::BasicClient, reqwest::async_http_client,
 };
 use std::time::Duration;
 
@@ -30,32 +30,45 @@ impl GraphAuth {
 
     /// Authenticate using device code flow (interactive)
     pub async fn login_device_code(&self, tenant_config: &TenantConfig) -> Result<TokenCache> {
-        println!("🔐 Starting device code authentication for tenant '{}'...", tenant_config.name);
+        println!(
+            "🔐 Starting device code authentication for tenant '{}'...",
+            tenant_config.name
+        );
 
         let tenant_id = &tenant_config.tenant_id;
         let client_id = ClientId::new(tenant_config.client_id.clone());
 
-        let auth_url = AuthUrl::new(format!("{}/{}/oauth2/v2.0/authorize", MICROSOFT_AUTHORITY, tenant_id))
-            .map_err(|e| Ctl365Error::AuthError(format!("Invalid auth URL: {}", e)))?;
+        let auth_url = AuthUrl::new(format!(
+            "{}/{}/oauth2/v2.0/authorize",
+            MICROSOFT_AUTHORITY, tenant_id
+        ))
+        .map_err(|e| Ctl365Error::AuthError(format!("Invalid auth URL: {}", e)))?;
 
-        let token_url = TokenUrl::new(format!("{}/{}/oauth2/v2.0/token", MICROSOFT_AUTHORITY, tenant_id))
-            .map_err(|e| Ctl365Error::AuthError(format!("Invalid token URL: {}", e)))?;
+        let token_url = TokenUrl::new(format!(
+            "{}/{}/oauth2/v2.0/token",
+            MICROSOFT_AUTHORITY, tenant_id
+        ))
+        .map_err(|e| Ctl365Error::AuthError(format!("Invalid token URL: {}", e)))?;
 
-        let device_auth_url = DeviceAuthorizationUrl::new(
-            format!("{}/{}/oauth2/v2.0/devicecode", MICROSOFT_AUTHORITY, tenant_id)
-        )
+        let device_auth_url = DeviceAuthorizationUrl::new(format!(
+            "{}/{}/oauth2/v2.0/devicecode",
+            MICROSOFT_AUTHORITY, tenant_id
+        ))
         .map_err(|e| Ctl365Error::AuthError(format!("Invalid device auth URL: {}", e)))?;
 
         let client = BasicClient::new(client_id, None, auth_url, Some(token_url))
             .set_device_authorization_url(device_auth_url);
 
-        let details: oauth2::DeviceAuthorizationResponse<EmptyExtraDeviceAuthorizationFields> = client
-            .exchange_device_code()
-            .map_err(|e| Ctl365Error::AuthError(format!("Device code exchange failed: {}", e)))?
-            .add_scope(Scope::new(GRAPH_SCOPE.to_string()))
-            .request_async(async_http_client)
-            .await
-            .map_err(|e| Ctl365Error::AuthError(format!("Device authorization request failed: {}", e)))?;
+        let details: oauth2::DeviceAuthorizationResponse<EmptyExtraDeviceAuthorizationFields> =
+            client
+                .exchange_device_code()
+                .map_err(|e| Ctl365Error::AuthError(format!("Device code exchange failed: {}", e)))?
+                .add_scope(Scope::new(GRAPH_SCOPE.to_string()))
+                .request_async(async_http_client)
+                .await
+                .map_err(|e| {
+                    Ctl365Error::AuthError(format!("Device authorization request failed: {}", e))
+                })?;
 
         println!("\n📱 Please visit: {}", details.verification_uri().as_str());
         println!("🔑 Enter code: {}\n", details.user_code().secret());
@@ -68,9 +81,8 @@ impl GraphAuth {
             .map_err(|e| Ctl365Error::AuthError(format!("Token exchange failed: {}", e)))?;
 
         let expires_at = chrono::Utc::now()
-            + chrono::Duration::from_std(
-                token.expires_in().unwrap_or(Duration::from_secs(3600))
-            ).unwrap();
+            + chrono::Duration::from_std(token.expires_in().unwrap_or(Duration::from_secs(3600)))
+                .unwrap();
 
         let token_cache = TokenCache {
             access_token: token.access_token().secret().clone(),
@@ -80,30 +92,47 @@ impl GraphAuth {
         };
 
         // Save token
-        self.config_manager.save_token(&tenant_config.name, &token_cache)?;
+        self.config_manager
+            .save_token(&tenant_config.name, &token_cache)?;
 
         println!("✅ Authentication successful!");
-        println!("💾 Token saved to: {:?}", self.config_manager.token_cache_file(&tenant_config.name));
+        println!(
+            "💾 Token saved to: {:?}",
+            self.config_manager.token_cache_file(&tenant_config.name)
+        );
 
         Ok(token_cache)
     }
 
     /// Authenticate using client credentials flow (non-interactive)
-    pub async fn login_client_credentials(&self, tenant_config: &TenantConfig) -> Result<TokenCache> {
-        let client_secret = tenant_config.client_secret.as_ref()
-            .ok_or_else(|| Ctl365Error::AuthError("Client secret required for client credentials flow".into()))?;
+    pub async fn login_client_credentials(
+        &self,
+        tenant_config: &TenantConfig,
+    ) -> Result<TokenCache> {
+        let client_secret = tenant_config.client_secret.as_ref().ok_or_else(|| {
+            Ctl365Error::AuthError("Client secret required for client credentials flow".into())
+        })?;
 
-        println!("🔐 Authenticating with client credentials for tenant '{}'...", tenant_config.name);
+        println!(
+            "🔐 Authenticating with client credentials for tenant '{}'...",
+            tenant_config.name
+        );
 
         let tenant_id = &tenant_config.tenant_id;
         let client_id = ClientId::new(tenant_config.client_id.clone());
         let client_secret = ClientSecret::new(client_secret.clone());
 
-        let auth_url = AuthUrl::new(format!("{}/{}/oauth2/v2.0/authorize", MICROSOFT_AUTHORITY, tenant_id))
-            .map_err(|e| Ctl365Error::AuthError(format!("Invalid auth URL: {}", e)))?;
+        let auth_url = AuthUrl::new(format!(
+            "{}/{}/oauth2/v2.0/authorize",
+            MICROSOFT_AUTHORITY, tenant_id
+        ))
+        .map_err(|e| Ctl365Error::AuthError(format!("Invalid auth URL: {}", e)))?;
 
-        let token_url = TokenUrl::new(format!("{}/{}/oauth2/v2.0/token", MICROSOFT_AUTHORITY, tenant_id))
-            .map_err(|e| Ctl365Error::AuthError(format!("Invalid token URL: {}", e)))?;
+        let token_url = TokenUrl::new(format!(
+            "{}/{}/oauth2/v2.0/token",
+            MICROSOFT_AUTHORITY, tenant_id
+        ))
+        .map_err(|e| Ctl365Error::AuthError(format!("Invalid token URL: {}", e)))?;
 
         let client = BasicClient::new(client_id, Some(client_secret), auth_url, Some(token_url));
 
@@ -112,12 +141,13 @@ impl GraphAuth {
             .add_scope(Scope::new(GRAPH_SCOPE.to_string()))
             .request_async(async_http_client)
             .await
-            .map_err(|e| Ctl365Error::AuthError(format!("Client credentials exchange failed: {}", e)))?;
+            .map_err(|e| {
+                Ctl365Error::AuthError(format!("Client credentials exchange failed: {}", e))
+            })?;
 
         let expires_at = chrono::Utc::now()
-            + chrono::Duration::from_std(
-                token.expires_in().unwrap_or(Duration::from_secs(3600))
-            ).unwrap();
+            + chrono::Duration::from_std(token.expires_in().unwrap_or(Duration::from_secs(3600)))
+                .unwrap();
 
         let token_cache = TokenCache {
             access_token: token.access_token().secret().clone(),
@@ -127,7 +157,8 @@ impl GraphAuth {
         };
 
         // Save token
-        self.config_manager.save_token(&tenant_config.name, &token_cache)?;
+        self.config_manager
+            .save_token(&tenant_config.name, &token_cache)?;
 
         println!("✅ Authentication successful!");
 

@@ -137,7 +137,9 @@ pub async fn new(args: NewArgs) -> Result<()> {
         },
         "android" => match args.template.as_str() {
             "basic" => templates::android::generate_basic_android_baseline(&args)?,
-            "oib" | "openintune" | "baseline" => templates::android::generate_android_baseline(&args)?,
+            "oib" | "openintune" | "baseline" => {
+                templates::android::generate_android_baseline(&args)?
+            }
             _ => {
                 return Err(crate::error::Error::ConfigError(format!(
                     "Unknown template: '{}'. Available for Android: basic, oib",
@@ -164,7 +166,10 @@ pub async fn new(args: NewArgs) -> Result<()> {
     // Print summary
     println!("\n{}", "Baseline Summary:".cyan().bold());
     println!("  Platform: {}", args.platform);
-    println!("  Policies: {}", baseline["policies"].as_array().unwrap().len());
+    println!(
+        "  Policies: {}",
+        baseline["policies"].as_array().unwrap().len()
+    );
     if args.encryption {
         println!("  {} Encryption enabled", "✓".green());
     }
@@ -250,7 +255,9 @@ pub async fn apply(args: ApplyArgs) -> Result<()> {
         let display_name = policy["displayName"]
             .as_str()
             .or_else(|| policy["name"].as_str())
-            .ok_or_else(|| crate::error::Error::ConfigError("Missing displayName or name".into()))?;
+            .ok_or_else(|| {
+                crate::error::Error::ConfigError("Missing displayName or name".into())
+            })?;
 
         print!("  {} Creating: {}... ", "→".cyan(), display_name);
 
@@ -261,22 +268,32 @@ pub async fn apply(args: ApplyArgs) -> Result<()> {
                 println!("{}", "✓".green().bold());
 
                 // Record success in audit trail
-                change_tracker::record_policy_created(policy_type, display_name, &active_tenant.name);
+                change_tracker::record_policy_created(
+                    policy_type,
+                    display_name,
+                    &active_tenant.name,
+                );
 
                 // Assign to group if specified
                 if let Some(group_id) = &args.group_id {
-                    let policy_id = created_policy["id"]
-                        .as_str()
-                        .ok_or_else(|| crate::error::Error::ConfigError("Missing policy id".into()))?;
+                    let policy_id = created_policy["id"].as_str().ok_or_else(|| {
+                        crate::error::Error::ConfigError("Missing policy id".into())
+                    })?;
 
-                    crate::graph::intune::assign_policy(&graph, policy_type, policy_id, group_id).await?;
+                    crate::graph::intune::assign_policy(&graph, policy_type, policy_id, group_id)
+                        .await?;
                     println!("    {} Assigned to group: {}", "✓".green(), group_id);
                 }
             }
             Err(e) => {
                 println!("{} {}", "✗".red().bold(), e);
                 // Record failure in audit trail
-                change_tracker::record_error(policy_type, display_name, &e.to_string(), &active_tenant.name);
+                change_tracker::record_error(
+                    policy_type,
+                    display_name,
+                    &e.to_string(),
+                    &active_tenant.name,
+                );
             }
         }
     }
@@ -310,19 +327,43 @@ pub async fn list() -> Result<()> {
     println!("{} {}", "Platform:".bold(), "Windows".cyan());
     println!();
 
-    println!("  {} {} - Basic security baseline", "•".cyan(), "basic".bold());
+    println!(
+        "  {} {} - Basic security baseline",
+        "•".cyan(),
+        "basic".bold()
+    );
     println!("    Simple compliance, BitLocker, Defender, Firewall");
     println!();
 
-    println!("  {} {} - OpenIntuneBaseline v3.6 (PRODUCTION-READY)", "•".green(), "oib".bold());
-    println!("    {} Battle-tested by Microsoft MVP across multiple enterprises", "✓".green());
-    println!("    {} 15+ policies: Compliance (4), Settings Catalog (11+)", "✓".green());
+    println!(
+        "  {} {} - OpenIntuneBaseline v3.6 (PRODUCTION-READY)",
+        "•".green(),
+        "oib".bold()
+    );
+    println!(
+        "    {} Battle-tested by Microsoft MVP across multiple enterprises",
+        "✓".green()
+    );
+    println!(
+        "    {} 15+ policies: Compliance (4), Settings Catalog (11+)",
+        "✓".green()
+    );
     println!("    {} CIS-aligned with documented deviations", "✓".green());
-    println!("    {} Frameworks: NCSC, CIS, ACSC Essential Eight, MS Baselines", "✓".green());
-    println!("    {} Features: WHfB, LAPS, ASR Rules, BitLocker, Firewall, MDE", "✓".green());
+    println!(
+        "    {} Frameworks: NCSC, CIS, ACSC Essential Eight, MS Baselines",
+        "✓".green()
+    );
+    println!(
+        "    {} Features: WHfB, LAPS, ASR Rules, BitLocker, Firewall, MDE",
+        "✓".green()
+    );
     println!();
 
-    println!("  {} {} - Coming soon", "•".cyan().dimmed(), "microsoft-baseline".dimmed());
+    println!(
+        "  {} {} - Coming soon",
+        "•".cyan().dimmed(),
+        "microsoft-baseline".dimmed()
+    );
     println!("    Official Microsoft Security Baseline (24H2)");
     println!();
 
@@ -335,10 +376,20 @@ pub async fn list() -> Result<()> {
     println!("  {} {} - Basic macOS baseline", "•".cyan(), "basic".bold());
     println!("    Device restrictions, FileVault, Gatekeeper, XProtect");
     println!();
-    println!("  {} {} - OpenIntune macOS Baseline (PRODUCTION-READY)", "•".green(), "oib".bold());
+    println!(
+        "  {} {} - OpenIntune macOS Baseline (PRODUCTION-READY)",
+        "•".green(),
+        "oib".bold()
+    );
     println!("    {} Enterprise-grade macOS management", "✓".green());
-    println!("    {} FileVault encryption, password policies", "✓".green());
-    println!("    {} System Integrity Protection, Gatekeeper", "✓".green());
+    println!(
+        "    {} FileVault encryption, password policies",
+        "✓".green()
+    );
+    println!(
+        "    {} System Integrity Protection, Gatekeeper",
+        "✓".green()
+    );
     println!();
 
     println!("{} {}", "Platform:".bold(), "iOS".cyan());
@@ -346,28 +397,68 @@ pub async fn list() -> Result<()> {
     println!("  {} {} - Basic iOS baseline", "•".cyan(), "basic".bold());
     println!("    Compliance, passcode, jailbreak detection");
     println!();
-    println!("  {} {} - OpenIntune iOS Baseline (PRODUCTION-READY)", "•".green(), "oib".bold());
+    println!(
+        "  {} {} - OpenIntune iOS Baseline (PRODUCTION-READY)",
+        "•".green(),
+        "oib".bold()
+    );
     println!("    {} App Protection Policies (MAM)", "✓".green());
-    println!("    {} Device restrictions and passcode policies", "✓".green());
-    println!("    {} Email profiles and Defender for Endpoint", "✓".green());
+    println!(
+        "    {} Device restrictions and passcode policies",
+        "✓".green()
+    );
+    println!(
+        "    {} Email profiles and Defender for Endpoint",
+        "✓".green()
+    );
     println!();
 
     println!("{} {}", "Platform:".bold(), "Android".cyan());
     println!();
-    println!("  {} {} - Basic Android baseline", "•".cyan(), "basic".bold());
+    println!(
+        "  {} {} - Basic Android baseline",
+        "•".cyan(),
+        "basic".bold()
+    );
     println!("    Work Profile compliance, basic restrictions");
     println!();
-    println!("  {} {} - OpenIntune Android Baseline (PRODUCTION-READY)", "•".green(), "oib".bold());
-    println!("    {} Work Profile (BYOD) and Fully Managed modes", "✓".green());
+    println!(
+        "  {} {} - OpenIntune Android Baseline (PRODUCTION-READY)",
+        "•".green(),
+        "oib".bold()
+    );
+    println!(
+        "    {} Work Profile (BYOD) and Fully Managed modes",
+        "✓".green()
+    );
     println!("    {} SafetyNet attestation, encryption", "✓".green());
-    println!("    {} App Protection Policies (MAM) and Defender", "✓".green());
+    println!(
+        "    {} App Protection Policies (MAM) and Defender",
+        "✓".green()
+    );
     println!();
 
     println!("{}", "Usage Examples:".bold());
-    println!("  {} {} baseline new windows --template oib --encryption --defender", "Windows:".cyan(), "ctl365".bold());
-    println!("  {} {} baseline new macos --template oib --encryption", "macOS:".cyan().dimmed(), "ctl365".bold());
-    println!("  {} {} baseline new ios --template oib --defender --min-os 17.0", "iOS:".cyan().dimmed(), "ctl365".bold());
-    println!("  {} {} baseline new android --template oib --defender", "Android:".cyan().dimmed(), "ctl365".bold());
+    println!(
+        "  {} {} baseline new windows --template oib --encryption --defender",
+        "Windows:".cyan(),
+        "ctl365".bold()
+    );
+    println!(
+        "  {} {} baseline new macos --template oib --encryption",
+        "macOS:".cyan().dimmed(),
+        "ctl365".bold()
+    );
+    println!(
+        "  {} {} baseline new ios --template oib --defender --min-os 17.0",
+        "iOS:".cyan().dimmed(),
+        "ctl365".bold()
+    );
+    println!(
+        "  {} {} baseline new android --template oib --defender",
+        "Android:".cyan().dimmed(),
+        "ctl365".bold()
+    );
     println!();
 
     println!("{}", "Templates:".bold());

@@ -7,8 +7,8 @@
 //!
 //! Also handles confirmation policies and impact summaries.
 
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::OnceLock;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 /// Global run context instance
 static CONTEXT: OnceLock<RunContext> = OnceLock::new();
@@ -290,7 +290,10 @@ impl RunContext {
 
     /// Get confirmation policy
     pub fn confirm_policy(&self) -> ConfirmPolicy {
-        self.confirm_policy.read().map(|p| *p).unwrap_or(ConfirmPolicy::Prompt)
+        self.confirm_policy
+            .read()
+            .map(|p| *p)
+            .unwrap_or(ConfirmPolicy::Prompt)
     }
 
     /// Check if should auto-confirm
@@ -349,24 +352,36 @@ impl RunContext {
 impl ImpactSummary {
     /// Impact summary for baseline deployment
     pub fn baseline_deploy(name: &str, policy_count: usize, tenant: &str) -> Self {
-        Self::new(&format!("Deploy {} Baseline", name), ImpactLevel::High, tenant)
-            .create(&format!("{} Intune policies", policy_count))
-            .note("Policies will be created in Report-Only mode")
-            .note("Review policy assignments after deployment")
+        Self::new(
+            &format!("Deploy {} Baseline", name),
+            ImpactLevel::High,
+            tenant,
+        )
+        .create(&format!("{} Intune policies", policy_count))
+        .note("Policies will be created in Report-Only mode")
+        .note("Review policy assignments after deployment")
     }
 
     /// Impact summary for CA deployment
     pub fn ca_deploy(policy_count: usize, tenant: &str) -> Self {
-        Self::new("Deploy Conditional Access Policies", ImpactLevel::Critical, tenant)
-            .create(&format!("{} CA policies", policy_count))
-            .note("All policies start in Report-Only mode")
-            .note("Review policies before enabling enforcement")
+        Self::new(
+            "Deploy Conditional Access Policies",
+            ImpactLevel::Critical,
+            tenant,
+        )
+        .create(&format!("{} CA policies", policy_count))
+        .note("All policies start in Report-Only mode")
+        .note("Review policies before enabling enforcement")
     }
 
     /// Impact summary for settings change
     pub fn settings_change(category: &str, setting_count: usize, tenant: &str) -> Self {
-        Self::new(&format!("Apply {} Settings", category), ImpactLevel::Medium, tenant)
-            .modify(&format!("{} tenant settings", setting_count))
+        Self::new(
+            &format!("Apply {} Settings", category),
+            ImpactLevel::Medium,
+            tenant,
+        )
+        .modify(&format!("{} tenant settings", setting_count))
     }
 
     /// Impact summary for client deletion

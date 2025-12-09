@@ -5,7 +5,7 @@
 //! - App registration wizard
 //! - Change tracking and reporting
 
-use crate::config::{ConfigManager, TenantConfig, AuthType};
+use crate::config::{AuthType, ConfigManager, TenantConfig};
 use crate::error::Result;
 use crate::tui::prompts;
 use colored::Colorize;
@@ -49,8 +49,9 @@ impl MspConfig {
         let config_path = Self::config_path()?;
         if config_path.exists() {
             let content = std::fs::read_to_string(&config_path)?;
-            let config: MspConfig = toml::from_str(&content)
-                .map_err(|e| crate::error::Error::ConfigError(format!("Invalid MSP config: {}", e)))?;
+            let config: MspConfig = toml::from_str(&content).map_err(|e| {
+                crate::error::Error::ConfigError(format!("Invalid MSP config: {}", e))
+            })?;
             Ok(config)
         } else {
             Ok(MspConfig::default())
@@ -69,24 +70,29 @@ impl MspConfig {
     }
 
     fn config_path() -> Result<PathBuf> {
-        let base = directories::ProjectDirs::from("com", "ctl365", "ctl365")
-            .ok_or_else(|| crate::error::Error::ConfigError("Could not find config directory".into()))?;
+        let base = directories::ProjectDirs::from("com", "ctl365", "ctl365").ok_or_else(|| {
+            crate::error::Error::ConfigError("Could not find config directory".into())
+        })?;
         Ok(base.config_dir().join("msp.toml"))
     }
 
     pub fn get_client(&self, abbreviation: &str) -> Option<&MspClient> {
-        self.clients.iter().find(|c| c.abbreviation.eq_ignore_ascii_case(abbreviation))
+        self.clients
+            .iter()
+            .find(|c| c.abbreviation.eq_ignore_ascii_case(abbreviation))
     }
 
     pub fn add_client(&mut self, client: MspClient) {
         // Remove existing if same abbreviation
-        self.clients.retain(|c| !c.abbreviation.eq_ignore_ascii_case(&client.abbreviation));
+        self.clients
+            .retain(|c| !c.abbreviation.eq_ignore_ascii_case(&client.abbreviation));
         self.clients.push(client);
     }
 
     pub fn remove_client(&mut self, abbreviation: &str) -> bool {
         let len_before = self.clients.len();
-        self.clients.retain(|c| !c.abbreviation.eq_ignore_ascii_case(abbreviation));
+        self.clients
+            .retain(|c| !c.abbreviation.eq_ignore_ascii_case(abbreviation));
         self.clients.len() < len_before
     }
 }
@@ -117,7 +123,11 @@ pub async fn run_msp_menu() -> Result<()> {
     loop {
         println!();
         println!("{}", "═".repeat(60).cyan());
-        println!("  {} - {}", "ctl365".cyan().bold(), msp_config.msp_name.white().bold());
+        println!(
+            "  {} - {}",
+            "ctl365".cyan().bold(),
+            msp_config.msp_name.white().bold()
+        );
         println!("{}", "═".repeat(60).cyan());
 
         // Show current clients summary
@@ -125,7 +135,8 @@ pub async fn run_msp_menu() -> Result<()> {
             println!();
             println!("  {} Clients:", "📋".to_string());
             for client in &msp_config.clients {
-                println!("     {} {} ({})",
+                println!(
+                    "     {} {} ({})",
                     "•".cyan(),
                     client.abbreviation.yellow().bold(),
                     client.full_name.dimmed()
@@ -173,7 +184,10 @@ async fn add_client_wizard(msp_config: &mut MspConfig) -> Result<()> {
 
     println!();
     println!("  {}", "Let's set up a new client tenant.".dimmed());
-    println!("  {}", "You'll need the Azure AD Tenant ID and an App Registration.".dimmed());
+    println!(
+        "  {}",
+        "You'll need the Azure AD Tenant ID and an App Registration.".dimmed()
+    );
     println!();
 
     // Abbreviation
@@ -192,7 +206,10 @@ async fn add_client_wizard(msp_config: &mut MspConfig) -> Result<()> {
 
     // Check if already exists
     if msp_config.get_client(&abbreviation).is_some() {
-        prompts::warning(&format!("Client '{}' already exists. This will update it.", abbreviation));
+        prompts::warning(&format!(
+            "Client '{}' already exists. This will update it.",
+            abbreviation
+        ));
         if !Confirm::with_theme(&ColorfulTheme::default())
             .with_prompt("Continue?")
             .default(false)
@@ -209,7 +226,10 @@ async fn add_client_wizard(msp_config: &mut MspConfig) -> Result<()> {
 
     // Tenant ID
     println!();
-    println!("  {} Find Tenant ID in Azure Portal → Azure Active Directory → Overview", "💡".to_string());
+    println!(
+        "  {} Find Tenant ID in Azure Portal → Azure Active Directory → Overview",
+        "💡".to_string()
+    );
     let tenant_id: String = Input::with_theme(&ColorfulTheme::default())
         .with_prompt("Azure AD Tenant ID (GUID)")
         .validate_with(|input: &String| {
@@ -224,7 +244,10 @@ async fn add_client_wizard(msp_config: &mut MspConfig) -> Result<()> {
 
     // App Registration
     println!();
-    println!("  {} Do you have an App Registration for this client?", "❓".to_string());
+    println!(
+        "  {} Do you have an App Registration for this client?",
+        "❓".to_string()
+    );
 
     let has_app_reg = Confirm::with_theme(&ColorfulTheme::default())
         .with_prompt("App Registration already created?")
@@ -246,9 +269,11 @@ async fn add_client_wizard(msp_config: &mut MspConfig) -> Result<()> {
             .interact()?;
 
         if use_secret {
-            client_secret = Some(Input::with_theme(&ColorfulTheme::default())
-                .with_prompt("Client Secret")
-                .interact_text()?);
+            client_secret = Some(
+                Input::with_theme(&ColorfulTheme::default())
+                    .with_prompt("Client Secret")
+                    .interact_text()?,
+            );
             auth_type = "ClientCredentials".to_string();
         } else {
             client_secret = None;
@@ -297,7 +322,11 @@ async fn add_client_wizard(msp_config: &mut MspConfig) -> Result<()> {
         tenant_id: tenant_id.clone(),
         client_id: client_id.clone(),
         client_secret,
-        contact_email: if contact_email.is_empty() { None } else { Some(contact_email) },
+        contact_email: if contact_email.is_empty() {
+            None
+        } else {
+            Some(contact_email)
+        },
         notes: if notes.is_empty() { None } else { Some(notes) },
         added_date: chrono::Utc::now().to_rfc3339(),
         auth_type: auth_type.clone(),
@@ -324,7 +353,8 @@ async fn add_client_wizard(msp_config: &mut MspConfig) -> Result<()> {
     config.add_tenant(tenant_config)?;
 
     println!();
-    prompts::success(&format!("Client '{}' ({}) added successfully!",
+    prompts::success(&format!(
+        "Client '{}' ({}) added successfully!",
         client.abbreviation.yellow().bold(),
         client.full_name
     ));
@@ -354,7 +384,8 @@ fn list_clients(msp_config: &MspConfig) -> Result<()> {
     }
 
     println!();
-    println!("  {:<8} {:<30} {:<15} {}",
+    println!(
+        "  {:<8} {:<30} {:<15} {}",
         "CODE".white().bold(),
         "CLIENT NAME".white().bold(),
         "AUTH TYPE".white().bold(),
@@ -363,7 +394,8 @@ fn list_clients(msp_config: &MspConfig) -> Result<()> {
     println!("  {}", "─".repeat(80));
 
     for client in &msp_config.clients {
-        println!("  {:<8} {:<30} {:<15} {}",
+        println!(
+            "  {:<8} {:<30} {:<15} {}",
             client.abbreviation.yellow().bold(),
             truncate(&client.full_name, 28),
             client.auth_type.cyan(),
@@ -375,7 +407,10 @@ fn list_clients(msp_config: &MspConfig) -> Result<()> {
     }
 
     println!();
-    println!("  Total: {} clients", msp_config.clients.len().to_string().cyan().bold());
+    println!(
+        "  Total: {} clients",
+        msp_config.clients.len().to_string().cyan().bold()
+    );
 
     Ok(())
 }
@@ -389,7 +424,9 @@ async fn switch_to_client(msp_config: &MspConfig) -> Result<()> {
 
     prompts::section_header("Switch Client");
 
-    let client_names: Vec<String> = msp_config.clients.iter()
+    let client_names: Vec<String> = msp_config
+        .clients
+        .iter()
         .map(|c| format!("{} - {}", c.abbreviation.yellow(), c.full_name))
         .collect();
 
@@ -410,12 +447,15 @@ async fn switch_to_client_by_name(abbreviation: &str) -> Result<()> {
     let config = ConfigManager::load()?;
     config.set_active_tenant(abbreviation)?;
 
-    prompts::success(&format!("Switched to client: {}", abbreviation.yellow().bold()));
+    prompts::success(&format!(
+        "Switched to client: {}",
+        abbreviation.yellow().bold()
+    ));
 
     // Check if we have a valid token
-    let active = config.get_active_tenant()?.ok_or_else(||
-        crate::error::Error::ConfigError("Could not load tenant".into())
-    )?;
+    let active = config
+        .get_active_tenant()?
+        .ok_or_else(|| crate::error::Error::ConfigError("Could not load tenant".into()))?;
 
     prompts::info("Authenticating...");
 
@@ -442,7 +482,9 @@ async fn configure_client(msp_config: &MspConfig) -> Result<()> {
 
     prompts::section_header("Configure Client");
 
-    let client_names: Vec<String> = msp_config.clients.iter()
+    let client_names: Vec<String> = msp_config
+        .clients
+        .iter()
         .map(|c| format!("{} - {}", c.abbreviation.yellow(), c.full_name))
         .collect();
 
@@ -473,7 +515,9 @@ async fn generate_client_report(msp_config: &MspConfig) -> Result<()> {
 
     prompts::section_header("Generate Client Report");
 
-    let client_names: Vec<String> = msp_config.clients.iter()
+    let client_names: Vec<String> = msp_config
+        .clients
+        .iter()
         .map(|c| format!("{} - {}", c.abbreviation.yellow(), c.full_name))
         .collect();
 
@@ -501,7 +545,8 @@ async fn generate_client_report(msp_config: &MspConfig) -> Result<()> {
         .interact()?;
 
     // Output filename
-    let default_filename = format!("{}-{}-report.html",
+    let default_filename = format!(
+        "{}-{}-report.html",
         client.abbreviation.to_lowercase(),
         chrono::Local::now().format("%Y%m%d")
     );
@@ -584,7 +629,9 @@ fn remove_client(msp_config: &mut MspConfig) -> Result<()> {
 
     prompts::section_header("Remove Client");
 
-    let client_names: Vec<String> = msp_config.clients.iter()
+    let client_names: Vec<String> = msp_config
+        .clients
+        .iter()
         .map(|c| format!("{} - {}", c.abbreviation.yellow(), c.full_name))
         .collect();
 
@@ -599,7 +646,10 @@ fn remove_client(msp_config: &mut MspConfig) -> Result<()> {
     let full_name = client.full_name.clone();
 
     println!();
-    prompts::warning(&format!("This will remove client: {} ({})", abbreviation, full_name));
+    prompts::warning(&format!(
+        "This will remove client: {} ({})",
+        abbreviation, full_name
+    ));
 
     if Confirm::with_theme(&ColorfulTheme::default())
         .with_prompt("Are you sure?")
@@ -626,44 +676,75 @@ fn show_app_registration_guide() -> Result<()> {
     prompts::section_header("App Registration Guide");
 
     println!();
-    println!("{}", "  Step-by-step guide to create an App Registration:".white().bold());
+    println!(
+        "{}",
+        "  Step-by-step guide to create an App Registration:"
+            .white()
+            .bold()
+    );
     println!();
 
-    println!("  {}. Go to {} → {}",
+    println!(
+        "  {}. Go to {} → {}",
         "1".cyan().bold(),
         "Azure Portal".yellow(),
         "portal.azure.com"
     );
 
-    println!("  {}. Navigate to {} → {}",
+    println!(
+        "  {}. Navigate to {} → {}",
         "2".cyan().bold(),
         "Azure Active Directory".yellow(),
         "App registrations"
     );
 
-    println!("  {}. Click {}",
+    println!(
+        "  {}. Click {}",
         "3".cyan().bold(),
         "New registration".green().bold()
     );
 
     println!("  {}. Enter app details:", "4".cyan().bold());
     println!("       Name: {}", "ctl365-msp-management".yellow());
-    println!("       Supported account types: {}", "Single tenant".yellow());
-    println!("       Redirect URI: {}", "https://login.microsoftonline.com/common/oauth2/nativeclient".dimmed());
+    println!(
+        "       Supported account types: {}",
+        "Single tenant".yellow()
+    );
+    println!(
+        "       Redirect URI: {}",
+        "https://login.microsoftonline.com/common/oauth2/nativeclient".dimmed()
+    );
 
-    println!("  {}. Click {} and note the:", "5".cyan().bold(), "Register".green());
+    println!(
+        "  {}. Click {} and note the:",
+        "5".cyan().bold(),
+        "Register".green()
+    );
     println!("       • {} (Client ID)", "Application ID".yellow().bold());
     println!("       • {} (Tenant ID)", "Directory ID".yellow().bold());
 
-    println!("  {}. Go to {} and add:", "6".cyan().bold(), "API Permissions".yellow());
+    println!(
+        "  {}. Go to {} and add:",
+        "6".cyan().bold(),
+        "API Permissions".yellow()
+    );
 
     println!();
-    println!("  {}", "Required Microsoft Graph Permissions:".white().bold());
+    println!(
+        "  {}",
+        "Required Microsoft Graph Permissions:".white().bold()
+    );
     println!("  {}", "─".repeat(50));
 
     let permissions = vec![
-        ("DeviceManagementConfiguration.ReadWrite.All", "Intune policies"),
-        ("DeviceManagementManagedDevices.ReadWrite.All", "Device management"),
+        (
+            "DeviceManagementConfiguration.ReadWrite.All",
+            "Intune policies",
+        ),
+        (
+            "DeviceManagementManagedDevices.ReadWrite.All",
+            "Device management",
+        ),
         ("Policy.ReadWrite.ConditionalAccess", "CA policies"),
         ("Directory.Read.All", "User/group info"),
         ("Organization.Read.All", "Tenant info"),
@@ -676,17 +757,20 @@ fn show_app_registration_guide() -> Result<()> {
     }
 
     println!();
-    println!("  {}. Click {} after adding permissions",
+    println!(
+        "  {}. Click {} after adding permissions",
         "7".cyan().bold(),
         "Grant admin consent".green().bold()
     );
 
     println!();
-    println!("  {}. (Optional) Create a {} for automation:",
+    println!(
+        "  {}. (Optional) Create a {} for automation:",
         "8".cyan().bold(),
         "Client Secret".yellow()
     );
-    println!("       Go to {} → {} → set expiry",
+    println!(
+        "       Go to {} → {} → set expiry",
         "Certificates & secrets".yellow(),
         "New client secret".green()
     );
@@ -704,7 +788,8 @@ fn generate_change_control_report(client: &MspClient, filename: &str) -> Result<
     // Load session changes
     let changes = crate::tui::change_tracker::load_session_changes()?;
 
-    let html = format!(r#"<!DOCTYPE html>
+    let html = format!(
+        r#"<!DOCTYPE html>
 <html>
 <head>
     <title>Change Control Report - {}</title>
@@ -869,13 +954,22 @@ fn generate_change_control_report(client: &MspClient, filename: &str) -> Result<
         client.tenant_id,
         chrono::Local::now().format("%Y-%m-%d %H:%M"),
         changes.len(),
-        changes.iter().filter(|c| c.change_type == "created").count(),
-        changes.iter().filter(|c| c.change_type == "modified").count(),
+        changes
+            .iter()
+            .filter(|c| c.change_type == "created")
+            .count(),
+        changes
+            .iter()
+            .filter(|c| c.change_type == "modified")
+            .count(),
         if changes.is_empty() {
             "<div class='no-changes'>No changes recorded in this session.</div>".to_string()
         } else {
-            changes.iter().map(|change| {
-                format!(r#"<div class="change {}">
+            changes
+                .iter()
+                .map(|change| {
+                    format!(
+                        r#"<div class="change {}">
                     <div class="change-header">
                         <span class="change-type {}">{}</span>
                         <span class="timestamp">{}</span>
@@ -886,15 +980,25 @@ fn generate_change_control_report(client: &MspClient, filename: &str) -> Result<
                         {}
                     </div>
                 </div>"#,
-                    change.change_type,
-                    change.change_type,
-                    change.change_type.to_uppercase(),
-                    change.timestamp,
-                    change.setting_name,
-                    change.old_value.as_ref().map(|v| format!("<div class='old-value'>- {}</div>", v)).unwrap_or_default(),
-                    change.new_value.as_ref().map(|v| format!("<div class='new-value'>+ {}</div>", v)).unwrap_or_default(),
-                )
-            }).collect::<Vec<_>>().join("\n")
+                        change.change_type,
+                        change.change_type,
+                        change.change_type.to_uppercase(),
+                        change.timestamp,
+                        change.setting_name,
+                        change
+                            .old_value
+                            .as_ref()
+                            .map(|v| format!("<div class='old-value'>- {}</div>", v))
+                            .unwrap_or_default(),
+                        change
+                            .new_value
+                            .as_ref()
+                            .map(|v| format!("<div class='new-value'>+ {}</div>", v))
+                            .unwrap_or_default(),
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join("\n")
         },
         env!("CARGO_PKG_VERSION"),
         chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
@@ -909,6 +1013,6 @@ fn truncate(s: &str, max_len: usize) -> String {
     if s.len() <= max_len {
         s.to_string()
     } else {
-        format!("{}...", &s[..max_len-3])
+        format!("{}...", &s[..max_len - 3])
     }
 }

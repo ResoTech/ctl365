@@ -19,13 +19,10 @@ async fn test_get_success() {
 
     Mock::given(method("GET"))
         .and(path("/v1.0/me"))
-        .respond_with(
-            ResponseTemplate::new(200)
-                .set_body_json(serde_json::json!({
-                    "id": "12345",
-                    "displayName": "Test User"
-                })),
-        )
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "id": "12345",
+            "displayName": "Test User"
+        })))
         .expect(1) // Should only be called once
         .mount(&server)
         .await;
@@ -77,15 +74,12 @@ async fn test_server_error_500() {
 
     Mock::given(method("GET"))
         .and(path("/v1.0/error"))
-        .respond_with(
-            ResponseTemplate::new(500)
-                .set_body_json(serde_json::json!({
-                    "error": {
-                        "code": "InternalServerError",
-                        "message": "Internal server error"
-                    }
-                })),
-        )
+        .respond_with(ResponseTemplate::new(500).set_body_json(serde_json::json!({
+            "error": {
+                "code": "InternalServerError",
+                "message": "Internal server error"
+            }
+        })))
         .expect(1)
         .mount(&server)
         .await;
@@ -107,15 +101,12 @@ async fn test_unauthorized_no_retry() {
 
     Mock::given(method("GET"))
         .and(path("/v1.0/unauthorized"))
-        .respond_with(
-            ResponseTemplate::new(401)
-                .set_body_json(serde_json::json!({
-                    "error": {
-                        "code": "InvalidAuthenticationToken",
-                        "message": "Access token is empty."
-                    }
-                })),
-        )
+        .respond_with(ResponseTemplate::new(401).set_body_json(serde_json::json!({
+            "error": {
+                "code": "InvalidAuthenticationToken",
+                "message": "Access token is empty."
+            }
+        })))
         .expect(1) // Should only be called once (no retry)
         .mount(&server)
         .await;
@@ -137,15 +128,12 @@ async fn test_forbidden_no_retry() {
 
     Mock::given(method("GET"))
         .and(path("/v1.0/forbidden"))
-        .respond_with(
-            ResponseTemplate::new(403)
-                .set_body_json(serde_json::json!({
-                    "error": {
-                        "code": "Authorization_RequestDenied",
-                        "message": "Insufficient privileges to complete the operation."
-                    }
-                })),
-        )
+        .respond_with(ResponseTemplate::new(403).set_body_json(serde_json::json!({
+            "error": {
+                "code": "Authorization_RequestDenied",
+                "message": "Insufficient privileges to complete the operation."
+            }
+        })))
         .expect(1)
         .mount(&server)
         .await;
@@ -167,13 +155,10 @@ async fn test_post_success() {
 
     Mock::given(method("POST"))
         .and(path("/v1.0/policies"))
-        .respond_with(
-            ResponseTemplate::new(201)
-                .set_body_json(serde_json::json!({
-                    "id": "policy-123",
-                    "displayName": "Test Policy"
-                })),
-        )
+        .respond_with(ResponseTemplate::new(201).set_body_json(serde_json::json!({
+            "id": "policy-123",
+            "displayName": "Test Policy"
+        })))
         .expect(1)
         .mount(&server)
         .await;
@@ -200,15 +185,12 @@ async fn test_post_bad_request_no_retry() {
 
     Mock::given(method("POST"))
         .and(path("/v1.0/policies"))
-        .respond_with(
-            ResponseTemplate::new(400)
-                .set_body_json(serde_json::json!({
-                    "error": {
-                        "code": "BadRequest",
-                        "message": "Property displayName is required."
-                    }
-                })),
-        )
+        .respond_with(ResponseTemplate::new(400).set_body_json(serde_json::json!({
+            "error": {
+                "code": "BadRequest",
+                "message": "Property displayName is required."
+            }
+        })))
         .expect(1)
         .mount(&server)
         .await;
@@ -253,13 +235,10 @@ async fn test_patch_success() {
 
     Mock::given(method("PATCH"))
         .and(path("/v1.0/policies/123"))
-        .respond_with(
-            ResponseTemplate::new(200)
-                .set_body_json(serde_json::json!({
-                    "id": "123",
-                    "displayName": "Updated Policy"
-                })),
-        )
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "id": "123",
+            "displayName": "Updated Policy"
+        })))
         .expect(1)
         .mount(&server)
         .await;
@@ -284,12 +263,9 @@ async fn test_beta_endpoint() {
 
     Mock::given(method("GET"))
         .and(path("/beta/deviceManagement"))
-        .respond_with(
-            ResponseTemplate::new(200)
-                .set_body_json(serde_json::json!({
-                    "id": "device-mgmt"
-                })),
-        )
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "id": "device-mgmt"
+        })))
         .expect(1)
         .mount(&server)
         .await;
@@ -335,15 +311,12 @@ async fn test_not_found_no_retry() {
 
     Mock::given(method("GET"))
         .and(path("/v1.0/nonexistent"))
-        .respond_with(
-            ResponseTemplate::new(404)
-                .set_body_json(serde_json::json!({
-                    "error": {
-                        "code": "Request_ResourceNotFound",
-                        "message": "Resource not found."
-                    }
-                })),
-        )
+        .respond_with(ResponseTemplate::new(404).set_body_json(serde_json::json!({
+            "error": {
+                "code": "Request_ResourceNotFound",
+                "message": "Resource not found."
+            }
+        })))
         .expect(1)
         .mount(&server)
         .await;
@@ -365,15 +338,12 @@ async fn test_batch_request_format() {
 
     Mock::given(method("POST"))
         .and(path("/$batch"))
-        .respond_with(
-            ResponseTemplate::new(200)
-                .set_body_json(serde_json::json!({
-                    "responses": [
-                        {"id": "1", "status": 200, "body": {"displayName": "User 1"}},
-                        {"id": "2", "status": 200, "body": {"displayName": "User 2"}}
-                    ]
-                })),
-        )
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "responses": [
+                {"id": "1", "status": 200, "body": {"displayName": "User 1"}},
+                {"id": "2", "status": 200, "body": {"displayName": "User 2"}}
+            ]
+        })))
         .expect(1)
         .mount(&server)
         .await;

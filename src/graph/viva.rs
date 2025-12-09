@@ -202,10 +202,8 @@ impl<'a> VivaClient<'a> {
 
     /// List all Viva Engage communities
     pub async fn list_communities(&self) -> Result<Vec<Community>> {
-        let response: CommunityListResponse = self
-            .client
-            .get("employeeExperience/communities")
-            .await?;
+        let response: CommunityListResponse =
+            self.client.get("employeeExperience/communities").await?;
         Ok(response.value)
     }
 
@@ -222,11 +220,7 @@ impl<'a> VivaClient<'a> {
     }
 
     /// Add a member to a community
-    pub async fn add_community_member(
-        &self,
-        community_id: &str,
-        user_id: &str,
-    ) -> Result<()> {
+    pub async fn add_community_member(&self, community_id: &str, user_id: &str) -> Result<()> {
         let endpoint = format!(
             "employeeExperience/communities/{}/members/$ref",
             community_id
@@ -241,11 +235,7 @@ impl<'a> VivaClient<'a> {
     }
 
     /// Remove a member from a community
-    pub async fn remove_community_member(
-        &self,
-        community_id: &str,
-        user_id: &str,
-    ) -> Result<()> {
+    pub async fn remove_community_member(&self, community_id: &str, user_id: &str) -> Result<()> {
         let endpoint = format!(
             "employeeExperience/communities/{}/members/{}/$ref",
             community_id, user_id
@@ -289,10 +279,7 @@ impl<'a> VivaClient<'a> {
 
     /// Remove a role assignment
     pub async fn revoke_role(&self, assignment_id: &str) -> Result<()> {
-        let endpoint = format!(
-            "roleManagement/directory/roleAssignments/{}",
-            assignment_id
-        );
+        let endpoint = format!("roleManagement/directory/roleAssignments/{}", assignment_id);
         self.client.delete_beta(&endpoint).await
     }
 
@@ -313,9 +300,7 @@ impl<'a> VivaClient<'a> {
 
     /// Get Viva Connections home site configuration
     pub async fn get_home_site(&self) -> Result<serde_json::Value> {
-        self.client
-            .get_beta("admin/sharepoint/settings")
-            .await
+        self.client.get_beta("admin/sharepoint/settings").await
     }
 
     /// Set the home site for Viva Connections
