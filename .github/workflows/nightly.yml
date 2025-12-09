@@ -23,13 +23,8 @@ jobs:
         run: |
           set -euo pipefail
           echo "=== Nightly Build $(date -u +%Y-%m-%d) ==="
-          echo "PATH: $PATH"
-          which rustc
-          which cargo
-          which rustup
           rustc --version
           cargo --version
-          rustup --version
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
@@ -40,7 +35,7 @@ jobs:
         run: cargo build --release
 
       - name: Full test sweep (nightly)
-        run: rustup run nightly cargo test
+        run: /home/runner/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo test
 
       - name: Clippy strict
         run: |
