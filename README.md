@@ -134,6 +134,33 @@ ctl365 tui defender        # Defender for Office 365 settings
 ctl365 tui exchange        # Exchange Online settings
 ```
 
+### 🌐 **SharePoint & Viva**
+
+- **SharePoint Sites** - Create communication and team sites
+- **Hub Sites** - Configure and join hub sites
+- **Page Management** - Create, list, delete SharePoint pages
+- **Viva Engage** - Community and member management
+- **Viva Connections** - Configure home site
+
+### 🤖 **Copilot & AI Agents**
+
+- **Agent Discovery** - List Microsoft and custom agents
+- **Content Search** - Search across M365 content
+- **Compliance Export** - Export Copilot interactions for compliance
+- **Meeting Insights** - Access Copilot meeting summaries
+
+### 🛡️ **CISA SCuBA Baseline**
+
+- **Security Audits** - Run SCuBA compliance assessments
+- **Product Coverage** - AAD, Defender, Exchange, SharePoint, Teams
+- **Status Tracking** - Monitor baseline compliance
+
+### 🔒 **Safety Features**
+
+All mutation commands support:
+- `--dry-run` - Preview changes without applying
+- `-y/--yes` - Skip confirmation prompts for automation
+
 ---
 
 ## 🛠️ Command Reference
@@ -159,7 +186,9 @@ ctl365 baseline apply --file <file.json> [--group-id <id>] [--dry-run]
 
 ### Conditional Access
 ```bash
-ctl365 ca deploy --baseline 2025 [--report-only]
+ctl365 ca deploy --all [--dry-run] [-y]
+ctl365 ca deploy --mfa | --geoip-block | --compliant-device | --block-legacy-auth | --admin-mfa
+ctl365 ca list
 ```
 
 ### Application Deployment
@@ -172,14 +201,41 @@ ctl365 app remove <app-id> [--assignments-only]
 
 ### Autopilot
 ```bash
-ctl365 autopilot import --file <devices.csv> [--group-tag <tag>] [--profile-id <id>]
-ctl365 autopilot profile --name <name> --mode <mode> [--hybrid-join] [--enable-white-glove]
-ctl365 autopilot assign --profile-id <id> [--device <serial>] [--group-tag <tag>]
-ctl365 autopilot list [--group-tag <tag>] [--verbose]
-ctl365 autopilot sync
+ctl365 autopilot import --file <devices.csv> [--group-tag <tag>] [--dry-run] [-y]
+ctl365 autopilot profile --name <name> --mode <mode> [--dry-run]
+ctl365 autopilot assign --profile-id <id> [--device <serial>] [--dry-run]
+ctl365 autopilot list [--group-tag <tag>]
+ctl365 autopilot sync | status <device-id> | delete <device-id>
 ```
 
 **Modes:** `user-driven`, `self-deploying`, `white-glove`
+
+### SharePoint
+```bash
+ctl365 sharepoint site-create --name <name> --url-name <url> [--site-type team|communication]
+ctl365 sharepoint site-list | site-get --id <id>
+ctl365 sharepoint hub-list | hub-set --site-id <id> | hub-join --site-id <id> --hub-id <id>
+```
+
+### Viva Engage
+```bash
+ctl365 viva community-create --name <name> --privacy public|private
+ctl365 viva community-list | community-delete --id <id>
+ctl365 viva role-assign --user-id <id> --role network-admin|corporate-communicator
+```
+
+### Copilot
+```bash
+ctl365 copilot agents-list | agents-get --id <id>
+ctl365 copilot search --query <query>
+ctl365 copilot interactions-export [--start <date>] [--end <date>]
+```
+
+### SCuBA
+```bash
+ctl365 scuba audit [--products aad,defender,exo]
+ctl365 scuba status | baselines
+```
 
 ### Export/Import
 ```bash
@@ -213,20 +269,23 @@ ctl365 audit drift --baseline <file> [--detailed] [--fix] [--dry-run]
 
 ### Security
 
-- **Token Storage**: Encrypted in `~/.ctl365/cache/` with 600 permissions
+- **Token Storage**: Cached in `~/.config/ctl365/cache/` with 600 permissions
 - **OAuth2 Standard Flows**: No password storage
 - **Client Secrets**: Optional, only for automation workflows
 - **Bearer Tokens**: In-memory only during API calls
-- **Certificate Auth**: Planned for Phase 2
+- **Retry Logic**: Automatic retry with exponential backoff for transient failures
+- **Rate Limiting**: Respects Retry-After headers from Graph API
 
 ### Configuration
 
 ```
-~/.ctl365/
-├── config.toml          # Global configuration
-├── tenants.toml         # Tenant registry
+~/.config/ctl365/            # Linux/macOS
+%LOCALAPPDATA%\ctl365\       # Windows
+
+├── config.toml              # Global configuration
+├── tenants.toml             # Tenant registry
 └── cache/
-    └── <tenant>.token   # Cached access tokens
+    └── <tenant>.token       # Cached access tokens
 ```
 
 ---
@@ -321,11 +380,16 @@ See [ROADMAP.md](ROADMAP.md) for detailed planning.
 
 **v1.0 Goals:**
 - ✅ All platforms (Windows, macOS, iOS, Android)
-- ✅ Conditional Access (44 policies)
+- ✅ Conditional Access (44 CABaseline2025 policies)
 - ✅ Autopilot integration
 - ✅ Application deployment
 - ✅ Export/import with assignments
 - ✅ Audit and drift detection
+- ✅ SharePoint & Viva management
+- ✅ Copilot & AI agent discovery
+- ✅ CISA SCuBA baseline audits
+- ✅ Safety flags (--dry-run, -y/--yes)
+- ✅ Test infrastructure (38 tests)
 - ⏳ End-to-end testing with production tenant
 - ⏳ Cross-platform binaries (Windows, macOS, Linux)
 

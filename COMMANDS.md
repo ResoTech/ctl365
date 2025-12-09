@@ -1,6 +1,6 @@
 # ctl365 Command Reference
 
-Quick reference for all **ctl365** commands.
+Complete reference for all **ctl365** commands.
 
 ---
 
@@ -61,30 +61,42 @@ ctl365 tenant switch <name>
 ctl365 tenant remove <name>
 ```
 
+### Configure Tenant Settings
+```bash
+ctl365 tenant configure          # Configure Exchange, SharePoint, Teams settings
+```
+
 ---
 
-## Baseline Management (Phase 2 - Coming Soon)
+## Baseline Management
 
 ### Generate Baselines
 ```bash
-ctl365 baseline new windows --template openintune
-ctl365 baseline new windows --template microsoft-security-baseline --version 24H2
-ctl365 baseline new macos --template openintune
-ctl365 baseline new ios --template openintune
-ctl365 baseline new android --template openintune
+# Windows baselines
+ctl365 baseline new windows --template basic
+ctl365 baseline new windows --template oib --encryption --defender
+
+# macOS baselines
+ctl365 baseline new macos --template basic
+ctl365 baseline new macos --template oib --encryption --defender
+
+# iOS baselines
+ctl365 baseline new ios --template basic --defender
+
+# Android baselines
+ctl365 baseline new android --template basic --defender
 ```
 
 ### Apply Baseline
 ```bash
 ctl365 baseline apply --file baseline.json
-ctl365 baseline apply --file baseline.json --tenant production
-ctl365 baseline apply --file baseline.json --dry-run  # Test without applying
+ctl365 baseline apply --file baseline.json --group-id <group-id>
+ctl365 baseline apply --file baseline.json --dry-run  # Preview without applying
 ```
 
 ### Export Existing Configuration
 ```bash
 ctl365 baseline export --path ./backup/
-ctl365 baseline export --tenant production --path ./prod-baseline/
 ```
 
 ### List Baselines
@@ -92,135 +104,278 @@ ctl365 baseline export --tenant production --path ./prod-baseline/
 ctl365 baseline list
 ```
 
+**Platforms:** `windows`, `macos`, `ios`, `android`
+**Templates:** `basic`, `oib` (OpenIntuneBaseline)
+
 ---
 
-## Conditional Access (Phase 4 - Coming Soon)
+## Conditional Access
 
 ### Deploy CA Policies
 ```bash
-ctl365 ca deploy --baseline modern-2025
-ctl365 ca deploy --baseline modern-2025 --mode report-only
-ctl365 ca deploy --policy CAD001 --mode report-only
+# Deploy all 44 CABaseline2025 policies
+ctl365 ca deploy --all
+
+# Deploy specific policy types
+ctl365 ca deploy --mfa
+ctl365 ca deploy --geoip-block
+ctl365 ca deploy --compliant-device
+ctl365 ca deploy --block-legacy-auth
+ctl365 ca deploy --admin-mfa
+
+# Deploy with options
+ctl365 ca deploy --all --disable-security-defaults --exclusion-group <group-id>
+ctl365 ca deploy --all --enable            # Start enabled (default is report-only)
+ctl365 ca deploy --all --dry-run           # Preview without deploying
+ctl365 ca deploy --all -y                  # Skip confirmation
 ```
 
-### Analyze Report-Only Policies
+### List CA Policies
 ```bash
-ctl365 ca analyze --policy CAD001 --days 7
-ctl365 ca analyze --all --days 30
-```
-
-### Enable Policies (Promote from Report-Only)
-```bash
-ctl365 ca enable --policy CAD001
-ctl365 ca enable --all --confirm
-```
-
-### Geo-Blocking
-```bash
-ctl365 ca block-countries --except US,CA
-ctl365 ca block-countries --except US,CA,GB,AU --policy GeoBlock
+ctl365 ca list
 ```
 
 ---
 
-## Compliance & Auditing (Phase 5 - Coming Soon)
+## Application Deployment
+
+### Deploy Win32 Apps
+```bash
+ctl365 app deploy \
+  --name "Zoom" \
+  --type win32 \
+  --file ./zoom.intunewin \
+  --install-command "msiexec /i zoom.msi /qn" \
+  --uninstall-command "msiexec /x zoom.msi /qn" \
+  --group-id <group-id>
+```
+
+### Deploy Microsoft 365 Apps
+```bash
+ctl365 app deploy-m365 \
+  --suite business \
+  --architecture x64 \
+  --apps word,excel,powerpoint,outlook,teams
+```
+
+### List Applications
+```bash
+ctl365 app list
+ctl365 app list --platform windows
+ctl365 app list --format json
+```
+
+### Remove Applications
+```bash
+ctl365 app remove <app-id>
+ctl365 app remove <app-id> --assignments-only
+```
+
+---
+
+## Windows Autopilot
+
+### Import Devices
+```bash
+ctl365 autopilot import --file devices.csv
+ctl365 autopilot import --file devices.csv --group-tag production
+ctl365 autopilot import --file devices.csv --profile-id <profile-id>
+ctl365 autopilot import --file devices.csv --dry-run
+ctl365 autopilot import --file devices.csv -y   # Skip confirmation
+```
+
+### Create Deployment Profiles
+```bash
+ctl365 autopilot profile --name "Standard Deployment" --mode user-driven
+ctl365 autopilot profile --name "Kiosk Setup" --mode self-deploying
+ctl365 autopilot profile --name "Pre-provisioned" --mode white-glove --enable-white-glove
+ctl365 autopilot profile --name "Hybrid" --mode user-driven --hybrid-join
+ctl365 autopilot profile --name "Test" --dry-run
+```
+
+### Assign Profiles
+```bash
+ctl365 autopilot assign --profile-id <id> --device <serial>
+ctl365 autopilot assign --profile-id <id> --group-tag production
+ctl365 autopilot assign --profile-id <id> --all-devices
+ctl365 autopilot assign --profile-id <id> --device <serial> --dry-run
+```
+
+### List Devices
+```bash
+ctl365 autopilot list
+ctl365 autopilot list --group-tag production
+ctl365 autopilot list --state enrolled
+ctl365 autopilot list --format json
+```
+
+### Device Operations
+```bash
+ctl365 autopilot status <device-id>           # Check device status
+ctl365 autopilot status <device-id> --show-profile
+ctl365 autopilot sync                          # Sync with Intune
+ctl365 autopilot delete <device-id>           # Delete device
+ctl365 autopilot delete <device-id> --force   # Skip confirmation
+ctl365 autopilot delete <device-id> --dry-run
+```
+
+**Modes:** `user-driven`, `self-deploying`, `white-glove`
+
+---
+
+## Export/Import with Assignment Migration
+
+### Export Policies
+```bash
+ctl365 export export --types all -o ./export/
+ctl365 export export --types compliance,configuration --include-assignments
+ctl365 export export --types settings-catalog -o ./export/
+```
+
+### Import Policies
+```bash
+ctl365 export import --directory ./export/
+ctl365 export import --directory ./export/ --create-groups
+ctl365 export import --directory ./export/ --group-mapping mapping.json
+ctl365 export import --directory ./export/ --dry-run
+```
+
+### Compare Tenants
+```bash
+ctl365 export compare --source ./tenant-a/ --target ./tenant-b/
+```
+
+**Types:** `compliance`, `configuration`, `settings-catalog`, `apps`, `all`
+
+---
+
+## Audit & Compliance
 
 ### Run Audits
 ```bash
-ctl365 audit --standard cis
-ctl365 audit --standard scuba --products aad,defender,exo
-ctl365 audit --standard openintune --platform windows
-ctl365 audit --tenant production --standard cis
-```
-
-### Generate Reports
-```bash
-ctl365 report --format html --output compliance-report.html
-ctl365 report --format json --output compliance-report.json
-ctl365 report --format csv --output compliance-report.csv
+ctl365 audit check
+ctl365 audit check --baseline oib
+ctl365 audit check --output html --output-file report.html
+ctl365 audit check --output json --output-file report.json
 ```
 
 ### Drift Detection
 ```bash
-ctl365 drift --baseline ./prod-baseline/ --tenant production
-ctl365 drift --fix  # Remediate detected drift
+ctl365 audit drift --baseline baseline.json
+ctl365 audit drift --baseline baseline.json --detailed
+ctl365 audit drift --baseline baseline.json --fix          # Auto-remediate
+ctl365 audit drift --baseline baseline.json --fix --dry-run
+```
+
+### Generate Reports
+```bash
+ctl365 audit report --format html --output compliance.html
+ctl365 audit report --format csv --output compliance.csv
+ctl365 audit report --format json --output compliance.json
 ```
 
 ---
 
-## Application Deployment (Phase 7 - Coming Soon)
+## GPO Migration
 
-### Package Win32 Apps
+### Analyze GPO
 ```bash
-ctl365 app package --installer ./zoom.msi --output ./packages/
-ctl365 app package --installer ./app.exe --output ./packages/ --detection-script detect.ps1
+ctl365 gpo analyze --backup ./gpo-backup/
+ctl365 gpo analyze --backup ./gpo-backup/ --format json
 ```
 
-### Deploy Apps
+### Convert GPO to Intune
 ```bash
-ctl365 app deploy zoom --package ./packages/zoom.intunewin --groups "All Users"
-ctl365 app deploy screenconnect --package ./packages/sc.intunewin --groups "IT Team"
+ctl365 gpo convert --backup ./gpo-backup/ -o converted.json
+ctl365 gpo convert --backup ./gpo-backup/ --dry-run
+```
+
+### Deploy Converted Policies
+```bash
+ctl365 gpo deploy --file converted.json
+ctl365 gpo deploy --file converted.json --dry-run
+```
+
+---
+
+## Script Deployment
+
+### Deploy Platform Scripts
+```bash
+ctl365 script deploy --name "Setup Script" --file setup.ps1 --platform windows
+ctl365 script deploy --name "Mac Setup" --file setup.sh --platform macos
+ctl365 script deploy --name "Test" --file test.ps1 --dry-run
+```
+
+### Deploy Proactive Remediations
+```bash
+ctl365 script remediation \
+  --name "Fix Network Settings" \
+  --detection detect.ps1 \
+  --remediation fix.ps1 \
+  --schedule daily
+```
+
+### List Scripts
+```bash
+ctl365 script list
+ctl365 script list --platform windows
 ```
 
 ---
 
 ## SharePoint Management
 
-### Create SharePoint Sites
+### Create Sites
 ```bash
-# Create a communication site
-ctl365 sharepoint site-create --name "Marketing Site" --url-name marketing
+# Communication site
+ctl365 sharepoint site-create --name "Marketing" --url-name marketing
 
-# Create a team site with M365 group
+# Team site with M365 group
 ctl365 sharepoint site-create --name "Project X" --url-name projectx --site-type team
 
-# Create a team site without M365 group
+# Team site without M365 group
 ctl365 sharepoint site-create --name "Archive" --url-name archive --site-type team-no-group
 
-# Create with options
+# With options
 ctl365 sharepoint site-create \
   --name "Sales Hub" \
   --url-name sales \
   --site-type communication \
   --description "Central sales resources" \
-  --owners "user1@contoso.com,user2@contoso.com"
+  --owners "user1@contoso.com"
 
-# Dry run (preview without creating)
-ctl365 sharepoint site-create --name "Test Site" --url-name test --dry-run
+# Dry run
+ctl365 sharepoint site-create --name "Test" --url-name test --dry-run
 ```
 
 ### List & Get Sites
 ```bash
-ctl365 sharepoint site-list                    # List all sites
-ctl365 sharepoint site-list --search "Sales"   # Search sites
-ctl365 sharepoint site-list --format json      # JSON output
+ctl365 sharepoint site-list
+ctl365 sharepoint site-list --search "Sales"
+ctl365 sharepoint site-list --format json
 
 ctl365 sharepoint site-get --id <site-id>
-ctl365 sharepoint site-get --hostname contoso.sharepoint.com --path /sites/marketing
 ```
 
 ### Manage Pages
 ```bash
-# Create pages
 ctl365 sharepoint page-create \
   --site-id <site-id> \
   --name "welcome" \
-  --title "Welcome to Our Team" \
+  --title "Welcome" \
   --layout home \
   --publish
 
-# List pages
 ctl365 sharepoint page-list --site-id <site-id>
-
-# Delete pages
 ctl365 sharepoint page-delete --site-id <site-id> --page-id <page-id>
 ```
 
 ### Hub Sites
 ```bash
-ctl365 sharepoint hub-list                              # List all hub sites
-ctl365 sharepoint hub-set --site-id <id> --title "Intranet Hub"  # Register as hub
-ctl365 sharepoint hub-join --site-id <id> --hub-id <hub-id>      # Join to hub
+ctl365 sharepoint hub-list
+ctl365 sharepoint hub-set --site-id <id> --title "Intranet Hub"
+ctl365 sharepoint hub-join --site-id <id> --hub-id <hub-id>
 ```
 
 ---
@@ -229,52 +384,50 @@ ctl365 sharepoint hub-join --site-id <id> --hub-id <hub-id>      # Join to hub
 
 ### Create Communities
 ```bash
-# Create a public community
 ctl365 viva community-create --name "Engineering" --privacy public
-
-# Create a private community with owners
 ctl365 viva community-create \
-  --name "Leadership Team" \
+  --name "Leadership" \
   --privacy private \
-  --description "Executive communications" \
-  --owners "ceo@contoso.com,cfo@contoso.com"
+  --description "Executive comms" \
+  --owners "ceo@contoso.com"
 
-# Dry run
 ctl365 viva community-create --name "Test" --dry-run
 ```
 
 ### List & Delete Communities
 ```bash
-ctl365 viva community-list                    # List all communities
-ctl365 viva community-list --format json      # JSON output
-ctl365 viva community-delete --id <id> -y     # Delete (skip confirmation)
+ctl365 viva community-list
+ctl365 viva community-list --format json
+ctl365 viva community-delete --id <id> -y
 ```
 
-### Manage Community Members
+### Manage Members
 ```bash
 ctl365 viva community-add-member --community-id <id> --user-id <user-id>
+ctl365 viva community-add-member --community-id <id> --user-id <user-id> --dry-run
 ctl365 viva community-remove-member --community-id <id> --user-id <user-id>
 ```
 
-### Manage Viva Roles
+### Manage Roles
 ```bash
 # Assign roles
 ctl365 viva role-assign --user-id <user-id> --role network-admin
 ctl365 viva role-assign --user-id <user-id> --role corporate-communicator
 ctl365 viva role-assign --user-id <user-id> --role verified-admin
 ctl365 viva role-assign --user-id <user-id> --role answers-admin
+ctl365 viva role-assign --user-id <user-id> --role network-admin --dry-run
 
-# List role assignments
-ctl365 viva role-list                                    # All roles
-ctl365 viva role-list --role corporate-communicator      # Specific role
+# List assignments
+ctl365 viva role-list
+ctl365 viva role-list --role corporate-communicator
 
-# Revoke role
+# Revoke
 ctl365 viva role-revoke --assignment-id <id>
 ```
 
 ### Viva Connections
 ```bash
-ctl365 viva connections-home                         # Show current home site
+ctl365 viva connections-home                         # Show current
 ctl365 viva connections-home --site-url "https://contoso.sharepoint.com/sites/intranet"
 ```
 
@@ -282,22 +435,12 @@ ctl365 viva connections-home --site-url "https://contoso.sharepoint.com/sites/in
 
 ## Copilot & AI Agents
 
-### List Copilot Agents
+### List Agents
 ```bash
-# List all agents in catalog
 ctl365 copilot agents-list
-
-# Filter by type
-ctl365 copilot agents-list --package-type microsoft   # Microsoft first-party
-ctl365 copilot agents-list --package-type custom      # Organization-built
-ctl365 copilot agents-list --package-type external    # Third-party
-
-# Filter by status
-ctl365 copilot agents-list --enabled      # Only enabled agents
-ctl365 copilot agents-list --disabled     # Only disabled agents
-
-# Filter by publisher
-ctl365 copilot agents-list --publisher "Microsoft"
+ctl365 copilot agents-list --package-type microsoft
+ctl365 copilot agents-list --package-type custom
+ctl365 copilot agents-list --enabled
 ```
 
 ### Get Agent Details
@@ -308,69 +451,71 @@ ctl365 copilot agents-get --id <agent-id> --format json
 
 ### Search Content
 ```bash
-# Search OneDrive and SharePoint
 ctl365 copilot search --query "quarterly report"
-
-# Filter by file type
 ctl365 copilot search --query "budget" --file-type xlsx
-ctl365 copilot search --query "presentation" --file-type pptx
 ```
 
 ### Export Interactions (Compliance)
 ```bash
-# Export all interactions
 ctl365 copilot interactions-export
-
-# Export with date range
 ctl365 copilot interactions-export --start 2025-01-01 --end 2025-12-31
-
-# Export to file
-ctl365 copilot interactions-export --output copilot-interactions.json
+ctl365 copilot interactions-export --output interactions.json
 ```
 
 ### Meeting Insights
 ```bash
-# Get insights for a user
 ctl365 copilot meeting-insights --user-id <user-id>
-
-# Get insights for specific meeting
-ctl365 copilot meeting-insights --user-id <user-id> --meeting-id <meeting-id>
 ```
 
 ---
 
-## Bulk Operations (Phase 6 - Coming Soon)
+## CISA SCuBA Baseline
 
-### Bulk Export
+### Run SCuBA Assessment
 ```bash
-ctl365 bulk export --tenants all --path ./backups/
-ctl365 bulk export --tenant production --path ./prod-backup/
+ctl365 scuba audit
+ctl365 scuba audit --products aad,defender,exo
 ```
 
-### Bulk Import
+### Check Status
 ```bash
-ctl365 bulk import --source ./dev-baseline/ --target production
-ctl365 bulk import --source ./baseline/ --target customer-a,customer-b,customer-c
-ctl365 bulk import --source ./baseline/ --tenants all --mode replace
+ctl365 scuba status
 ```
 
-### Bulk Compare
+### View Baselines
 ```bash
-ctl365 bulk compare --tenant1 dev --tenant2 production
-ctl365 bulk compare --baseline ./reference/ --tenants all
+ctl365 scuba baselines
 ```
 
-### Documentation Generation
+---
+
+## Interactive TUI
+
+### Dashboard
 ```bash
-ctl365 document --tenant production --format html --output ./docs/
-ctl365 document --tenant production --format markdown --output ./docs/
+ctl365 tui dashboard           # Full-screen dashboard
+```
+
+### Configuration Menus
+```bash
+ctl365 tui clients             # MSP client management
+ctl365 tui configure           # Configure active tenant
+ctl365 tui quick               # Quick single-setting changes
+```
+
+### Service-Specific Configuration
+```bash
+ctl365 tui defender            # Defender for Office 365
+ctl365 tui exchange            # Exchange Online
+ctl365 tui sharepoint          # SharePoint/OneDrive
+ctl365 tui teams               # Microsoft Teams
 ```
 
 ---
 
 ## Global Options
 
-All commands support these global flags:
+All commands support these flags:
 
 ```bash
 --verbose, -v    # Enable verbose logging
@@ -378,7 +523,7 @@ All commands support these global flags:
 --version, -V    # Show version
 ```
 
-### Examples:
+### Examples
 ```bash
 ctl365 --verbose login --tenant my-tenant
 ctl365 tenant list --help
@@ -417,13 +562,8 @@ description = "Production tenant"
 ## Environment Variables
 
 ```bash
-# Set default tenant
 export CTL365_DEFAULT_TENANT="production"
-
-# Set log level
 export CTL365_LOG_LEVEL="debug"
-
-# Set config directory
 export CTL365_CONFIG_DIR="~/.ctl365"
 ```
 
@@ -431,11 +571,13 @@ export CTL365_CONFIG_DIR="~/.ctl365"
 
 ## Exit Codes
 
-- `0` - Success
-- `1` - General error
-- `2` - Authentication error
-- `3` - Configuration error
-- `4` - API error
+| Code | Meaning |
+|------|---------|
+| `0` | Success |
+| `1` | General error |
+| `2` | Authentication error |
+| `3` | Configuration error |
+| `4` | API error |
 
 ---
 
@@ -443,9 +585,9 @@ export CTL365_CONFIG_DIR="~/.ctl365"
 
 - [GETTING_STARTED.md](GETTING_STARTED.md) - First-time setup
 - [docs/APP_REGISTRATION.md](docs/APP_REGISTRATION.md) - Azure AD setup
-- [QUICKSTART.md](QUICKSTART.md) - Feature walkthrough
-- [STATUS.md](STATUS.md) - Current project status
+- [TESTING_GUIDE.md](TESTING_GUIDE.md) - Feature testing
+- [docs/rust/](docs/rust/) - Rust development documentation
 
 ---
 
-**ctl365** — *Control your cloud. Define your baseline.*
+**ctl365** - *Control your cloud. Define your baseline.*
