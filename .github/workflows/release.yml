@@ -8,6 +8,11 @@ on:
 permissions:
   contents: write
 
+env:
+  PATH: /home/runner/.cargo/bin:/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin:/home/runner/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+  CARGO_HOME: /home/runner/.cargo
+  RUSTUP_HOME: /home/runner/.rustup
+
 jobs:
   release-windows:
     runs-on: self-hosted
@@ -20,11 +25,15 @@ jobs:
       - name: Verify Environment
         run: |
           set -euo pipefail
-          source "$HOME/.cargo/env"
           echo "=== Windows Cross-Compile Build ==="
           echo "Tag: ${{ github.ref_name }}"
+          echo "PATH: $PATH"
+          which rustc
+          which cargo
+          which rustup
           rustc --version
           cargo --version
+          rustup --version
           rustup target list --installed
 
       - name: Cache Rust dependencies
@@ -33,14 +42,10 @@ jobs:
           key: ctl365-release-windows
 
       - name: Run Tests (nightly)
-        run: |
-          source "$HOME/.cargo/env"
-          rustup run nightly cargo test
+        run: rustup run nightly cargo test
 
       - name: Build Windows Release
-        run: |
-          source "$HOME/.cargo/env"
-          cargo build --release --target x86_64-pc-windows-gnu
+        run: cargo build --release --target x86_64-pc-windows-gnu
 
       - name: Create Windows Archive
         run: |

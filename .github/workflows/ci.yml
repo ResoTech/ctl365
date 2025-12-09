@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [main]
 
+env:
+  PATH: /home/runner/.cargo/bin:/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin:/home/runner/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+  CARGO_HOME: /home/runner/.cargo
+  RUSTUP_HOME: /home/runner/.rustup
+
 jobs:
   build-and-test:
     runs-on: self-hosted
@@ -18,8 +23,11 @@ jobs:
       - name: Verify Environment
         run: |
           set -euo pipefail
-          source "$HOME/.cargo/env"
           echo "=== Rust Toolchain ==="
+          echo "PATH: $PATH"
+          which rustc
+          which cargo
+          which rustup
           rustc --version
           cargo --version
           rustup --version
@@ -30,24 +38,16 @@ jobs:
           key: ctl365-ci
 
       - name: Build Release
-        run: |
-          source "$HOME/.cargo/env"
-          cargo build --release
+        run: cargo build --release
 
       - name: Clippy (zero warnings policy)
-        run: |
-          source "$HOME/.cargo/env"
-          cargo clippy --release -- -D warnings
+        run: cargo clippy --release -- -D warnings
 
       - name: Format Check
-        run: |
-          source "$HOME/.cargo/env"
-          cargo fmt --check || echo "::warning::Format issues found"
+        run: cargo fmt --check || echo "::warning::Format issues found"
 
       - name: Unit Tests (nightly for wiremock)
-        run: |
-          source "$HOME/.cargo/env"
-          rustup run nightly cargo test
+        run: rustup run nightly cargo test
 
       - name: CLI Smoke Test
         run: |
@@ -116,7 +116,6 @@ jobs:
 
       - name: Build Summary
         run: |
-          source "$HOME/.cargo/env"
           echo "### Build Complete ✅" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Item | Value |" >> $GITHUB_STEP_SUMMARY
