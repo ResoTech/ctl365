@@ -25,7 +25,7 @@ jobs:
           cargo --version
           echo ""
           echo "=== Nightly Toolchain ==="
-          rustc +nightly --version || echo "Nightly not installed, will install"
+          rustup run nightly rustc --version || echo "Nightly not installed, will install"
 
       - name: Install Nightly Toolchain
         run: |
@@ -48,7 +48,7 @@ jobs:
         run: cargo fmt --check || echo "::warning::Format issues found"
 
       - name: Unit Tests (nightly for wiremock)
-        run: cargo +nightly test
+        run: rustup run nightly cargo test
 
       - name: CLI Smoke Test
         run: |
@@ -123,4 +123,4 @@ jobs:
           echo "|------|-------|" >> $GITHUB_STEP_SUMMARY
           echo "| Binary | $(find target -path '*/release/ctl365' -type f -executable -exec ls -lh {} \; | awk '{print $5}' | head -1) |" >> $GITHUB_STEP_SUMMARY
           echo "| Rust | $(rustc --version | cut -d' ' -f2) |" >> $GITHUB_STEP_SUMMARY
-          echo "| Tests | $(cargo +nightly test 2>&1 | grep -E '^test result' | head -1 || echo 'See logs') |" >> $GITHUB_STEP_SUMMARY
+          echo "| Tests | $(rustup run nightly cargo test 2>&1 | grep -E '^test result' | head -1 || echo 'See logs') |" >> $GITHUB_STEP_SUMMARY

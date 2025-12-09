@@ -27,7 +27,7 @@ jobs:
         run: |
           rustup install nightly --profile minimal
           rustup component add clippy --toolchain nightly
-          rustc +nightly --version
+          rustup run nightly rustc --version
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
@@ -38,7 +38,7 @@ jobs:
         run: cargo build --release
 
       - name: Full test sweep (nightly)
-        run: cargo +nightly test
+        run: rustup run nightly cargo test
 
       - name: Clippy strict
         run: |
