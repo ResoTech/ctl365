@@ -7,9 +7,10 @@ on:
     branches: [main]
 
 env:
-  PATH: /home/runner/.cargo/bin:/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin:/home/runner/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-  CARGO_HOME: /home/runner/.cargo
-  RUSTUP_HOME: /home/runner/.rustup
+  CARGO: /home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo
+  CARGO_NIGHTLY: /home/runner/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo
+  RUSTC: /home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc
+  RUSTFMT: /home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustfmt
 
 jobs:
   build-and-test:
@@ -22,10 +23,9 @@ jobs:
 
       - name: Verify Environment
         run: |
-          set -euo pipefail
           echo "=== Rust Toolchain ==="
-          rustc --version
-          cargo --version
+          $RUSTC --version
+          $CARGO --version
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
@@ -33,16 +33,16 @@ jobs:
           key: ctl365-ci
 
       - name: Build Release
-        run: cargo build --release
+        run: $CARGO build --release
 
       - name: Clippy (zero warnings policy)
-        run: cargo clippy --release -- -D warnings
+        run: $CARGO clippy --release -- -D warnings
 
       - name: Format Check
-        run: cargo fmt --check || echo "::warning::Format issues found"
+        run: $CARGO fmt --check || echo "::warning::Format issues found"
 
       - name: Unit Tests (nightly for wiremock)
-        run: /home/runner/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo test
+        run: $CARGO_NIGHTLY test
 
       - name: CLI Smoke Test
         run: |
@@ -116,5 +116,5 @@ jobs:
           echo "| Item | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|------|-------|" >> $GITHUB_STEP_SUMMARY
           echo "| Binary | $(find target -path '*/release/ctl365' -type f -executable -exec ls -lh {} \; | awk '{print $5}' | head -1) |" >> $GITHUB_STEP_SUMMARY
-          echo "| Rust | $(rustc --version | cut -d' ' -f2) |" >> $GITHUB_STEP_SUMMARY
+          echo "| Rust | $($RUSTC --version | cut -d' ' -f2) |" >> $GITHUB_STEP_SUMMARY
           echo "| Tests | Passed |" >> $GITHUB_STEP_SUMMARY

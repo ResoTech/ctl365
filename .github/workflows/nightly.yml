@@ -6,9 +6,9 @@ on:
   workflow_dispatch:
 
 env:
-  PATH: /home/runner/.cargo/bin:/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin:/home/runner/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-  CARGO_HOME: /home/runner/.cargo
-  RUSTUP_HOME: /home/runner/.rustup
+  CARGO: /home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo
+  CARGO_NIGHTLY: /home/runner/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo
+  RUSTC: /home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc
 
 jobs:
   nightly:
@@ -21,10 +21,9 @@ jobs:
 
       - name: Verify Environment
         run: |
-          set -euo pipefail
           echo "=== Nightly Build $(date -u +%Y-%m-%d) ==="
-          rustc --version
-          cargo --version
+          $RUSTC --version
+          $CARGO --version
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
@@ -32,14 +31,14 @@ jobs:
           key: ctl365-nightly
 
       - name: Full build
-        run: cargo build --release
+        run: $CARGO build --release
 
       - name: Full test sweep (nightly)
-        run: /home/runner/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo test
+        run: $CARGO_NIGHTLY test
 
       - name: Clippy strict
         run: |
-          cargo clippy --release -- \
+          $CARGO clippy --release -- \
             -W clippy::all \
             -W clippy::pedantic \
             -A clippy::needless-borrows-for-generic-args \
@@ -53,7 +52,7 @@ jobs:
             -A clippy::struct-excessive-bools
 
       - name: Format check
-        run: cargo fmt --check
+        run: $CARGO fmt --check
 
       - name: Extended CLI Tests
         run: |
