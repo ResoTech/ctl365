@@ -15,7 +15,7 @@ jobs:
     name: Build Linux (nv-osmium)
     timeout-minutes: 20
     env:
-      PATH: /home/runner/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin:/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin:/home/runner/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      PATH: /home/runner/.cargo/bin:/home/runner/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin:/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -23,13 +23,16 @@ jobs:
       - name: Verify Environment
         run: |
           set -euo pipefail
+          source "$HOME/.cargo/env" || true
           echo "=== Linux Release Build ==="
           echo "Tag: ${{ github.ref_name }}"
           rustc --version
           cargo --version
 
       - name: Install Nightly Toolchain
-        run: rustup install nightly --profile minimal
+        run: |
+          source "$HOME/.cargo/env" || true
+          rustup install nightly --profile minimal
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
@@ -37,11 +40,14 @@ jobs:
           key: ctl365-release-linux
 
       - name: Build Release
-        run: cargo build --release
+        run: |
+          source "$HOME/.cargo/env" || true
+          cargo build --release
 
       - name: Run Tests
         run: |
-          cargo +nightly test
+          source "$HOME/.cargo/env" || true
+          rustup run nightly cargo test
           CTL365=$(find target -path "*/release/ctl365" -type f -executable | head -1)
           $CTL365 --version
           $CTL365 baseline list || true
@@ -77,7 +83,7 @@ jobs:
     name: Build Windows (cross-compile)
     timeout-minutes: 30
     env:
-      PATH: /home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin:/home/runner/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      PATH: /home/runner/.cargo/bin:/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -85,6 +91,7 @@ jobs:
       - name: Verify Environment
         run: |
           set -euo pipefail
+          source "$HOME/.cargo/env" || true
           echo "=== Windows Cross-Compile Build ==="
           echo "Tag: ${{ github.ref_name }}"
           rustc --version
@@ -92,6 +99,7 @@ jobs:
 
       - name: Install Windows Target
         run: |
+          source "$HOME/.cargo/env" || true
           rustup target add x86_64-pc-windows-gnu
           # Verify mingw-w64 is available
           which x86_64-w64-mingw32-gcc || echo "::warning::mingw-w64 not found, install with: apt install mingw-w64"
@@ -102,7 +110,9 @@ jobs:
           key: ctl365-release-windows
 
       - name: Build Windows Release
-        run: cargo build --release --target x86_64-pc-windows-gnu
+        run: |
+          source "$HOME/.cargo/env" || true
+          cargo build --release --target x86_64-pc-windows-gnu
 
       - name: Create Windows Archive
         run: |
