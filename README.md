@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <img src="assets/icons/ctl365-resolve-logo.png" alt="CTL365 Logo" width="400"/>
+  <img src="assets/icons/ctl365-repo-banner.png" alt="CTL365 Logo" width="400"/>
 </p>
 
 <p align="center">
