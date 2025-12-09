@@ -270,7 +270,7 @@ pub async fn upload(args: UploadArgs) -> Result<()> {
     let app_body = json!({
         "@odata.type": "#microsoft.graph.win32LobApp",
         "displayName": args.name,
-        "description": args.description.clone().unwrap_or_else(|| format!("Deployed via ctl365")),
+        "description": args.description.clone().unwrap_or_else(|| "Deployed via ctl365".to_string()),
         "publisher": args.publisher.clone().unwrap_or_else(|| "IT Department".to_string()),
         "installCommandLine": args.install_cmd,
         "uninstallCommandLine": args.uninstall_cmd,
@@ -325,7 +325,7 @@ pub async fn upload(args: UploadArgs) -> Result<()> {
 }
 
 fn detect_msi_info(
-    path: &PathBuf,
+    path: &std::path::Path,
     args: &PackageArgs,
 ) -> Result<(String, String, String, String, Vec<DetectionRule>)> {
     // For MSI files, we can extract info using msiinfo or similar tools
@@ -358,7 +358,7 @@ fn detect_msi_info(
 }
 
 fn detect_exe_info(
-    path: &PathBuf,
+    path: &std::path::Path,
     args: &PackageArgs,
 ) -> Result<(String, String, String, String, Vec<DetectionRule>)> {
     let file_name = path
@@ -495,7 +495,7 @@ fn build_detection_rules(args: &UploadArgs) -> Vec<Value> {
                 "check32BitOn64System": false
             })]
         }
-        "file" | _ => {
+        _ => {
             let path = args
                 .detection_path
                 .clone()
@@ -511,7 +511,10 @@ fn build_detection_rules(args: &UploadArgs) -> Vec<Value> {
     }
 }
 
-async fn upload_intunewin_to_intune(file: &PathBuf, _metadata: &IntunewinMetadata) -> Result<()> {
+async fn upload_intunewin_to_intune(
+    file: &std::path::Path,
+    _metadata: &IntunewinMetadata,
+) -> Result<()> {
     // This is a placeholder for the full upload logic
     // The actual implementation requires:
     // 1. Create the app record

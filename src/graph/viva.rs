@@ -8,17 +8,12 @@ use crate::graph::GraphClient;
 use serde::{Deserialize, Serialize};
 
 /// Viva Engage community privacy settings
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum CommunityPrivacy {
+    #[default]
     Public,
     Private,
-}
-
-impl Default for CommunityPrivacy {
-    fn default() -> Self {
-        CommunityPrivacy::Public
-    }
 }
 
 /// Viva Engage role types

@@ -823,7 +823,7 @@ fn load_baseline_expectations(
 fn validate_compliance_policy(
     _policy: &Value,
     _expectations: &HashMap<String, Value>,
-    _findings: &mut Vec<Finding>,
+    _findings: &mut [Finding],
     _total_controls: &mut usize,
     _passed_controls: &mut usize,
 ) {

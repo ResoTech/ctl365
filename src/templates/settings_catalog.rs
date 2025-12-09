@@ -176,42 +176,42 @@ impl SettingInstance {
     }
 }
 
-impl ToString for Platform {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for Platform {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Platform::Windows10 => "windows10".to_string(),
-            Platform::MacOS => "macOS".to_string(),
-            Platform::IOS => "iOS".to_string(),
-            Platform::Android => "android".to_string(),
+            Platform::Windows10 => write!(f, "windows10"),
+            Platform::MacOS => write!(f, "macOS"),
+            Platform::IOS => write!(f, "iOS"),
+            Platform::Android => write!(f, "android"),
         }
     }
 }
 
-impl ToString for Technologies {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for Technologies {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Technologies::Mdm => "mdm".to_string(),
-            Technologies::WindowsLaps => "windowsLaps".to_string(),
-            Technologies::EndpointPrivilegeManagement => "endpointPrivilegeManagement".to_string(),
+            Technologies::Mdm => write!(f, "mdm"),
+            Technologies::WindowsLaps => write!(f, "windowsLaps"),
+            Technologies::EndpointPrivilegeManagement => write!(f, "endpointPrivilegeManagement"),
         }
     }
 }
 
-impl ToString for TemplateFamily {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for TemplateFamily {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             TemplateFamily::EndpointSecurityDiskEncryption => {
-                "endpointSecurityDiskEncryption".to_string()
+                write!(f, "endpointSecurityDiskEncryption")
             }
-            TemplateFamily::EndpointSecurityAntivirus => "endpointSecurityAntivirus".to_string(),
-            TemplateFamily::EndpointSecurityFirewall => "endpointSecurityFirewall".to_string(),
+            TemplateFamily::EndpointSecurityAntivirus => write!(f, "endpointSecurityAntivirus"),
+            TemplateFamily::EndpointSecurityFirewall => write!(f, "endpointSecurityFirewall"),
             TemplateFamily::EndpointSecurityAttackSurfaceReduction => {
-                "endpointSecurityAttackSurfaceReduction".to_string()
+                write!(f, "endpointSecurityAttackSurfaceReduction")
             }
             TemplateFamily::EndpointSecurityAccountProtection => {
-                "endpointSecurityAccountProtection".to_string()
+                write!(f, "endpointSecurityAccountProtection")
             }
-            TemplateFamily::None => "none".to_string(),
+            TemplateFamily::None => write!(f, "none"),
         }
     }
 }

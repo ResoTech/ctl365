@@ -252,7 +252,7 @@ pub async fn deploy_remediation(args: DeployRemediationArgs) -> Result<()> {
     let script_body = json!({
         "@odata.type": "#microsoft.graph.deviceHealthScript",
         "displayName": args.name,
-        "description": args.description.clone().unwrap_or_else(|| format!("Deployed via ctl365")),
+        "description": args.description.clone().unwrap_or_else(|| "Deployed via ctl365".to_string()),
         "publisher": args.publisher.clone().unwrap_or_else(|| "IT Department".to_string()),
         "runAsAccount": if args.run_as_user { "user" } else { "system" },
         "enforceSignatureCheck": false,
@@ -405,7 +405,7 @@ async fn deploy_windows_script(
     let script_body = json!({
         "@odata.type": "#microsoft.graph.deviceManagementScript",
         "displayName": name,
-        "description": args.description.clone().unwrap_or_else(|| format!("Deployed via ctl365")),
+        "description": args.description.clone().unwrap_or_else(|| "Deployed via ctl365".to_string()),
         "scriptContent": encoded_content,
         "runAsAccount": if args.run_as_user { "user" } else { "system" },
         "enforceSignatureCheck": args.enforce_signature,
@@ -445,7 +445,7 @@ async fn deploy_macos_script(
     let script_body = json!({
         "@odata.type": "#microsoft.graph.deviceShellScript",
         "displayName": name,
-        "description": args.description.clone().unwrap_or_else(|| format!("Deployed via ctl365")),
+        "description": args.description.clone().unwrap_or_else(|| "Deployed via ctl365".to_string()),
         "scriptContent": encoded_content,
         "runAsAccount": if args.run_as_user { "user" } else { "system" },
         "fileName": args.file.file_name().and_then(|s| s.to_str()).unwrap_or("script.sh"),

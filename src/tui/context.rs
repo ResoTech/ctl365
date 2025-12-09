@@ -246,12 +246,12 @@ impl RunContext {
 
     /// Initialize the global context
     pub fn init() -> &'static RunContext {
-        CONTEXT.get_or_init(|| RunContext::new())
+        CONTEXT.get_or_init(RunContext::new)
     }
 
     /// Get the global context
     pub fn global() -> &'static RunContext {
-        CONTEXT.get_or_init(|| RunContext::new())
+        CONTEXT.get_or_init(RunContext::new)
     }
 
     /// Set the run mode

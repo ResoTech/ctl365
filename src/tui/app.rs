@@ -1904,7 +1904,7 @@ impl App {
             }
 
             id if id.starts_with("client:") => {
-                let abbrev = id.strip_prefix("client:").unwrap();
+                let abbrev = id.strip_prefix("client:").unwrap_or(id);
                 let old_tenant = self.active_tenant.clone();
                 // Switch to this client
                 if let Err(e) = self.config.set_active_tenant(abbrev) {
@@ -1952,7 +1952,7 @@ impl App {
 
         // Save to file
         let report_dir = directories::UserDirs::new()
-            .and_then(|u| Some(u.home_dir().join(".ctl365").join("reports")))
+            .map(|u| u.home_dir().join(".ctl365").join("reports"))
             .unwrap_or_else(|| std::path::PathBuf::from("./reports"));
 
         if let Err(e) = std::fs::create_dir_all(&report_dir) {
@@ -2175,8 +2175,7 @@ impl App {
     }
 
     fn generate_compliance_content(&self) -> String {
-        format!(
-            r#"
+        r#"
         <div class="summary-box">
             <span class="score">85%</span>
             <p>Compliance Score</p>
@@ -2195,13 +2194,11 @@ impl App {
             <li>Deploy BitLocker encryption policies</li>
             <li>Configure Windows Defender ATP</li>
         </ul>
-        "#
-        )
+        "#.to_string()
     }
 
     fn generate_security_content(&self) -> String {
-        format!(
-            r#"
+        r#"
         <h2>Security Posture</h2>
         <div class="summary-box">
             <span class="score">B+</span>
@@ -2216,8 +2213,7 @@ impl App {
             <tr><td>Device Encryption</td><td class="status-deployed">Required</td><td>Low</td></tr>
             <tr><td>Safe Links</td><td class="status-deployed">Enabled</td><td>Low</td></tr>
         </table>
-        "#
-        )
+        "#.to_string()
     }
 
     fn generate_inventory_content(&self) -> String {
@@ -2499,7 +2495,7 @@ impl App {
         let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
 
         let export_dir = directories::UserDirs::new()
-            .and_then(|u| Some(u.home_dir().join(".ctl365").join("exports")))
+            .map(|u| u.home_dir().join(".ctl365").join("exports"))
             .unwrap_or_else(|| std::path::PathBuf::from("./exports"));
 
         if let Err(e) = std::fs::create_dir_all(&export_dir) {
@@ -2590,7 +2586,7 @@ impl App {
         let filename = format!("audit_export_{}.json", timestamp);
 
         let export_dir = directories::UserDirs::new()
-            .and_then(|u| Some(u.home_dir().join(".ctl365").join("exports")))
+            .map(|u| u.home_dir().join(".ctl365").join("exports"))
             .unwrap_or_else(|| std::path::PathBuf::from("./exports"));
 
         if let Err(e) = std::fs::create_dir_all(&export_dir) {
@@ -3165,7 +3161,7 @@ impl App {
         if filtered.is_empty() {
             1
         } else {
-            (filtered.len() + self.table_page_size - 1) / self.table_page_size
+            filtered.len().div_ceil(self.table_page_size)
         }
     }
 
@@ -3569,8 +3565,9 @@ fn run_app<B: ratatui::backend::Backend>(
                         }
                         KeyCode::Enter | KeyCode::Char(' ') => app.select_current(),
                         KeyCode::Char(c) if c.is_ascii_digit() => {
-                            let num = c.to_digit(10).unwrap() as usize;
-                            app.select_by_number(num);
+                            if let Some(num) = c.to_digit(10) {
+                                app.select_by_number(num as usize);
+                            }
                         }
                         KeyCode::Char(c) => app.handle_shortcut(c),
                         KeyCode::Backspace => app.go_back(),
@@ -3827,8 +3824,8 @@ fn render_details(f: &mut Frame, app: &App, area: Rect) {
                 String::new()
             };
 
-            let shortcut_hint = if item.shortcut.is_some() {
-                format!("Press {} or Enter to select", item.shortcut.unwrap())
+            let shortcut_hint = if let Some(shortcut) = item.shortcut {
+                format!("Press {} or Enter to select", shortcut)
             } else {
                 "Press Enter to select".into()
             };

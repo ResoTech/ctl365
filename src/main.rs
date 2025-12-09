@@ -1,6 +1,14 @@
 #![recursion_limit = "256"]
 // Allow dead code for API modules that are built for future use
 #![allow(dead_code)]
+// Allow nested if statements - clippy suggests let_chains which requires nightly
+#![allow(clippy::collapsible_if)]
+// Allow single char push_str - more readable in context
+#![allow(clippy::single_char_add_str)]
+// Allow IOS naming convention
+#![allow(clippy::upper_case_acronyms)]
+// Allow vec init then push for readability
+#![allow(clippy::vec_init_then_push)]
 
 mod cmd;
 mod config;

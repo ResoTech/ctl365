@@ -168,7 +168,10 @@ pub async fn new(args: NewArgs) -> Result<()> {
     println!("  Platform: {}", args.platform);
     println!(
         "  Policies: {}",
-        baseline["policies"].as_array().unwrap().len()
+        baseline["policies"]
+            .as_array()
+            .map(|a| a.len())
+            .unwrap_or(0)
     );
     if args.encryption {
         println!("  {} Encryption enabled", "✓".green());
@@ -209,7 +212,10 @@ pub async fn apply(args: ApplyArgs) -> Result<()> {
         print!(
             "\n{} Apply {} policies to tenant '{}'? [y/N]: ",
             "?".yellow().bold(),
-            baseline["policies"].as_array().unwrap().len(),
+            baseline["policies"]
+                .as_array()
+                .map(|a| a.len())
+                .unwrap_or(0),
             active_tenant.name
         );
         io::stdout().flush()?;

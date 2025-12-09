@@ -133,7 +133,7 @@ pub async fn run_msp_menu() -> Result<()> {
         // Show current clients summary
         if !msp_config.clients.is_empty() {
             println!();
-            println!("  {} Clients:", "📋".to_string());
+            println!("  📋 Clients:");
             for client in &msp_config.clients {
                 println!(
                     "     {} {} ({})",
@@ -226,10 +226,7 @@ async fn add_client_wizard(msp_config: &mut MspConfig) -> Result<()> {
 
     // Tenant ID
     println!();
-    println!(
-        "  {} Find Tenant ID in Azure Portal → Azure Active Directory → Overview",
-        "💡".to_string()
-    );
+    println!("  💡 Find Tenant ID in Azure Portal → Azure Active Directory → Overview");
     let tenant_id: String = Input::with_theme(&ColorfulTheme::default())
         .with_prompt("Azure AD Tenant ID (GUID)")
         .validate_with(|input: &String| {
@@ -244,10 +241,7 @@ async fn add_client_wizard(msp_config: &mut MspConfig) -> Result<()> {
 
     // App Registration
     println!();
-    println!(
-        "  {} Do you have an App Registration for this client?",
-        "❓".to_string()
-    );
+    println!("  ❓ Do you have an App Registration for this client?");
 
     let has_app_reg = Confirm::with_theme(&ColorfulTheme::default())
         .with_prompt("App Registration already created?")
@@ -685,17 +679,15 @@ fn show_app_registration_guide() -> Result<()> {
     println!();
 
     println!(
-        "  {}. Go to {} → {}",
+        "  {}. Go to {} → portal.azure.com",
         "1".cyan().bold(),
-        "Azure Portal".yellow(),
-        "portal.azure.com"
+        "Azure Portal".yellow()
     );
 
     println!(
-        "  {}. Navigate to {} → {}",
+        "  {}. Navigate to {} → App registrations",
         "2".cyan().bold(),
-        "Azure Active Directory".yellow(),
-        "App registrations"
+        "Azure Active Directory".yellow()
     );
 
     println!(

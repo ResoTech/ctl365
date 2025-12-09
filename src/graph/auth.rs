@@ -82,7 +82,7 @@ impl GraphAuth {
 
         let expires_at = chrono::Utc::now()
             + chrono::Duration::from_std(token.expires_in().unwrap_or(Duration::from_secs(3600)))
-                .unwrap();
+                .unwrap_or_else(|_| chrono::Duration::hours(1));
 
         let token_cache = TokenCache {
             access_token: token.access_token().secret().clone(),
@@ -147,7 +147,7 @@ impl GraphAuth {
 
         let expires_at = chrono::Utc::now()
             + chrono::Duration::from_std(token.expires_in().unwrap_or(Duration::from_secs(3600)))
-                .unwrap();
+                .unwrap_or_else(|_| chrono::Duration::hours(1));
 
         let token_cache = TokenCache {
             access_token: token.access_token().secret().clone(),

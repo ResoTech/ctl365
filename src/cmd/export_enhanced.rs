@@ -126,12 +126,11 @@ struct GroupMapping {
 #[allow(dead_code)]
 fn create_spinner(message: &str) -> ProgressBar {
     let spinner = ProgressBar::new_spinner();
-    spinner.set_style(
-        ProgressStyle::default_spinner()
-            .tick_chars("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏")
-            .template("{spinner:.cyan} {msg}")
-            .unwrap(),
-    );
+    let style = ProgressStyle::default_spinner()
+        .tick_chars("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏")
+        .template("{spinner:.cyan} {msg}")
+        .unwrap_or_else(|_| ProgressStyle::default_spinner());
+    spinner.set_style(style);
     spinner.set_message(message.to_string());
     spinner.enable_steady_tick(std::time::Duration::from_millis(80));
     spinner
@@ -791,10 +790,7 @@ async fn get_policy_assignments(
                             .and_then(|v| v.as_str())
                             .map(|s| s.to_string());
 
-                        let group_name = group_id
-                            .as_ref()
-                            .and_then(|id| groups.get(id))
-                            .map(|n| n.clone());
+                        let group_name = group_id.as_ref().and_then(|id| groups.get(id)).cloned();
 
                         assignments.push(Assignment {
                             id: assignment["id"].as_str().unwrap_or("").to_string(),
@@ -854,10 +850,7 @@ async fn get_settings_catalog_assignments(
                             .and_then(|v| v.as_str())
                             .map(|s| s.to_string());
 
-                        let group_name = group_id
-                            .as_ref()
-                            .and_then(|id| groups.get(id))
-                            .map(|n| n.clone());
+                        let group_name = group_id.as_ref().and_then(|id| groups.get(id)).cloned();
 
                         assignments.push(Assignment {
                             id: assignment["id"].as_str().unwrap_or("").to_string(),
@@ -1172,7 +1165,11 @@ pub async fn compare(args: CompareArgs) -> Result<()> {
     Ok(())
 }
 
-async fn compare_exports(source: &PathBuf, target: &PathBuf, args: &CompareArgs) -> Result<()> {
+async fn compare_exports(
+    source: &std::path::Path,
+    target: &std::path::Path,
+    args: &CompareArgs,
+) -> Result<()> {
     println!("\n{} Comparing export directories...", "→".cyan());
 
     let mut differences: Vec<(String, String, String)> = vec![]; // (policy_type, name, status)

@@ -215,7 +215,7 @@ async fn deploy_win32_app(client: &GraphClient, args: &DeployArgs) -> Result<()>
         "displayName": args.name,
         "description": args.description.as_deref().unwrap_or(""),
         "publisher": args.publisher,
-        "fileName": app_path.file_name().unwrap().to_str().unwrap(),
+        "fileName": app_path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| "app.exe".to_string()),
         "installCommandLine": "setup.exe /S", // Default - should be customized
         "uninstallCommandLine": "uninstall.exe /S",
         "installExperience": {
@@ -264,7 +264,9 @@ async fn deploy_win32_app(client: &GraphClient, args: &DeployArgs) -> Result<()>
         .post("deviceAppManagement/mobileApps", &app_payload)
         .await?;
 
-    let app_id = app["id"].as_str().unwrap();
+    let app_id = app["id"]
+        .as_str()
+        .ok_or_else(|| crate::error::Error::ConfigError("API response missing app id".into()))?;
     println!("  {} App created: {}", "✓".green(), app_id);
 
     // Step 2: Upload .intunewin content (simplified - actual implementation needs Azure Storage)
@@ -307,7 +309,9 @@ async fn deploy_store_app(client: &GraphClient, args: &DeployArgs) -> Result<()>
         .post("deviceAppManagement/mobileApps", &app_payload)
         .await?;
 
-    let created_app_id = app["id"].as_str().unwrap();
+    let created_app_id = app["id"]
+        .as_str()
+        .ok_or_else(|| crate::error::Error::ConfigError("API response missing app id".into()))?;
     println!("  {} App created: {}", "✓".green(), created_app_id);
 
     // Assign
@@ -346,7 +350,9 @@ async fn deploy_ios_app(client: &GraphClient, args: &DeployArgs) -> Result<()> {
         .post("deviceAppManagement/mobileApps", &app_payload)
         .await?;
 
-    let created_app_id = app["id"].as_str().unwrap();
+    let created_app_id = app["id"]
+        .as_str()
+        .ok_or_else(|| crate::error::Error::ConfigError("API response missing app id".into()))?;
     println!("  {} App created: {}", "✓".green(), created_app_id);
 
     // Assign
@@ -387,7 +393,9 @@ async fn deploy_android_app(client: &GraphClient, args: &DeployArgs) -> Result<(
         .post("deviceAppManagement/mobileApps", &app_payload)
         .await?;
 
-    let created_app_id = app["id"].as_str().unwrap();
+    let created_app_id = app["id"]
+        .as_str()
+        .ok_or_else(|| crate::error::Error::ConfigError("API response missing app id".into()))?;
     println!("  {} App created: {}", "✓".green(), created_app_id);
 
     // Assign
@@ -419,7 +427,9 @@ async fn deploy_web_app(client: &GraphClient, args: &DeployArgs) -> Result<()> {
         .post("deviceAppManagement/mobileApps", &app_payload)
         .await?;
 
-    let created_app_id = app["id"].as_str().unwrap();
+    let created_app_id = app["id"]
+        .as_str()
+        .ok_or_else(|| crate::error::Error::ConfigError("API response missing app id".into()))?;
     println!("  {} Web app created: {}", "✓".green(), created_app_id);
 
     // Assign
@@ -687,7 +697,9 @@ pub async fn deploy_m365(args: DeployM365Args) -> Result<()> {
         .post("deviceAppManagement/mobileApps", &office_payload)
         .await?;
 
-    let app_id = app["id"].as_str().unwrap();
+    let app_id = app["id"]
+        .as_str()
+        .ok_or_else(|| crate::error::Error::ConfigError("API response missing app id".into()))?;
     println!("  {} App created: {}", "✓".green(), app_id);
 
     // Assign

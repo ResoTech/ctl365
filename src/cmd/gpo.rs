@@ -625,9 +625,9 @@ fn parse_gpo_backup(path: &PathBuf) -> Result<Vec<GpoSetting>> {
         if report_xml.exists() {
             settings.extend(parse_gpreport_xml(&report_xml)?);
         }
-    } else if path.extension().map_or(false, |ext| ext == "xml") {
+    } else if path.extension().is_some_and(|ext| ext == "xml") {
         settings.extend(parse_gpreport_xml(path)?);
-    } else if path.extension().map_or(false, |ext| ext == "pol") {
+    } else if path.extension().is_some_and(|ext| ext == "pol") {
         settings.extend(parse_registry_pol(path, "Unknown")?);
     }
 
@@ -643,7 +643,7 @@ fn parse_gpo_backup(path: &PathBuf) -> Result<Vec<GpoSetting>> {
     Ok(settings)
 }
 
-fn parse_registry_pol(_path: &PathBuf, scope: &str) -> Result<Vec<GpoSetting>> {
+fn parse_registry_pol(_path: &std::path::Path, scope: &str) -> Result<Vec<GpoSetting>> {
     // Registry.pol is a binary format
     // For now, return empty and fall back to sample data
     // A full implementation would parse the binary PReg format

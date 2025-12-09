@@ -160,121 +160,119 @@ pub fn spawn_task_worker(config: ConfigManager) -> (TaskSender, TaskReceiver) {
 
     thread::spawn(move || {
         // Create a new tokio runtime for this thread
-        let rt = tokio::runtime::Builder::new_current_thread()
+        let rt = match tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
-            .expect("Failed to create tokio runtime");
+        {
+            Ok(rt) => rt,
+            Err(_) => {
+                // Cannot report error - worker thread will simply not respond
+                // The TUI will show no data which indicates a problem
+                return;
+            }
+        };
 
         rt.block_on(async move {
             // Signal that worker is ready
             let _ = response_tx.send(TaskResponse::Ready);
 
-            loop {
-                match request_rx.recv() {
-                    Ok(request) => match request {
-                        TaskRequest::Shutdown => {
-                            break;
-                        }
-                        TaskRequest::LoadPolicies {
-                            tenant_name,
-                            policy_type,
-                        } => {
-                            let task_id =
-                                format!("load_policies_{}", chrono::Utc::now().timestamp_millis());
-                            let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
-                                task_id: task_id.clone(),
-                                percent: 0,
-                                message: "Connecting to Graph API...".into(),
-                                phase: "init".into(),
-                            }));
-
-                            let result = load_policies_async(
-                                &config,
-                                &tenant_name,
-                                &policy_type,
-                                &response_tx,
-                                &task_id,
-                            )
-                            .await;
-                            let _ = response_tx.send(TaskResponse::Completed { task_id, result });
-                        }
-                        TaskRequest::DeployBaseline {
-                            tenant_name,
-                            baseline_type,
-                            baseline_data,
-                        } => {
-                            let task_id = format!(
-                                "deploy_baseline_{}",
-                                chrono::Utc::now().timestamp_millis()
-                            );
-                            let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
-                                task_id: task_id.clone(),
-                                percent: 0,
-                                message: format!("Preparing {} baseline...", baseline_type),
-                                phase: "init".into(),
-                            }));
-
-                            let result = deploy_baseline_async(
-                                &config,
-                                &tenant_name,
-                                &baseline_type,
-                                &baseline_data,
-                                &response_tx,
-                                &task_id,
-                            )
-                            .await;
-                            let _ = response_tx.send(TaskResponse::Completed { task_id, result });
-                        }
-                        TaskRequest::DeployConditionalAccess { tenant_name } => {
-                            let task_id =
-                                format!("deploy_ca_{}", chrono::Utc::now().timestamp_millis());
-                            let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
-                                task_id: task_id.clone(),
-                                percent: 0,
-                                message: "Generating CA policies...".into(),
-                                phase: "init".into(),
-                            }));
-
-                            let result =
-                                deploy_ca_async(&config, &tenant_name, &response_tx, &task_id)
-                                    .await;
-                            let _ = response_tx.send(TaskResponse::Completed { task_id, result });
-                        }
-                        TaskRequest::ApplySettings {
-                            tenant_name,
-                            category,
-                            settings,
-                        } => {
-                            let task_id =
-                                format!("apply_settings_{}", chrono::Utc::now().timestamp_millis());
-                            let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
-                                task_id: task_id.clone(),
-                                percent: 0,
-                                message: "Applying settings...".into(),
-                                phase: "init".into(),
-                            }));
-
-                            let result = apply_settings_async(
-                                &config,
-                                &tenant_name,
-                                &category,
-                                &settings,
-                                &response_tx,
-                                &task_id,
-                            )
-                            .await;
-                            let _ = response_tx.send(TaskResponse::Completed { task_id, result });
-                        }
-                        TaskRequest::TestAuth { tenant_name } => {
-                            let task_id =
-                                format!("test_auth_{}", chrono::Utc::now().timestamp_millis());
-                            let result = test_auth_async(&config, &tenant_name).await;
-                            let _ = response_tx.send(TaskResponse::Completed { task_id, result });
-                        }
-                    },
-                    Err(_) => {
-                        // Channel closed, exit
+            while let Ok(request) = request_rx.recv() {
+                match request {
+                    TaskRequest::Shutdown => {
                         break;
+                    }
+                    TaskRequest::LoadPolicies {
+                        tenant_name,
+                        policy_type,
+                    } => {
+                        let task_id =
+                            format!("load_policies_{}", chrono::Utc::now().timestamp_millis());
+                        let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
+                            task_id: task_id.clone(),
+                            percent: 0,
+                            message: "Connecting to Graph API...".into(),
+                            phase: "init".into(),
+                        }));
+
+                        let result = load_policies_async(
+                            &config,
+                            &tenant_name,
+                            &policy_type,
+                            &response_tx,
+                            &task_id,
+                        )
+                        .await;
+                        let _ = response_tx.send(TaskResponse::Completed { task_id, result });
+                    }
+                    TaskRequest::DeployBaseline {
+                        tenant_name,
+                        baseline_type,
+                        baseline_data,
+                    } => {
+                        let task_id =
+                            format!("deploy_baseline_{}", chrono::Utc::now().timestamp_millis());
+                        let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
+                            task_id: task_id.clone(),
+                            percent: 0,
+                            message: format!("Preparing {} baseline...", baseline_type),
+                            phase: "init".into(),
+                        }));
+
+                        let result = deploy_baseline_async(
+                            &config,
+                            &tenant_name,
+                            &baseline_type,
+                            &baseline_data,
+                            &response_tx,
+                            &task_id,
+                        )
+                        .await;
+                        let _ = response_tx.send(TaskResponse::Completed { task_id, result });
+                    }
+                    TaskRequest::DeployConditionalAccess { tenant_name } => {
+                        let task_id =
+                            format!("deploy_ca_{}", chrono::Utc::now().timestamp_millis());
+                        let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
+                            task_id: task_id.clone(),
+                            percent: 0,
+                            message: "Generating CA policies...".into(),
+                            phase: "init".into(),
+                        }));
+
+                        let result =
+                            deploy_ca_async(&config, &tenant_name, &response_tx, &task_id).await;
+                        let _ = response_tx.send(TaskResponse::Completed { task_id, result });
+                    }
+                    TaskRequest::ApplySettings {
+                        tenant_name,
+                        category,
+                        settings,
+                    } => {
+                        let task_id =
+                            format!("apply_settings_{}", chrono::Utc::now().timestamp_millis());
+                        let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
+                            task_id: task_id.clone(),
+                            percent: 0,
+                            message: "Applying settings...".into(),
+                            phase: "init".into(),
+                        }));
+
+                        let result = apply_settings_async(
+                            &config,
+                            &tenant_name,
+                            &category,
+                            &settings,
+                            &response_tx,
+                            &task_id,
+                        )
+                        .await;
+                        let _ = response_tx.send(TaskResponse::Completed { task_id, result });
+                    }
+                    TaskRequest::TestAuth { tenant_name } => {
+                        let task_id =
+                            format!("test_auth_{}", chrono::Utc::now().timestamp_millis());
+                        let result = test_auth_async(&config, &tenant_name).await;
+                        let _ = response_tx.send(TaskResponse::Completed { task_id, result });
                     }
                 }
             }
@@ -632,7 +630,7 @@ async fn deploy_ca_async(
     let policies: Vec<serde_json::Value> = baseline
         .policies
         .iter()
-        .map(|p| ca_baseline_2025::CABaseline2025::to_graph_json(p))
+        .map(ca_baseline_2025::CABaseline2025::to_graph_json)
         .collect();
 
     let _ = response_tx.send(TaskResponse::Progress(TaskProgress {

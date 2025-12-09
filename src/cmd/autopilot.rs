@@ -645,7 +645,9 @@ pub async fn assign(args: AssignArgs) -> Result<()> {
                 )));
             }
 
-            let device_id = device_list[0]["id"].as_str().unwrap();
+            let device_id = device_list[0]["id"].as_str().ok_or_else(|| {
+                crate::error::Error::ConfigError("Device response missing id".into())
+            })?;
 
             let update_payload = json!({
                 "deploymentProfileAssignmentStatus": "assigned",
@@ -904,7 +906,10 @@ pub async fn delete(args: DeleteArgs) -> Result<()> {
             // Try using the ID directly
             args.device_id.clone()
         } else {
-            device_list[0]["id"].as_str().unwrap().to_string()
+            device_list[0]["id"]
+                .as_str()
+                .unwrap_or(&args.device_id)
+                .to_string()
         }
     } else {
         args.device_id.clone()

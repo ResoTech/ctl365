@@ -802,7 +802,7 @@ fn display_product_summary(result: &ScubaAuditResult) {
 
 fn generate_scuba_report(
     results: &[ScubaAuditResult],
-    output_dir: &PathBuf,
+    output_dir: &std::path::Path,
     format: &str,
 ) -> Result<()> {
     match format {
