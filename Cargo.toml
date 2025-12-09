@@ -1,0 +1,67 @@
+[package]
+name = "ctl365"
+version = "0.1.0"
+edition = "2024"
+authors = ["ctl365 Contributors"]
+description = "Enterprise-grade Microsoft 365 deployment automation CLI"
+license = "MIT"
+repository = "https://github.com/yourusername/ctl365"
+keywords = ["microsoft", "m365", "intune", "automation", "msp"]
+categories = ["command-line-utilities"]
+
+[[bin]]
+name = "ctl365"
+path = "src/main.rs"
+
+[dependencies]
+# CLI
+clap = { version = "4.5", features = ["derive", "cargo", "env"] }
+colored = "2.1"
+indicatif = "0.17"
+dialoguer = { version = "0.11", features = ["fuzzy-select"] }
+console = "0.15"
+
+# TUI Framework
+ratatui = "0.29"
+crossterm = "0.28"
+tui-input = "0.11"
+crossbeam-channel = "0.5"
+
+# Async runtime
+tokio = { version = "1.40", features = ["full"] }
+
+# HTTP client
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+
+# Authentication
+oauth2 = "4.4"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "0.8"
+csv = "1.3"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Config & file management
+directories = "5.0"
+
+# Utilities
+chrono = { version = "0.4", features = ["serde"] }
+lazy_static = "1.5"
+uuid = { version = "1.10", features = ["serde", "v4"] }
+url = "2.5"
+urlencoding = "2.1"
+zip = "2.2"
+walkdir = "2.5"
+base64 = "0.22"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[dev-dependencies]
+wiremock = "0.6"

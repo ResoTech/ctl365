@@ -1,0 +1,141 @@
+================================================================================
+                         ctl365 Windows Quick Start
+          Microsoft 365 Baseline Automation & Configuration CLI
+================================================================================
+
+INSTALLATION
+------------
+1. Extract the ctl365 folder to your Downloads (or anywhere)
+2. Open PowerShell (or Windows Terminal - recommended)
+3. Run:
+
+   cd ~\Downloads\ctl365\win
+   .\install.ps1
+
+4. Wait for Visual Studio Build Tools and Rust to install (first time: 10-15 mins)
+5. Open a NEW PowerShell/Terminal window
+
+
+FIRST RUN - Launch the TUI
+--------------------------
+   ctl365 tui dashboard
+
+Use arrow keys, j/k, or number keys to navigate. Press ? for help.
+
+
+QUICK SETUP WITH .ENV FILE (RECOMMENDED)
+----------------------------------------
+Create a tenants.env file at:
+   %APPDATA%\ctl365\ctl365\config\tenants.env
+
+Example contents:
+   # My MSP Tenants
+   [RESO]
+   NAME=Resolve Technology
+   TENANT_ID=c59151ed-4414-4426-b239-08974ab0e805
+   CLIENT_ID=3c54f805-db0a-4f83-be24-6744ab9fd758
+   CLIENT_SECRET=your-secret-here
+
+   [ACME]
+   NAME=Acme Corporation
+   TENANT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+   CLIENT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+   CLIENT_SECRET=your-secret-here
+
+Then login with:
+   ctl365 login RESO
+
+Or use individual env files:
+   %APPDATA%\ctl365\ctl365\config\reso.env
+   %APPDATA%\ctl365\ctl365\config\acme.env
+
+
+ADDING CLIENT VIA TUI
+---------------------
+1. Run: ctl365 tui dashboard
+2. Select "MSP Management" (or press 'm')
+3. Select "Add Client"
+4. Fill in the fields using Tab to navigate
+
+
+APP REGISTRATION SETUP (Azure Portal)
+-------------------------------------
+1. Go to Azure Portal > Entra ID > App registrations
+2. Click "New registration"
+3. Name: "ctl365-automation"
+4. After creation, copy:
+   - Application (client) ID -> CLIENT_ID
+   - Directory (tenant) ID -> TENANT_ID
+5. Go to "Certificates & secrets" > "New client secret"
+6. Copy secret Value -> CLIENT_SECRET
+
+Required API Permissions (add and grant admin consent):
+  Microsoft Graph > Application permissions:
+    - Policy.Read.All
+    - Policy.ReadWrite.ConditionalAccess
+    - Directory.Read.All
+    - DeviceManagementConfiguration.ReadWrite.All
+    - DeviceManagementApps.ReadWrite.All
+
+
+COMMON COMMANDS
+---------------
+Launch TUI:
+   ctl365 tui dashboard
+
+Login to a tenant:
+   ctl365 login RESO              # Load from tenants.env
+   ctl365 login ACME              # Load from tenants.env
+
+View baselines:
+   ctl365 baseline list
+
+Deploy baseline:
+   ctl365 baseline apply ca-2025
+
+Export policies:
+   ctl365 export policies -o policies.json
+
+
+TUI NAVIGATION
+--------------
+  Up/Down or j/k    Navigate menu
+  Enter or Space    Select item
+  1-9               Quick select by number
+  Esc or Backspace  Go back
+  q                 Quit
+  ?                 Show help
+  /                 Search/filter
+
+
+CONFIG FILE LOCATIONS (Windows)
+-------------------------------
+Config:    %APPDATA%\ctl365\ctl365\config\config.toml
+Tenants:   %APPDATA%\ctl365\ctl365\config\tenants.toml
+Env file:  %APPDATA%\ctl365\ctl365\config\tenants.env
+Tokens:    %APPDATA%\ctl365\ctl365\config\cache\
+
+
+TROUBLESHOOTING
+---------------
+"ctl365 is not recognized"
+  -> Open a NEW terminal window after install
+
+"link.exe not found" or build errors
+  -> Run install.ps1 again - it will install VS Build Tools
+
+"Access denied" / "Unauthorized"
+  -> Check app registration has admin consent granted
+  -> Verify credentials in tenants.env
+
+Can't type in TUI form fields (Windows)
+  -> Use Windows Terminal instead of legacy PowerShell
+  -> Download from Microsoft Store: "Windows Terminal"
+
+
+UNINSTALL
+---------
+   cd ~\Downloads\ctl365\win
+   .\uninstall.ps1
+
+================================================================================
