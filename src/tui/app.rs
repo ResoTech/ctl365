@@ -1302,11 +1302,7 @@ impl App {
                 label: format!("{} - {}", c.abbreviation, c.full_name),
                 description: format!(
                     "Tenant: {}",
-                    if c.tenant_id.len() >= 8 {
-                        &c.tenant_id[..8]
-                    } else {
-                        &c.tenant_id
-                    }
+                    c.tenant_id.get(..8).unwrap_or(&c.tenant_id)
                 ),
                 shortcut: None,
                 enabled: true,
