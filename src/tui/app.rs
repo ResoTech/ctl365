@@ -362,9 +362,22 @@ impl App {
         };
 
         // Spawn background task worker
-        let (sender, receiver) = crate::tui::tasks::spawn_task_worker(app.config.clone());
-        app.task_sender = Some(sender);
-        app.task_receiver = Some(receiver);
+        match std::panic::catch_unwind(|| crate::tui::tasks::spawn_task_worker(app.config.clone())) {
+            Ok((sender, receiver)) => {
+                app.task_sender = Some(sender);
+                app.task_receiver = Some(receiver);
+            }
+            Err(err) => {
+                log::warn!(
+                    "Background task worker failed to start; async actions disabled: {:?}",
+                    err
+                );
+                app.status_message = Some((
+                    "Async background worker unavailable. Live data disabled.".into(),
+                    StatusLevel::Warning,
+                ));
+            }
+        }
 
         app.refresh_menu();
         app.menu_state.select(Some(0));
