@@ -35,8 +35,6 @@ jobs:
       - name: Build Release
         run: $CARGO build --release
 
-      - name: Format Check
-        run: $CARGO fmt --check || echo "::warning::Format issues found"
 
       - name: Unit Tests (nightly for wiremock)
         run: $CARGO_NIGHTLY test
