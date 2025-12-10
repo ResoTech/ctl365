@@ -36,7 +36,7 @@ jobs:
         run: $CARGO build --release
 
       - name: Clippy (zero warnings policy)
-        run: $CARGO clippy --release -- -D warnings
+        run: $CARGO_NIGHTLY clippy --release -- -D warnings
 
       - name: Format Check
         run: $CARGO fmt --check || echo "::warning::Format issues found"
