@@ -69,8 +69,22 @@ pub async fn login(args: LoginArgs) -> Result<()> {
                     name.bold(),
                     tenant.description.as_deref().unwrap_or("")
                 );
-                println!("  Tenant ID: {}...", &tenant.tenant_id[..8]);
-                println!("  Client ID: {}...", &tenant.client_id[..8]);
+                println!(
+                    "  Tenant ID: {}...",
+                    if tenant.tenant_id.len() >= 8 {
+                        &tenant.tenant_id[..8]
+                    } else {
+                        &tenant.tenant_id
+                    }
+                );
+                println!(
+                    "  Client ID: {}...",
+                    if tenant.client_id.len() >= 8 {
+                        &tenant.client_id[..8]
+                    } else {
+                        &tenant.client_id
+                    }
+                );
                 if tenant.client_secret.is_some() {
                     println!("  Auth: Client Credentials");
                 } else {

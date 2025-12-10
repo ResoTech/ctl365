@@ -1,0 +1,38 @@
+{
+  "version": "1.0",
+  "platform": "windows",
+  "template": "basic",
+  "name": "Example Windows Baseline",
+  "description": "Basic Windows 11 compliance and configuration baseline",
+  "policies": [
+    {
+      "@odata.type": "#microsoft.graph.windows10CompliancePolicy",
+      "displayName": "Example - Windows Compliance",
+      "description": "Basic compliance policy for Windows 11 devices",
+      "osMinimumVersion": "10.0.22621.0",
+      "passwordRequired": true,
+      "passwordMinimumLength": 8,
+      "passwordRequiredType": "alphanumeric",
+      "storageRequireEncryption": true,
+      "secureBootEnabled": true,
+      "codeIntegrityEnabled": true,
+      "tpmRequired": true,
+      "activeFirewallRequired": true,
+      "antivirusRequired": true,
+      "antispywareRequired": true,
+      "scheduledActionsForRule": [
+        {
+          "ruleName": "DefaultRule",
+          "scheduledActionConfigurations": [
+            {
+              "actionType": "block",
+              "gracePeriodHours": 24,
+              "notificationTemplateId": "",
+              "notificationMessageCCList": []
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

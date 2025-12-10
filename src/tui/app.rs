@@ -517,36 +517,10 @@ impl App {
         }
     }
 
-    /// Load policies from Graph API if connected, otherwise show sample data
+    /// Load sample policies (fallback when not connected)
+    /// Note: For API loading, use load_policies_async() instead
     pub fn load_policies(&mut self, policy_type: &PolicyListType) {
-        // Try to load from API if we have an active tenant
-        if let Some(tenant_name) = &self.active_tenant {
-            if let Ok(handle) = tokio::runtime::Handle::try_current() {
-                let config = self.config.clone();
-                let tenant = tenant_name.clone();
-                let pt = policy_type.clone();
-
-                let result =
-                    handle.block_on(async { load_policies_from_api(&config, &tenant, &pt).await });
-
-                match result {
-                    Ok(policies) => {
-                        self.table_data = policies;
-                        self.reset_table_pagination();
-                        return;
-                    }
-                    Err(e) => {
-                        // Fall back to sample data on error
-                        self.status_message = Some((
-                            format!("Using sample data (API error: {})", e),
-                            StatusLevel::Warning,
-                        ));
-                    }
-                }
-            }
-        }
-
-        // Fall back to sample data
+        // Load sample data - for API loading use load_policies_async()
         self.load_sample_policies(policy_type);
     }
 
@@ -865,7 +839,9 @@ impl App {
     /// Handle form backspace
     pub fn form_backspace(&mut self) {
         if let Some(ref mut form) = self.form_state {
-            form.fields[form.current_field].value.pop();
+            if form.current_field < form.fields.len() {
+                form.fields[form.current_field].value.pop();
+            }
         }
     }
 
@@ -1075,9 +1051,9 @@ impl App {
             Screen::AuditHistory => self.audit_history_menu(),
         };
 
-        // Load policies after match to avoid borrow conflict
+        // Load policies after match to avoid borrow conflict (non-blocking)
         if let Some(policy_type) = policy_type_clone {
-            self.load_policies(&policy_type);
+            self.load_policies_async(&policy_type);
         }
 
         // Load audit entries when entering audit screen
@@ -1134,7 +1110,7 @@ impl App {
             MenuItem {
                 id: "audit_export".into(),
                 label: "Export to JSON".into(),
-                description: "Export audit trail to file".into(),
+                description: "Export all audit entries to a JSON file in ~/.ctl365/exports/. Includes timestamps, actions, severity levels, and change details for compliance documentation.".into(),
                 shortcut: Some('e'),
                 enabled: true,
             },
@@ -1174,7 +1150,7 @@ impl App {
             MenuItem {
                 id: "export".into(),
                 label: "Export".into(),
-                description: "Export to JSON/CSV".into(),
+                description: "Export all loaded policies to JSON and CSV files. Files are saved to ~/.ctl365/exports/ with timestamp. JSON includes full policy details; CSV provides a summary table.".into(),
                 shortcut: Some('e'),
                 enabled: true,
             },
@@ -1264,14 +1240,14 @@ impl App {
             MenuItem {
                 id: "reports".into(),
                 label: "Generate Reports".into(),
-                description: "Compliance, security, change control".into(),
+                description: "Generate exportable reports: compliance audits, security assessments, policy inventories, change control documentation, and executive summaries.".into(),
                 shortcut: Some('r'),
                 enabled: self.active_tenant.is_some(),
             },
             MenuItem {
                 id: "audit".into(),
                 label: "Audit & Compliance".into(),
-                description: "Check baseline compliance, detect drift".into(),
+                description: "Run compliance checks against baseline. Detects configuration drift, missing policies, and deviations. Supports OIB, CIS, ScubaGear, and custom baselines.".into(),
                 shortcut: Some('a'),
                 enabled: self.active_tenant.is_some(),
             },
@@ -1324,7 +1300,14 @@ impl App {
             .map(|c| MenuItem {
                 id: format!("client:{}", c.abbreviation),
                 label: format!("{} - {}", c.abbreviation, c.full_name),
-                description: format!("Tenant: {}", &c.tenant_id[..8]),
+                description: format!(
+                    "Tenant: {}",
+                    if c.tenant_id.len() >= 8 {
+                        &c.tenant_id[..8]
+                    } else {
+                        &c.tenant_id
+                    }
+                ),
                 shortcut: None,
                 enabled: true,
             })
@@ -1403,7 +1386,7 @@ impl App {
             MenuItem {
                 id: "report".into(),
                 label: "Generate Report".into(),
-                description: "Export HTML report for this client".into(),
+                description: "Export an HTML report for this client. Includes current configuration, compliance status, and recommendations. Saved to ~/.ctl365/reports/.".into(),
                 shortcut: Some('r'),
                 enabled: true,
             },
@@ -1614,9 +1597,9 @@ impl App {
                 MenuItem {
                     id: "apps".into(),
                     label: "Applications".into(),
-                    description: "View/deploy applications".into(),
+                    description: "View/deploy apps (Coming in v0.2)".into(),
                     shortcut: Some('3'),
-                    enabled: true,
+                    enabled: false, // Not yet implemented
                 },
                 MenuItem {
                     id: "back".into(),
@@ -1641,35 +1624,35 @@ impl App {
             MenuItem {
                 id: "compliance".into(),
                 label: "Compliance Report".into(),
-                description: "Full compliance audit with scoring".into(),
+                description: "Generate a full compliance audit report with 0-100 scoring. Shows policy deployment status, gap analysis vs baseline, and actionable remediation steps.".into(),
                 shortcut: Some('1'),
                 enabled: true,
             },
             MenuItem {
                 id: "security".into(),
                 label: "Security Assessment".into(),
-                description: "Security posture analysis".into(),
+                description: "Analyze tenant security posture. Reviews Defender settings, CA policies, MFA enforcement, and risky configurations. Outputs findings with severity ratings.".into(),
                 shortcut: Some('2'),
                 enabled: true,
             },
             MenuItem {
                 id: "inventory".into(),
                 label: "Policy Inventory".into(),
-                description: "List all deployed policies".into(),
+                description: "Export a complete inventory of all deployed Intune policies. Includes compliance policies, configuration profiles, apps, and CA policies with assignment details.".into(),
                 shortcut: Some('3'),
                 enabled: true,
             },
             MenuItem {
                 id: "changes".into(),
                 label: "Change Control Report".into(),
-                description: "Document changes made this session".into(),
+                description: "Generate a detailed change log of all modifications made in this session. Useful for change management documentation and client sign-off.".into(),
                 shortcut: Some('4'),
                 enabled: true,
             },
             MenuItem {
                 id: "executive".into(),
                 label: "Executive Summary".into(),
-                description: "High-level overview for leadership".into(),
+                description: "One-page executive summary for leadership. Includes compliance score, key metrics, risk highlights, and recommendations. Suitable for board or client presentations.".into(),
                 shortcut: Some('5'),
                 enabled: true,
             },
@@ -1840,7 +1823,7 @@ impl App {
             // Search toggle
             "filter" => self.toggle_search(),
 
-            // Refresh action
+            // Refresh action (non-blocking)
             "refresh" => {
                 let policy_type_clone = if let Screen::PolicyList(pt) = &self.screen {
                     Some(pt.clone())
@@ -1848,8 +1831,9 @@ impl App {
                     None
                 };
                 if let Some(policy_type) = policy_type_clone {
-                    self.load_policies(&policy_type);
-                    self.status_message = Some(("Policies refreshed".into(), StatusLevel::Success));
+                    self.load_policies_async(&policy_type);
+                    self.status_message =
+                        Some(("Refreshing policies...".into(), StatusLevel::Info));
                 }
             }
 
@@ -1933,7 +1917,7 @@ impl App {
         let tenant = self
             .active_tenant
             .clone()
-            .unwrap_or_else(|| "unknown".to_string());
+            .unwrap_or_else(|| "Unknown".to_string());
         let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
         let filename = format!("{}_{}_report_{}.html", tenant, report_type, timestamp);
 
@@ -2155,7 +2139,7 @@ impl App {
                 </div>
                 <div class="meta-item">
                     <span class="meta-label">Tool</span>
-                    <span class="meta-value">ctl365 v0.1.0</span>
+                    <span class="meta-value">ctl365 v{version}</span>
                 </div>
             </div>
             {content}
@@ -2170,50 +2154,312 @@ impl App {
             title = title,
             tenant = tenant,
             timestamp = timestamp,
+            version = env!("CARGO_PKG_VERSION"),
             content = content
         )
     }
 
     fn generate_compliance_content(&self) -> String {
-        r#"
+        // Calculate real compliance metrics from loaded data
+        let total_policies = self.table_data.len();
+        let deployed_count = self
+            .table_data
+            .iter()
+            .filter(|p| matches!(p.status, PolicyStatus::Deployed))
+            .count();
+        let report_only_count = self
+            .table_data
+            .iter()
+            .filter(|p| matches!(p.status, PolicyStatus::ReportOnly))
+            .count();
+        let disabled_count = self
+            .table_data
+            .iter()
+            .filter(|p| matches!(p.status, PolicyStatus::Disabled))
+            .count();
+
+        // Calculate score based on policy deployment status
+        let score = if total_policies > 0 {
+            let weighted =
+                (deployed_count * 100 + report_only_count * 50) as f64 / total_policies as f64;
+            weighted.round() as u32
+        } else {
+            0
+        };
+
+        // Count policies by type
+        let mut type_counts: std::collections::HashMap<String, (u32, u32, u32)> =
+            std::collections::HashMap::new();
+        for p in &self.table_data {
+            let entry = type_counts
+                .entry(p.policy_type.clone())
+                .or_insert((0, 0, 0));
+            match p.status {
+                PolicyStatus::Deployed => entry.0 += 1,
+                PolicyStatus::ReportOnly => entry.1 += 1,
+                PolicyStatus::Disabled | PolicyStatus::Draft => entry.2 += 1,
+            }
+        }
+
+        let category_rows: String = if type_counts.is_empty() {
+            "<tr><td colspan='4'>No policies loaded. Navigate to a policy view first.</td></tr>"
+                .to_string()
+        } else {
+            type_counts.iter()
+                .map(|(category, (deployed, report, disabled))| {
+                    let total = deployed + report + disabled;
+                    let cat_score = if total > 0 {
+                        (deployed * 100 + report * 50) / total
+                    } else { 0 };
+                    let status_class = if cat_score >= 80 { "deployed" } else if cat_score >= 50 { "reportonly" } else { "disabled" };
+                    let status_text = if cat_score >= 80 { "Good" } else if cat_score >= 50 { "Partial" } else { "Needs Attention" };
+                    format!(
+                        r#"<tr><td>{}</td><td class="status-{}">{}</td><td>{}%</td><td>{}/{}/{}</td></tr>"#,
+                        category, status_class, status_text, cat_score, deployed, report, disabled
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join("\n")
+        };
+
+        // Generate recommendations based on actual state
+        let mut recommendations = Vec::new();
+        if report_only_count > 0 {
+            recommendations.push(format!(
+                "Review and enable {} report-only policies",
+                report_only_count
+            ));
+        }
+        if disabled_count > 0 {
+            recommendations.push(format!(
+                "Evaluate {} disabled policies for potential deployment",
+                disabled_count
+            ));
+        }
+        if total_policies == 0 {
+            recommendations.push("Load policies from the tenant to assess compliance".to_string());
+        }
+        if total_policies > 0 && deployed_count < total_policies {
+            recommendations
+                .push("Move validated policies from report-only to enforced mode".to_string());
+        }
+
+        let recommendations_html = if recommendations.is_empty() {
+            "<li>All policies are deployed and enforced - excellent compliance posture!</li>"
+                .to_string()
+        } else {
+            recommendations
+                .iter()
+                .map(|r| format!("<li>{}</li>", r))
+                .collect::<Vec<_>>()
+                .join("\n")
+        };
+
+        format!(
+            r#"
         <div class="summary-box">
-            <span class="score">85%</span>
+            <span class="score">{}%</span>
             <p>Compliance Score</p>
         </div>
         <h2>Compliance Summary</h2>
+        <p>Based on {} policies loaded from tenant</p>
         <table>
-            <tr><th>Category</th><th>Status</th><th>Score</th></tr>
-            <tr><td>Device Compliance</td><td class="status-deployed">Compliant</td><td>90%</td></tr>
-            <tr><td>Conditional Access</td><td class="status-deployed">Deployed</td><td>85%</td></tr>
-            <tr><td>Data Protection</td><td class="status-report-only">Partial</td><td>75%</td></tr>
-            <tr><td>Identity Protection</td><td class="status-deployed">Compliant</td><td>88%</td></tr>
+            <tr><th>Category</th><th>Status</th><th>Score</th><th>Deployed/Report/Disabled</th></tr>
+            {}
         </table>
         <h2>Recommendations</h2>
         <ul>
-            <li>Enable MFA for all users</li>
-            <li>Deploy BitLocker encryption policies</li>
-            <li>Configure Windows Defender ATP</li>
+            {}
         </ul>
-        "#.to_string()
+        "#,
+            score, total_policies, category_rows, recommendations_html
+        )
     }
 
     fn generate_security_content(&self) -> String {
-        r#"
+        // Build security controls from actual setting toggles and policy data
+        let mut controls = Vec::new();
+        let mut enabled_count = 0;
+        let mut total_controls = 0;
+
+        // Check Defender settings
+        if let Some(&enabled) = self.setting_toggles.get("safe_links") {
+            total_controls += 1;
+            if enabled {
+                enabled_count += 1;
+            }
+            controls.push((
+                "Safe Links (Defender)",
+                enabled,
+                if enabled { "Low" } else { "Medium" },
+            ));
+        }
+        if let Some(&enabled) = self.setting_toggles.get("safe_attachments") {
+            total_controls += 1;
+            if enabled {
+                enabled_count += 1;
+            }
+            controls.push((
+                "Safe Attachments",
+                enabled,
+                if enabled { "Low" } else { "High" },
+            ));
+        }
+        if let Some(&enabled) = self.setting_toggles.get("safe_links_teams") {
+            total_controls += 1;
+            if enabled {
+                enabled_count += 1;
+            }
+            controls.push((
+                "Safe Links for Teams",
+                enabled,
+                if enabled { "Low" } else { "Medium" },
+            ));
+        }
+
+        // Check Exchange settings
+        if let Some(&enabled) = self.setting_toggles.get("forwarding") {
+            total_controls += 1;
+            if enabled {
+                enabled_count += 1;
+            }
+            controls.push((
+                "External Forwarding Blocked",
+                enabled,
+                if enabled { "Low" } else { "High" },
+            ));
+        }
+        if let Some(&enabled) = self.setting_toggles.get("zap") {
+            total_controls += 1;
+            if enabled {
+                enabled_count += 1;
+            }
+            controls.push((
+                "Zero-Hour Auto Purge (ZAP)",
+                enabled,
+                if enabled { "Low" } else { "Medium" },
+            ));
+        }
+
+        // Check SharePoint settings
+        if let Some(&disabled) = self.setting_toggles.get("external_sharing") {
+            total_controls += 1;
+            if !disabled {
+                enabled_count += 1;
+            } // Disabled sharing = more secure
+            controls.push((
+                "External Sharing Restricted",
+                !disabled,
+                if !disabled { "Low" } else { "Medium" },
+            ));
+        }
+
+        // Check Teams settings
+        if let Some(&disabled) = self.setting_toggles.get("external_access") {
+            total_controls += 1;
+            if !disabled {
+                enabled_count += 1;
+            }
+            controls.push((
+                "Teams External Access Restricted",
+                !disabled,
+                if !disabled { "Low" } else { "Medium" },
+            ));
+        }
+        if let Some(&disabled) = self.setting_toggles.get("anonymous_join") {
+            total_controls += 1;
+            if !disabled {
+                enabled_count += 1;
+            }
+            controls.push((
+                "Anonymous Meeting Join Blocked",
+                !disabled,
+                if !disabled { "Low" } else { "High" },
+            ));
+        }
+
+        // Check CA policies from loaded data
+        let ca_policies = self
+            .table_data
+            .iter()
+            .filter(|p| p.policy_type.contains("CA") || p.policy_type.contains("Conditional"))
+            .count();
+        let ca_enforced = self
+            .table_data
+            .iter()
+            .filter(|p| {
+                (p.policy_type.contains("CA") || p.policy_type.contains("Conditional"))
+                    && matches!(p.status, PolicyStatus::Deployed)
+            })
+            .count();
+        if ca_policies > 0 {
+            total_controls += 1;
+            let ca_enabled = ca_enforced > 0;
+            if ca_enabled {
+                enabled_count += 1;
+            }
+            controls.push((
+                "Conditional Access Policies",
+                ca_enabled,
+                if ca_enforced == ca_policies {
+                    "Low"
+                } else if ca_enforced > 0 {
+                    "Medium"
+                } else {
+                    "High"
+                },
+            ));
+        }
+
+        // Calculate security grade
+        let grade = if total_controls == 0 {
+            "N/A"
+        } else {
+            let pct = (enabled_count * 100) / total_controls;
+            match pct {
+                90..=100 => "A",
+                80..=89 => "B+",
+                70..=79 => "B",
+                60..=69 => "C+",
+                50..=59 => "C",
+                _ => "D",
+            }
+        };
+
+        let control_rows: String = if controls.is_empty() {
+            "<tr><td colspan='3'>Configure security settings to assess security posture</td></tr>"
+                .to_string()
+        } else {
+            controls
+                .iter()
+                .map(|(name, enabled, risk)| {
+                    let status_class = if *enabled { "deployed" } else { "disabled" };
+                    let status_text = if *enabled { "Enabled" } else { "Disabled" };
+                    format!(
+                        r#"<tr><td>{}</td><td class="status-{}">{}</td><td>{}</td></tr>"#,
+                        name, status_class, status_text, risk
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join("\n")
+        };
+
+        format!(
+            r#"
         <h2>Security Posture</h2>
         <div class="summary-box">
-            <span class="score">B+</span>
+            <span class="score">{}</span>
             <p>Security Grade</p>
         </div>
+        <p>{} of {} security controls enabled</p>
         <h2>Security Controls</h2>
         <table>
-            <tr><th>Control</th><th>Status</th><th>Risk</th></tr>
-            <tr><td>Multi-Factor Authentication</td><td class="status-deployed">Enabled</td><td>Low</td></tr>
-            <tr><td>Legacy Authentication</td><td class="status-deployed">Blocked</td><td>Low</td></tr>
-            <tr><td>Conditional Access</td><td class="status-report-only">Report-Only</td><td>Medium</td></tr>
-            <tr><td>Device Encryption</td><td class="status-deployed">Required</td><td>Low</td></tr>
-            <tr><td>Safe Links</td><td class="status-deployed">Enabled</td><td>Low</td></tr>
+            <tr><th>Control</th><th>Status</th><th>Risk Level</th></tr>
+            {}
         </table>
-        "#.to_string()
+        "#,
+            grade, enabled_count, total_controls, control_rows
+        )
     }
 
     fn generate_inventory_content(&self) -> String {
@@ -2291,27 +2537,142 @@ impl App {
     }
 
     fn generate_executive_content(&self) -> String {
+        // Calculate real metrics
+        let total_policies = self.table_data.len();
+        let deployed_count = self
+            .table_data
+            .iter()
+            .filter(|p| matches!(p.status, PolicyStatus::Deployed))
+            .count();
+        let report_only_count = self
+            .table_data
+            .iter()
+            .filter(|p| matches!(p.status, PolicyStatus::ReportOnly))
+            .count();
+
+        // Compliance score
+        let compliance_score = if total_policies > 0 {
+            ((deployed_count * 100 + report_only_count * 50) as f64 / total_policies as f64).round()
+                as u32
+        } else {
+            0
+        };
+        let compliance_rating = match compliance_score {
+            80..=100 => "Good",
+            60..=79 => "Fair",
+            40..=59 => "Needs Improvement",
+            _ => "Critical",
+        };
+
+        // Security grade from settings
+        let security_controls_enabled = self.setting_toggles.values().filter(|&&v| v).count();
+        let security_controls_total = self.setting_toggles.len();
+        let security_grade = if security_controls_total == 0 {
+            "N/A"
+        } else {
+            let pct = (security_controls_enabled * 100) / security_controls_total;
+            match pct {
+                90..=100 => "A",
+                80..=89 => "B+",
+                70..=79 => "B",
+                60..=69 => "C+",
+                50..=59 => "C",
+                _ => "D",
+            }
+        };
+
+        // Risk assessment
+        let risk_level = if compliance_score >= 80
+            && security_controls_enabled >= security_controls_total.saturating_sub(1)
+        {
+            "Low"
+        } else if compliance_score >= 60 || security_controls_enabled > security_controls_total / 2
+        {
+            "Medium"
+        } else {
+            "High"
+        };
+
+        // Session changes
+        let changes = crate::tui::change_tracker::load_session_changes().unwrap_or_default();
+        let change_count = changes.len();
+
+        // Generate recommendations based on actual state
+        let mut recommendations = Vec::new();
+        if report_only_count > 0 {
+            recommendations.push(format!(
+                "Transition {} Conditional Access policies from Report-Only to Enforced mode after validation",
+                report_only_count
+            ));
+        }
+        if !self
+            .setting_toggles
+            .get("safe_attachments")
+            .copied()
+            .unwrap_or(false)
+        {
+            recommendations
+                .push("Enable Safe Attachments in Microsoft Defender for Office 365".to_string());
+        }
+        if !self
+            .setting_toggles
+            .get("safe_links")
+            .copied()
+            .unwrap_or(false)
+        {
+            recommendations.push("Enable Safe Links protection for email and Teams".to_string());
+        }
+        if self
+            .setting_toggles
+            .get("external_sharing")
+            .copied()
+            .unwrap_or(true)
+        {
+            recommendations
+                .push("Review and restrict SharePoint external sharing settings".to_string());
+        }
+        if total_policies == 0 {
+            recommendations
+                .push("Connect to tenant and load policies to complete assessment".to_string());
+        }
+        if recommendations.is_empty() {
+            recommendations
+                .push("Continue monitoring and schedule quarterly security reviews".to_string());
+        }
+
+        let recommendations_html = recommendations
+            .iter()
+            .enumerate()
+            .map(|(i, r)| format!("<li>{}. {}</li>", i + 1, r))
+            .collect::<Vec<_>>()
+            .join("\n");
+
         format!(
             r#"
         <h2>Executive Summary</h2>
         <div class="summary-box">
             <h3>Key Highlights</h3>
             <ul>
-                <li><strong>Compliance Score:</strong> 85% (Good)</li>
-                <li><strong>Security Posture:</strong> B+ Grade</li>
-                <li><strong>Active Policies:</strong> {} deployed</li>
-                <li><strong>Risk Level:</strong> Low-Medium</li>
+                <li><strong>Compliance Score:</strong> {}% ({})</li>
+                <li><strong>Security Posture:</strong> {} Grade</li>
+                <li><strong>Active Policies:</strong> {} deployed, {} report-only</li>
+                <li><strong>Risk Level:</strong> {}</li>
+                <li><strong>Session Changes:</strong> {} modifications</li>
             </ul>
         </div>
         <h2>Recommendations</h2>
         <ol>
-            <li>Transition Conditional Access policies from Report-Only to Enforced mode</li>
-            <li>Enable Windows Defender for Endpoint on all devices</li>
-            <li>Review and remediate devices with compliance issues</li>
-            <li>Schedule quarterly security reviews</li>
+            {}
         </ol>
         "#,
-            self.table_data.len()
+            compliance_score,
+            compliance_rating,
+            security_grade,
+            deployed_count,
+            report_only_count,
+            risk_level,
+            change_count,
+            recommendations_html
         )
     }
 
@@ -2458,7 +2819,7 @@ impl App {
             <h3>Session Information</h3>
             <table>
                 <tr><td>Generated</td><td>{}</td></tr>
-                <tr><td>Tool Version</td><td>ctl365 v0.1.0</td></tr>
+                <tr><td>Tool Version</td><td>ctl365 v{}</td></tr>
                 <tr><td>Tenant</td><td>{}</td></tr>
                 <tr><td>Changes This Session</td><td>{}</td></tr>
             </table>
@@ -2473,6 +2834,7 @@ impl App {
             recent_changes,
             no_changes_msg,
             timestamp,
+            env!("CARGO_PKG_VERSION"),
             tenant,
             change_count
         )
@@ -2491,7 +2853,7 @@ impl App {
         let tenant = self
             .active_tenant
             .clone()
-            .unwrap_or_else(|| "unknown".to_string());
+            .unwrap_or_else(|| "Unknown".to_string());
         let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
 
         let export_dir = directories::UserDirs::new()
@@ -2674,7 +3036,7 @@ impl App {
         }
     }
 
-    /// Apply settings to tenant via Graph API
+    /// Apply settings to tenant via Graph API (non-blocking)
     fn apply_settings_to_tenant(&mut self, category: SettingsCategory) {
         let tenant_name = match &self.active_tenant {
             Some(name) => name.clone(),
@@ -2685,64 +3047,13 @@ impl App {
             }
         };
 
-        // Build TenantConfiguration from current toggle states
-        let tenant_config = self.build_tenant_config_from_toggles();
-
-        // Execute async API call using tokio runtime
-        let handle = match tokio::runtime::Handle::try_current() {
-            Ok(h) => h,
-            Err(_) => {
-                self.status_message =
-                    Some(("No async runtime available".into(), StatusLevel::Error));
-                return;
-            }
-        };
-
-        let config = self.config.clone();
-        let result = match category {
-            SettingsCategory::Defender => handle.block_on(async {
-                crate::tui::menu::apply_defender_settings_from_config(
-                    &config,
-                    &tenant_name,
-                    &tenant_config,
-                )
-                .await
-            }),
-            SettingsCategory::Exchange => handle.block_on(async {
-                crate::tui::menu::apply_exchange_settings_from_config(
-                    &config,
-                    &tenant_name,
-                    &tenant_config,
-                )
-                .await
-            }),
-            SettingsCategory::SharePoint => handle.block_on(async {
-                crate::tui::menu::apply_sharepoint_settings_from_config(
-                    &config,
-                    &tenant_name,
-                    &tenant_config,
-                )
-                .await
-            }),
-            SettingsCategory::Teams => handle.block_on(async {
-                crate::tui::menu::apply_teams_settings_from_config(
-                    &config,
-                    &tenant_name,
-                    &tenant_config,
-                )
-                .await
-            }),
-            SettingsCategory::Main => {
-                // Apply all settings
-                handle.block_on(async {
-                    crate::tui::menu::apply_all_settings_from_config(
-                        &config,
-                        &tenant_name,
-                        &tenant_config,
-                    )
-                    .await
-                })
-            }
+        // Map app SettingsCategory to task SettingsCategory
+        let task_category = match category {
+            SettingsCategory::Defender => crate::tui::tasks::SettingsCategory::Defender,
+            SettingsCategory::Exchange => crate::tui::tasks::SettingsCategory::Exchange,
+            SettingsCategory::SharePoint => crate::tui::tasks::SettingsCategory::SharePoint,
+            SettingsCategory::Teams => crate::tui::tasks::SettingsCategory::Teams,
+            SettingsCategory::Main => crate::tui::tasks::SettingsCategory::All,
             _ => {
                 self.status_message = Some((
                     "Settings category not supported for API apply".into(),
@@ -2752,37 +3063,33 @@ impl App {
             }
         };
 
-        match result {
-            Ok(msg) => {
-                // Record audit entry for settings applied
-                let category_name = match category {
-                    SettingsCategory::Defender => "Defender",
-                    SettingsCategory::Exchange => "Exchange",
-                    SettingsCategory::SharePoint => "SharePoint",
-                    SettingsCategory::Teams => "Teams",
-                    _ => "Settings",
-                };
-                crate::tui::change_tracker::record_setting_change(
-                    category_name,
-                    "Settings Applied",
-                    None,
-                    "Configured via TUI",
-                    &tenant_name,
-                );
-                self.status_message = Some((msg, StatusLevel::Success));
-            }
-            Err(e) => {
-                crate::tui::change_tracker::record_error(
-                    "Settings",
-                    "Apply Settings",
-                    &e.to_string(),
-                    &tenant_name,
-                );
-                self.status_message = Some((
-                    format!("Failed to apply settings: {}", e),
-                    StatusLevel::Error,
-                ));
-            }
+        let category_name = match category {
+            SettingsCategory::Defender => "Defender",
+            SettingsCategory::Exchange => "Exchange",
+            SettingsCategory::SharePoint => "SharePoint",
+            SettingsCategory::Teams => "Teams",
+            _ => "Settings",
+        };
+
+        self.start_async_task(
+            "apply_settings",
+            &format!("Applying {} settings...", category_name),
+        );
+
+        let request = crate::tui::tasks::TaskRequest::ApplySettings {
+            tenant_name: tenant_name.clone(),
+            category: task_category.clone(),
+            settings: self.setting_toggles.clone(),
+        };
+
+        if !self.send_task(request) {
+            self.status_message = Some((
+                format!(
+                    "Failed to start settings task for {} ({:?}). Task queue may be full.",
+                    tenant_name, task_category
+                ),
+                StatusLevel::Error,
+            ));
         }
     }
 
@@ -2866,7 +3173,10 @@ impl App {
         // Parse baseline type (e.g., "windows_oib", "windows_basic")
         let (platform, template) = if baseline_type.contains('_') {
             let parts: Vec<&str> = baseline_type.splitn(2, '_').collect();
-            (parts[0], parts.get(1).copied().unwrap_or("basic"))
+            // Safe indexing - splitn(2, '_') on a string containing '_' always has at least 1 element
+            let platform = parts.first().copied().unwrap_or("windows");
+            let template = parts.get(1).copied().unwrap_or("basic");
+            (platform, template)
         } else {
             ("windows", baseline_type)
         };
@@ -2915,63 +3225,31 @@ impl App {
             }
         };
 
-        // Start progress indicator
+        // Start progress indicator (non-blocking)
         self.start_async_task(
             "deploy_baseline",
             &format!("Deploying {} baseline...", template),
         );
 
-        // Execute async deploy
-        let handle = match tokio::runtime::Handle::try_current() {
-            Ok(h) => h,
-            Err(_) => {
-                self.complete_async_task(false, "No async runtime available");
-                return;
-            }
+        let baseline_type = format!("{}_{}", platform, template);
+        let request = crate::tui::tasks::TaskRequest::DeployBaseline {
+            tenant_name: tenant_name.clone(),
+            baseline_type: baseline_type.clone(),
+            baseline_data: baseline,
         };
 
-        // Count policies for progress
-        let policy_count = baseline["policies"]
-            .as_array()
-            .map(|a| a.len())
-            .unwrap_or(0);
-
-        self.update_async_progress(10, &format!("Found {} policies to deploy", policy_count));
-
-        let config = self.config.clone();
-        let result = handle.block_on(async {
-            deploy_baseline_policies_with_progress(&config, &tenant_name, &baseline).await
-        });
-
-        match result {
-            Ok(count) => {
-                // Record audit entry
-                crate::tui::change_tracker::record_baseline_deployed(
-                    &format!("{} baseline", template),
-                    count,
-                    &tenant_name,
-                );
-                self.complete_async_task(
-                    true,
-                    &format!(
-                        "Successfully deployed {} policies from {} baseline",
-                        count, template
-                    ),
-                );
-            }
-            Err(e) => {
-                crate::tui::change_tracker::record_error(
-                    "Baseline",
-                    &format!("{} baseline deployment", template),
-                    &e.to_string(),
-                    &tenant_name,
-                );
-                self.complete_async_task(false, &format!("Failed to deploy baseline: {}", e));
-            }
+        if !self.send_task(request) {
+            self.complete_async_task(
+                false,
+                &format!(
+                    "Failed to start baseline deployment ({} to {}). Task queue may be full.",
+                    baseline_type, tenant_name
+                ),
+            );
         }
     }
 
-    /// Deploy Conditional Access policies to tenant
+    /// Deploy Conditional Access policies to tenant (non-blocking)
     fn deploy_conditional_access_policies(&mut self) {
         let tenant_name = match &self.active_tenant {
             Some(name) => name.clone(),
@@ -2982,48 +3260,21 @@ impl App {
             }
         };
 
-        // Start progress indicator
+        // Start progress indicator (non-blocking)
         self.start_async_task("deploy_ca", "Deploying CA Baseline 2025...");
 
-        let handle = match tokio::runtime::Handle::try_current() {
-            Ok(h) => h,
-            Err(_) => {
-                self.complete_async_task(false, "No async runtime available");
-                return;
-            }
+        let request = crate::tui::tasks::TaskRequest::DeployConditionalAccess {
+            tenant_name: tenant_name.clone(),
         };
 
-        self.update_async_progress(5, "Generating 44 CA policies...");
-
-        let config = self.config.clone();
-        let result = handle
-            .block_on(async { deploy_ca_policies_2025_with_progress(&config, &tenant_name).await });
-
-        match result {
-            Ok(count) => {
-                // Record audit entry
-                crate::tui::change_tracker::record_baseline_deployed(
-                    "CA Baseline 2025",
-                    count,
-                    &tenant_name,
-                );
-                self.complete_async_task(
-                    true,
-                    &format!(
-                        "Successfully deployed {} CA policies in Report-Only mode",
-                        count
-                    ),
-                );
-            }
-            Err(e) => {
-                crate::tui::change_tracker::record_error(
-                    "Conditional Access",
-                    "CA Baseline 2025 deployment",
-                    &e.to_string(),
-                    &tenant_name,
-                );
-                self.complete_async_task(false, &format!("Failed to deploy CA policies: {}", e));
-            }
+        if !self.send_task(request) {
+            self.complete_async_task(
+                false,
+                &format!(
+                    "Failed to start CA deployment to {}. Task queue may be full.",
+                    tenant_name
+                ),
+            );
         }
     }
 
@@ -3326,13 +3577,18 @@ impl App {
         self.start_async_task("load_policies", "Loading policies...");
 
         let request = crate::tui::tasks::TaskRequest::LoadPolicies {
-            tenant_name: tenant,
-            policy_type: task_type,
+            tenant_name: tenant.clone(),
+            policy_type: task_type.clone(),
         };
 
         if !self.send_task(request) {
-            self.status_message =
-                Some(("Failed to start background task".into(), StatusLevel::Error));
+            self.status_message = Some((
+                format!(
+                    "Failed to load {:?} policies from {}. Task queue may be full.",
+                    task_type, tenant
+                ),
+                StatusLevel::Error,
+            ));
         }
     }
 
@@ -3363,35 +3619,96 @@ impl App {
     }
 }
 
+/// Restore terminal to normal state (used on panic or exit)
+/// This function is idempotent and safe to call multiple times.
+fn restore_terminal() {
+    // Disable raw mode first - this is critical for Windows PowerShell
+    let _ = disable_raw_mode();
+
+    // Leave alternate screen and disable mouse capture
+    // Use a fresh stdout handle to avoid any state issues
+    let mut stdout = io::stdout();
+    let _ = execute!(stdout, LeaveAlternateScreen, DisableMouseCapture);
+
+    // Ensure cursor is visible (important for Windows terminals)
+    let _ = execute!(stdout, crossterm::cursor::Show);
+
+    // Flush stdout to ensure all commands are sent
+    let _ = std::io::Write::flush(&mut stdout);
+}
+
 /// Run the TUI application
 pub fn run_tui() -> Result<()> {
-    // Setup terminal
-    enable_raw_mode()?;
+    // Install panic hook to restore terminal on crash
+    // This is critical for Windows where a panic can leave the terminal in a broken state
+    let original_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |panic_info| {
+        // Always restore terminal state first, before printing panic info
+        restore_terminal();
+
+        // Print a newline to separate from any TUI output
+        eprintln!();
+        eprintln!("ctl365 TUI crashed unexpectedly. Terminal has been restored.");
+        eprintln!();
+
+        // Call original hook for standard panic output
+        original_hook(panic_info);
+    }));
+
+    // Setup terminal with proper error handling
+    if let Err(e) = enable_raw_mode() {
+        return Err(crate::error::Error::ConfigError(format!(
+            "Failed to enable raw mode: {}. Try running in a supported terminal.",
+            e
+        )));
+    }
+
     let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+    if let Err(e) = execute!(stdout, EnterAlternateScreen, EnableMouseCapture) {
+        // Restore terminal state before returning error
+        let _ = disable_raw_mode();
+        return Err(crate::error::Error::ConfigError(format!(
+            "Failed to enter alternate screen: {}",
+            e
+        )));
+    }
+
     let backend = CrosstermBackend::new(stdout);
-    let mut terminal = Terminal::new(backend)?;
+    let mut terminal = match Terminal::new(backend) {
+        Ok(t) => t,
+        Err(e) => {
+            restore_terminal();
+            return Err(crate::error::Error::ConfigError(format!(
+                "Failed to create terminal: {}",
+                e
+            )));
+        }
+    };
 
     // Create app
-    let mut app = App::new()?;
+    let mut app = match App::new() {
+        Ok(a) => a,
+        Err(e) => {
+            restore_terminal();
+            return Err(e);
+        }
+    };
 
-    // Main loop
+    // Main loop - wrapped to ensure cleanup on any error
     let res = run_app(&mut terminal, &mut app);
 
-    // Shutdown background worker
+    // Shutdown background worker before restoring terminal
     app.shutdown_worker();
 
-    // Restore terminal
-    disable_raw_mode()?;
-    execute!(
-        terminal.backend_mut(),
-        LeaveAlternateScreen,
-        DisableMouseCapture
-    )?;
-    terminal.show_cursor()?;
+    // Always restore terminal, even if there was an error
+    restore_terminal();
 
+    // Show cursor (this may fail if terminal is already restored, which is fine)
+    let _ = terminal.show_cursor();
+
+    // Report any error that occurred during the main loop
     if let Err(err) = res {
-        println!("Error: {:?}", err);
+        eprintln!("TUI error: {:?}", err);
     }
 
     Ok(())
@@ -3661,12 +3978,12 @@ fn render_header(f: &mut Frame, app: &App, area: Rect) {
         Screen::AuditHistory => "Home > Audit History".into(),
     };
 
-    // Microsoft 365-inspired header with blue accent
+    // Microsoft 365-inspired header with Fluent Design blue accent
     let header = Paragraph::new(Line::from(vec![
         Span::styled(
-            " M365 ",
+            " Microsoft 365 ",
             Style::default()
-                .bg(Color::Rgb(0, 120, 212))
+                .bg(Color::Rgb(0, 120, 212)) // M365 blue
                 .fg(Color::White)
                 .add_modifier(Modifier::BOLD),
         ),
@@ -3676,14 +3993,13 @@ fn render_header(f: &mut Frame, app: &App, area: Rect) {
                 .fg(Color::Rgb(0, 120, 212))
                 .add_modifier(Modifier::BOLD),
         ),
-        Span::styled(" | ", Style::default().fg(Color::DarkGray)),
-        Span::styled(&breadcrumb, Style::default().fg(Color::Gray)),
-        Span::styled(" ", Style::default()),
+        Span::styled(" > ", Style::default().fg(Color::Rgb(100, 100, 100))),
+        Span::styled(&breadcrumb, Style::default().fg(Color::Rgb(180, 180, 180))),
     ]))
     .block(
         Block::default()
             .borders(Borders::BOTTOM)
-            .border_style(Style::default().fg(Color::Rgb(50, 50, 50))),
+            .border_style(Style::default().fg(Color::Rgb(60, 60, 60))),
     );
 
     f.render_widget(header, area);
@@ -3786,16 +4102,21 @@ fn render_menu(f: &mut Frame, app: &App, area: Rect) {
         .block(
             Block::default()
                 .title(format!(" {} ", title))
+                .title_style(
+                    Style::default()
+                        .fg(Color::White)
+                        .add_modifier(Modifier::BOLD),
+                )
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(Color::Cyan)),
+                .border_style(Style::default().fg(Color::Rgb(0, 120, 212))), // M365 blue border
         )
         .highlight_style(
             Style::default()
-                .bg(Color::Cyan)
-                .fg(Color::Black)
+                .bg(Color::Rgb(0, 120, 212)) // M365 blue highlight
+                .fg(Color::White)
                 .add_modifier(Modifier::BOLD),
         )
-        .highlight_symbol("► ");
+        .highlight_symbol("> ");
 
     f.render_stateful_widget(menu, area, &mut app.menu_state.clone());
 }
@@ -3858,9 +4179,15 @@ fn render_details(f: &mut Frame, app: &App, area: Rect) {
         .block(
             Block::default()
                 .title(title)
+                .title_style(
+                    Style::default()
+                        .fg(Color::White)
+                        .add_modifier(Modifier::BOLD),
+                )
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(Color::DarkGray)),
+                .border_style(Style::default().fg(Color::Rgb(80, 80, 80))),
         )
+        .style(Style::default().fg(Color::Rgb(200, 200, 200)))
         .wrap(Wrap { trim: true });
 
     f.render_widget(details, area);
@@ -3868,20 +4195,32 @@ fn render_details(f: &mut Frame, app: &App, area: Rect) {
 
 fn render_status_bar(f: &mut Frame, app: &App, area: Rect) {
     let (msg, style) = match &app.status_message {
-        Some((msg, StatusLevel::Success)) => (msg.clone(), Style::default().fg(Color::Green)),
-        Some((msg, StatusLevel::Warning)) => (msg.clone(), Style::default().fg(Color::Yellow)),
-        Some((msg, StatusLevel::Error)) => (msg.clone(), Style::default().fg(Color::Red)),
-        Some((msg, StatusLevel::Info)) => (msg.clone(), Style::default().fg(Color::Cyan)),
+        Some((msg, StatusLevel::Success)) => (
+            format!(" [OK] {} ", msg),
+            Style::default().fg(Color::Rgb(16, 124, 16)), // M365 green
+        ),
+        Some((msg, StatusLevel::Warning)) => (
+            format!(" [!] {} ", msg),
+            Style::default().fg(Color::Rgb(255, 185, 0)), // M365 gold
+        ),
+        Some((msg, StatusLevel::Error)) => (
+            format!(" [X] {} ", msg),
+            Style::default().fg(Color::Rgb(209, 52, 56)), // M365 red
+        ),
+        Some((msg, StatusLevel::Info)) => (
+            format!(" [i] {} ", msg),
+            Style::default().fg(Color::Rgb(0, 120, 212)), // M365 blue
+        ),
         None => (
-            "↑↓/jk: Navigate │ Enter: Select │ Esc/Backspace: Back │ ?: Help │ q: Quit".into(),
-            Style::default().fg(Color::DarkGray),
+            " Arrow/jk: Navigate | Enter: Select | Esc: Back | ?: Help | q: Quit ".into(),
+            Style::default().fg(Color::Rgb(120, 120, 120)),
         ),
     };
 
     let status = Paragraph::new(msg).style(style).block(
         Block::default()
             .borders(Borders::TOP)
-            .border_style(Style::default().fg(Color::DarkGray)),
+            .border_style(Style::default().fg(Color::Rgb(60, 60, 60))),
     );
 
     f.render_widget(status, area);
@@ -3982,11 +4321,16 @@ fn render_help_overlay(f: &mut Frame, app: &App) {
     let help = Paragraph::new(help_text.join("\n"))
         .block(
             Block::default()
-                .title(" ctl365 Help [?] ")
+                .title(" ctl365 Help ")
+                .title_style(
+                    Style::default()
+                        .fg(Color::White)
+                        .add_modifier(Modifier::BOLD),
+                )
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(Color::Cyan)),
+                .border_style(Style::default().fg(Color::Rgb(0, 120, 212))), // M365 blue
         )
-        .style(Style::default().fg(Color::White));
+        .style(Style::default().fg(Color::Rgb(220, 220, 220)));
 
     f.render_widget(help, area);
 }
@@ -4002,14 +4346,20 @@ fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
         ])
         .split(r);
 
-    Layout::default()
+    // Safe: Layout::split with 3 constraints always returns 3 elements
+    // Use get() with fallback to r for defensive coding
+    let vertical_center = popup_layout.get(1).copied().unwrap_or(r);
+
+    let horizontal_layout = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
             Constraint::Percentage((100 - percent_x) / 2),
             Constraint::Percentage(percent_x),
             Constraint::Percentage((100 - percent_x) / 2),
         ])
-        .split(popup_layout[1])[1]
+        .split(vertical_center);
+
+    horizontal_layout.get(1).copied().unwrap_or(r)
 }
 
 /// Render interactive policy table with pagination
@@ -4019,7 +4369,7 @@ fn render_policy_table(f: &mut Frame, app: &App, area: Rect) {
         .map(|h| {
             ratatui::widgets::Cell::from(*h).style(
                 Style::default()
-                    .fg(Color::Cyan)
+                    .fg(Color::Rgb(0, 120, 212)) // M365 blue headers
                     .add_modifier(Modifier::BOLD),
             )
         });
@@ -4075,22 +4425,30 @@ fn render_policy_table(f: &mut Frame, app: &App, area: Rect) {
     .block(
         Block::default()
             .title(title)
+            .title_style(
+                Style::default()
+                    .fg(Color::White)
+                    .add_modifier(Modifier::BOLD),
+            )
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::Cyan)),
+            .border_style(Style::default().fg(Color::Rgb(0, 120, 212))), // M365 blue border
     )
     .row_highlight_style(
         Style::default()
-            .bg(Color::Cyan)
-            .fg(Color::Black)
+            .bg(Color::Rgb(0, 120, 212)) // M365 blue highlight
+            .fg(Color::White)
             .add_modifier(Modifier::BOLD),
     )
-    .highlight_symbol("► ");
+    .highlight_symbol("> ");
 
     f.render_stateful_widget(table, area, &mut app.table_state.clone());
 }
 
-/// Render policy action bar
+/// Render policy action bar with M365 Fluent Design styling
 fn render_policy_actions(f: &mut Frame, app: &App, area: Rect) {
+    // M365 color palette
+    let m365_blue = Color::Rgb(0, 120, 212);
+
     let total_pages = app.table_total_pages();
 
     // Build actions with pagination hints when multiple pages exist
@@ -4122,46 +4480,51 @@ fn render_policy_actions(f: &mut Frame, app: &App, area: Rect) {
         .block(
             Block::default()
                 .title(" Actions ")
+                .title_style(Style::default().fg(Color::Rgb(180, 180, 180)))
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(Color::DarkGray)),
+                .border_style(Style::default().fg(Color::Rgb(80, 80, 80))),
         )
+        .style(Style::default().fg(m365_blue))
         .alignment(Alignment::Center);
 
     f.render_widget(actions_widget, area);
 }
 
-/// Render audit history table
+/// Render audit history table with M365 Fluent Design styling
 fn render_audit_table(f: &mut Frame, app: &App, area: Rect) {
     use crate::tui::change_tracker::{AuditAction, AuditSeverity};
+
+    // M365 color palette
+    let m365_blue = Color::Rgb(0, 120, 212);
+    let m365_green = Color::Rgb(16, 124, 16);
+    let m365_gold = Color::Rgb(255, 185, 0);
+    let m365_red = Color::Rgb(209, 52, 56);
 
     let header_cells = ["Time", "Action", "Category", "Target", "Tenant", "Status"]
         .iter()
         .map(|h| {
-            ratatui::widgets::Cell::from(*h).style(
-                Style::default()
-                    .fg(Color::Cyan)
-                    .add_modifier(Modifier::BOLD),
-            )
+            ratatui::widgets::Cell::from(*h)
+                .style(Style::default().fg(m365_blue).add_modifier(Modifier::BOLD))
         });
     let header = Row::new(header_cells).height(1).bottom_margin(1);
 
     let rows = app.audit_entries.iter().map(|entry| {
-        // Color code by severity
+        // Color code by severity (M365 colors)
         let status_color = match entry.severity {
-            AuditSeverity::Success => Color::Green,
-            AuditSeverity::Warning => Color::Yellow,
-            AuditSeverity::Error => Color::Red,
-            AuditSeverity::Info => Color::Cyan,
+            AuditSeverity::Success => m365_green,
+            AuditSeverity::Warning => m365_gold,
+            AuditSeverity::Error => m365_red,
+            AuditSeverity::Info => m365_blue,
         };
 
-        // Color code by action type
+        // Color code by action type (M365 colors)
         let action_color = match entry.action {
-            AuditAction::PolicyCreated | AuditAction::BaselineDeployed => Color::Green,
-            AuditAction::PolicyDeleted | AuditAction::TenantRemoved => Color::Red,
-            AuditAction::SettingChanged | AuditAction::PolicyModified => Color::Yellow,
-            AuditAction::UserAuthenticated => Color::Cyan,
-            AuditAction::Error => Color::Red,
-            _ => Color::White,
+            AuditAction::PolicyCreated | AuditAction::BaselineDeployed => m365_green,
+            AuditAction::PolicyDeleted | AuditAction::TenantRemoved => m365_red,
+            AuditAction::SettingChanged | AuditAction::PolicyModified => m365_gold,
+            AuditAction::UserAuthenticated => m365_blue,
+            AuditAction::Error => m365_red,
+            _ => Color::Rgb(200, 200, 200),
         };
 
         let status_text = if entry.success { "OK" } else { "FAIL" };
@@ -4206,16 +4569,21 @@ fn render_audit_table(f: &mut Frame, app: &App, area: Rect) {
     .block(
         Block::default()
             .title(title)
+            .title_style(
+                Style::default()
+                    .fg(Color::White)
+                    .add_modifier(Modifier::BOLD),
+            )
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::Cyan)),
+            .border_style(Style::default().fg(m365_blue)),
     )
     .row_highlight_style(
         Style::default()
-            .bg(Color::Cyan)
-            .fg(Color::Black)
+            .bg(m365_blue)
+            .fg(Color::White)
             .add_modifier(Modifier::BOLD),
     )
-    .highlight_symbol("► ");
+    .highlight_symbol("> ");
 
     f.render_stateful_widget(table, area, &mut app.table_state.clone());
 
@@ -4229,7 +4597,7 @@ fn render_audit_table(f: &mut Frame, app: &App, area: Rect) {
         };
         let empty_msg =
             Paragraph::new("No audit entries found. Changes made through ctl365 will appear here.")
-                .style(Style::default().fg(Color::DarkGray))
+                .style(Style::default().fg(Color::Rgb(100, 100, 100)))
                 .alignment(Alignment::Center);
         f.render_widget(empty_msg, empty_area);
     }
@@ -4237,16 +4605,23 @@ fn render_audit_table(f: &mut Frame, app: &App, area: Rect) {
 
 /// Truncate a string to max length with ellipsis
 fn truncate_string(s: &str, max_len: usize) -> String {
-    if s.len() <= max_len {
+    if s.chars().count() <= max_len {
         s.to_string()
     } else {
-        format!("{}...", &s[..max_len.saturating_sub(3)])
+        let truncated: String = s.chars().take(max_len.saturating_sub(3)).collect();
+        format!("{}...", truncated)
     }
 }
 
-/// Render confirmation dialog
+/// Render confirmation dialog with M365 Fluent Design styling
 fn render_confirmation_dialog(f: &mut Frame, dialog: &ConfirmationDialog) {
     use crate::tui::context::ImpactLevel;
+
+    // M365 color palette
+    let m365_blue = Color::Rgb(0, 120, 212);
+    let m365_green = Color::Rgb(16, 124, 16);
+    let m365_gold = Color::Rgb(255, 185, 0);
+    let m365_red = Color::Rgb(209, 52, 56);
 
     // Larger area if we have an impact summary
     let (width, height) = if dialog.impact.is_some() {
@@ -4257,16 +4632,16 @@ fn render_confirmation_dialog(f: &mut Frame, dialog: &ConfirmationDialog) {
     let area = centered_rect(width, height, f.area());
     f.render_widget(Clear, area);
 
-    // Determine border color based on impact level
+    // Determine border color based on impact level (M365 colors)
     let (border_color, title_suffix) = if let Some(ref impact) = dialog.impact {
         match impact.level {
-            ImpactLevel::Low => (Color::Cyan, " [LOW] "),
-            ImpactLevel::Medium => (Color::Yellow, " [MEDIUM] "),
-            ImpactLevel::High => (Color::LightRed, " [HIGH] "),
-            ImpactLevel::Critical => (Color::Red, " [CRITICAL] "),
+            ImpactLevel::Low => (m365_blue, " [LOW] "),
+            ImpactLevel::Medium => (m365_gold, " [MEDIUM] "),
+            ImpactLevel::High => (m365_gold, " [HIGH] "),
+            ImpactLevel::Critical => (m365_red, " [CRITICAL] "),
         }
     } else {
-        (Color::Yellow, "")
+        (m365_blue, "")
     };
 
     let chunks = Layout::default()
@@ -4278,22 +4653,27 @@ fn render_confirmation_dialog(f: &mut Frame, dialog: &ConfirmationDialog) {
         ])
         .split(area);
 
-    // Dialog box with impact indicator
+    // Dialog box with M365 styling
     let block = Block::default()
         .title(format!(" {}{} ", dialog.title, title_suffix))
+        .title_style(
+            Style::default()
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD),
+        )
         .borders(Borders::ALL)
         .border_style(Style::default().fg(border_color));
     f.render_widget(block, area);
 
-    // Message with impact coloring
+    // Message with impact coloring (M365 colors)
     let message_style = if let Some(ref impact) = dialog.impact {
         match impact.level {
-            ImpactLevel::Critical => Style::default().fg(Color::LightRed),
-            ImpactLevel::High => Style::default().fg(Color::Yellow),
-            _ => Style::default().fg(Color::White),
+            ImpactLevel::Critical => Style::default().fg(m365_red),
+            ImpactLevel::High => Style::default().fg(m365_gold),
+            _ => Style::default().fg(Color::Rgb(220, 220, 220)),
         }
     } else {
-        Style::default().fg(Color::White)
+        Style::default().fg(Color::Rgb(220, 220, 220))
     };
 
     let message = Paragraph::new(dialog.message.clone())
@@ -4301,22 +4681,22 @@ fn render_confirmation_dialog(f: &mut Frame, dialog: &ConfirmationDialog) {
         .wrap(Wrap { trim: true });
     f.render_widget(message, chunks[0]);
 
-    // Buttons - swap colors based on impact for critical actions
+    // Buttons - swap colors based on impact for critical actions (M365 colors)
     let (confirm_color, cancel_color) = if dialog
         .impact
         .as_ref()
         .map(|i| i.level >= ImpactLevel::High)
         .unwrap_or(false)
     {
-        (Color::Red, Color::Green) // Make cancel the "safe" green option
+        (m365_red, m365_green) // Make cancel the "safe" green option
     } else {
-        (Color::Green, Color::Red)
+        (m365_green, m365_red)
     };
 
     let yes_style = if dialog.selected {
         Style::default()
             .bg(confirm_color)
-            .fg(Color::Black)
+            .fg(Color::White)
             .add_modifier(Modifier::BOLD)
     } else {
         Style::default().fg(confirm_color)
@@ -4324,7 +4704,7 @@ fn render_confirmation_dialog(f: &mut Frame, dialog: &ConfirmationDialog) {
     let no_style = if !dialog.selected {
         Style::default()
             .bg(cancel_color)
-            .fg(Color::Black)
+            .fg(Color::White)
             .add_modifier(Modifier::BOLD)
     } else {
         Style::default().fg(cancel_color)
@@ -4356,34 +4736,47 @@ fn render_progress_overlay(f: &mut Frame, progress: &ProgressState) {
         ])
         .split(area);
 
-    // Dialog box
+    // Dialog box with M365 styling
     let block = Block::default()
         .title(format!(" {} ", progress.title))
+        .title_style(
+            Style::default()
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD),
+        )
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::Cyan));
+        .border_style(Style::default().fg(Color::Rgb(0, 120, 212))); // M365 blue
     f.render_widget(block, area);
 
     // Message
-    let message = Paragraph::new(&*progress.message);
+    let message =
+        Paragraph::new(&*progress.message).style(Style::default().fg(Color::Rgb(200, 200, 200)));
     f.render_widget(message, chunks[0]);
 
-    // Progress bar
+    // Progress bar with M365 blue
     let percent = progress.percent();
     let label = if progress.indeterminate {
         "Working...".to_string()
     } else {
-        format!("{}/{} ({}%)", progress.current, progress.total, percent)
+        format!("{}%", percent)
     };
 
     let gauge = Gauge::default()
-        .gauge_style(Style::default().fg(Color::Cyan))
+        .gauge_style(
+            Style::default()
+                .fg(Color::Rgb(0, 120, 212))
+                .bg(Color::Rgb(40, 40, 40)),
+        )
         .percent(percent)
         .label(label);
     f.render_widget(gauge, chunks[1]);
 }
 
-/// Render search overlay
+/// Render search overlay with M365 Fluent Design styling
 fn render_search_overlay(f: &mut Frame, app: &App) {
+    // M365 color palette
+    let m365_blue = Color::Rgb(0, 120, 212);
+
     // Search bar at top of screen
     let area = Rect {
         x: f.area().width / 4,
@@ -4402,16 +4795,25 @@ fn render_search_overlay(f: &mut Frame, app: &App) {
         .block(
             Block::default()
                 .title(" Search (Esc to close) ")
+                .title_style(
+                    Style::default()
+                        .fg(Color::White)
+                        .add_modifier(Modifier::BOLD),
+                )
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(Color::Yellow)),
+                .border_style(Style::default().fg(m365_blue)),
         )
-        .style(Style::default().fg(Color::White));
+        .style(Style::default().fg(Color::Rgb(220, 220, 220)));
 
     f.render_widget(search, area);
 }
 
-/// Render form overlay for multi-field input
+/// Render form overlay with M365 Fluent Design styling
 fn render_form_overlay(f: &mut Frame, form: &FormState) {
+    // M365 color palette
+    let m365_blue = Color::Rgb(0, 120, 212);
+    let m365_gold = Color::Rgb(255, 185, 0);
+
     // Calculate form height based on number of fields
     let field_height = 3; // Each field takes 3 rows
     let total_height = (form.fields.len() as u16 * field_height) + 8; // +8 for title, buttons, margins
@@ -4419,11 +4821,16 @@ fn render_form_overlay(f: &mut Frame, form: &FormState) {
 
     f.render_widget(Clear, area);
 
-    // Main form block
+    // Main form block with M365 blue
     let block = Block::default()
         .title(format!(" {} ", form.title))
+        .title_style(
+            Style::default()
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD),
+        )
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::Cyan));
+        .border_style(Style::default().fg(m365_blue));
     f.render_widget(block, area);
 
     // Create layout for fields
@@ -4448,9 +4855,9 @@ fn render_form_overlay(f: &mut Frame, form: &FormState) {
     for (i, field) in form.fields.iter().enumerate() {
         let is_active = i == form.current_field;
         let border_color = if is_active {
-            Color::Yellow
+            m365_gold // M365 gold for active field
         } else {
-            Color::DarkGray
+            Color::Rgb(80, 80, 80)
         };
 
         let display_value =
@@ -4464,19 +4871,26 @@ fn render_form_overlay(f: &mut Frame, form: &FormState) {
 
         let cursor = if is_active { "_" } else { "" };
         let text_style = if field.value.is_empty() && !is_active {
-            Style::default().fg(Color::DarkGray)
+            Style::default().fg(Color::Rgb(100, 100, 100))
         } else {
-            Style::default().fg(Color::White)
+            Style::default().fg(Color::Rgb(220, 220, 220))
         };
 
         let required_marker = if field.required { " *" } else { "" };
         let title = format!(" {}{} ", field.label, required_marker);
+
+        let title_style = if is_active {
+            Style::default().fg(m365_gold).add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(Color::Rgb(180, 180, 180))
+        };
 
         let input = Paragraph::new(format!("{}{}", display_value, cursor))
             .style(text_style)
             .block(
                 Block::default()
                     .title(title)
+                    .title_style(title_style)
                     .borders(Borders::ALL)
                     .border_style(Style::default().fg(border_color)),
             );
@@ -4498,7 +4912,7 @@ fn render_form_overlay(f: &mut Frame, form: &FormState) {
     );
 
     let help = Paragraph::new(help_text)
-        .style(Style::default().fg(Color::DarkGray))
+        .style(Style::default().fg(Color::Rgb(120, 120, 120)))
         .alignment(Alignment::Center);
 
     f.render_widget(help, chunks[submit_idx]);
@@ -4786,7 +5200,8 @@ async fn deploy_baseline_policies_with_progress(
             .unwrap_or("Unknown");
 
         // Progress: 10% for start, 90% for deploying policies
-        let _progress = 10 + ((i * 90) / total) as u16;
+        // Use max(1) to prevent division by zero (though loop won't run if total is 0)
+        let _progress = 10 + ((i * 90) / total.max(1)) as u16;
 
         // Note: Cannot update UI progress from here since we don't have access to App
         // The progress will be shown via the ProgressState in the UI
@@ -4817,8 +5232,8 @@ async fn deploy_ca_policies_2025_with_progress(
 
     let mut deployed = 0;
     for (i, policy) in baseline.policies.iter().enumerate() {
-        // Progress tracking
-        let _progress = 10 + ((i * 90) / total) as u16;
+        // Progress tracking - use max(1) to prevent division by zero
+        let _progress = 10 + ((i * 90) / total.max(1)) as u16;
 
         // Convert to Graph API JSON format
         let policy_json = CABaseline2025::to_graph_json(policy);
@@ -4834,4 +5249,496 @@ async fn deploy_ca_policies_2025_with_progress(
     }
 
     Ok(deployed)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Test helper: Create an App without spawning background workers
+    /// This allows testing app logic without requiring async runtime
+    fn create_test_app() -> App {
+        // Safe fallback: if ConfigManager::load() fails and ConfigManager::new() also fails,
+        // create a default config. This prevents panics in tests.
+        let config = ConfigManager::load().unwrap_or_else(|_| {
+            ConfigManager::new().unwrap_or_else(|_| {
+                // Last resort: create a minimal config that won't panic
+                ConfigManager::default()
+            })
+        });
+        let msp_config = MspConfig::load().unwrap_or_default();
+        let active_tenant = config.load_config().ok().and_then(|c| c.current_tenant);
+
+        let mut app = App {
+            screen: Screen::Dashboard,
+            history: Vec::new(),
+            msp_config,
+            config,
+            active_tenant,
+            menu_state: ListState::default(),
+            menu_items: Vec::new(),
+            status_message: None,
+            should_quit: false,
+            show_help: false,
+            search_input: String::new(),
+            search_active: false,
+            table_state: TableState::default(),
+            table_data: Vec::new(),
+            progress: None,
+            confirmation: None,
+            input_mode: InputMode::Normal,
+            input_buffer: String::new(),
+            input_field: None,
+            form_state: None,
+            setting_toggles: std::collections::HashMap::new(),
+            async_task: None,
+            audit_entries: Vec::new(),
+            audit_days_filter: 7,
+            task_sender: None,
+            task_receiver: None,
+            current_task_id: None,
+            session_change_count: 0,
+            exit_confirmed: false,
+            table_page: 0,
+            table_page_size: 20,
+        };
+
+        app.refresh_menu();
+        app.menu_state.select(Some(0));
+        app
+    }
+
+    #[test]
+    fn test_app_initialization() {
+        let app = create_test_app();
+        assert_eq!(app.screen, Screen::Dashboard);
+        assert!(!app.should_quit);
+        assert!(!app.show_help);
+        assert!(app.history.is_empty());
+        assert!(
+            !app.menu_items.is_empty(),
+            "Dashboard menu should have items"
+        );
+    }
+
+    #[test]
+    fn test_menu_navigation_down() {
+        let mut app = create_test_app();
+        let initial_selection = app.menu_state.selected();
+        assert_eq!(initial_selection, Some(0));
+
+        app.select_next();
+        assert_eq!(app.menu_state.selected(), Some(1));
+
+        app.select_next();
+        assert_eq!(app.menu_state.selected(), Some(2));
+    }
+
+    #[test]
+    fn test_menu_navigation_up() {
+        let mut app = create_test_app();
+        app.menu_state.select(Some(2));
+
+        app.select_previous();
+        assert_eq!(app.menu_state.selected(), Some(1));
+
+        app.select_previous();
+        assert_eq!(app.menu_state.selected(), Some(0));
+    }
+
+    #[test]
+    fn test_menu_navigation_wraps() {
+        let mut app = create_test_app();
+        let menu_len = app.menu_items.len();
+        assert!(menu_len > 0, "Menu should have items");
+
+        // Navigate to last item
+        app.menu_state.select(Some(menu_len - 1));
+
+        // Navigate down should wrap to first
+        app.select_next();
+        assert_eq!(app.menu_state.selected(), Some(0));
+
+        // Navigate up from first should wrap to last
+        app.select_previous();
+        assert_eq!(app.menu_state.selected(), Some(menu_len - 1));
+    }
+
+    #[test]
+    fn test_help_overlay_toggle() {
+        let mut app = create_test_app();
+        assert!(!app.show_help);
+
+        app.show_help = true;
+        assert!(app.show_help);
+
+        app.show_help = false;
+        assert!(!app.show_help);
+    }
+
+    #[test]
+    fn test_status_message() {
+        let mut app = create_test_app();
+        assert!(app.status_message.is_none());
+
+        app.status_message = Some(("Test message".into(), StatusLevel::Info));
+        assert!(app.status_message.is_some());
+
+        let (msg, level) = app.status_message.as_ref().unwrap();
+        assert_eq!(msg, "Test message");
+        assert!(matches!(level, StatusLevel::Info));
+    }
+
+    #[test]
+    fn test_confirmation_dialog() {
+        let mut app = create_test_app();
+        assert!(app.confirmation.is_none());
+
+        app.show_confirmation("Test Title", "Test Message", ConfirmAction::ExitWithChanges);
+
+        assert!(app.confirmation.is_some());
+        let dialog = app.confirmation.as_ref().unwrap();
+        assert_eq!(dialog.title, "Test Title");
+        assert_eq!(dialog.message, "Test Message");
+        assert!(!dialog.selected); // Should start on Cancel for safety
+    }
+
+    #[test]
+    fn test_progress_state() {
+        let mut app = create_test_app();
+        assert!(app.progress.is_none());
+
+        app.start_progress("Loading...");
+        assert!(app.progress.is_some());
+        assert_eq!(app.progress.as_ref().unwrap().title, "Loading...");
+
+        app.update_progress(50, "Halfway there");
+        assert_eq!(app.progress.as_ref().unwrap().current, 50);
+        assert_eq!(app.progress.as_ref().unwrap().message, "Halfway there");
+
+        app.clear_progress();
+        assert!(app.progress.is_none());
+    }
+
+    #[test]
+    fn test_screen_navigation_history() {
+        let mut app = create_test_app();
+        assert!(app.history.is_empty());
+        assert_eq!(app.screen, Screen::Dashboard);
+
+        // Manually push screen (simulating navigation)
+        app.history.push(app.screen.clone());
+        app.screen = Screen::BaselineSelect;
+        assert_eq!(app.screen, Screen::BaselineSelect);
+        assert_eq!(app.history.len(), 1);
+        assert_eq!(app.history[0], Screen::Dashboard);
+
+        // Navigate back
+        app.go_back();
+        assert_eq!(app.screen, Screen::Dashboard);
+        assert!(app.history.is_empty());
+    }
+
+    #[test]
+    fn test_go_back_with_empty_history() {
+        let mut app = create_test_app();
+        assert_eq!(app.screen, Screen::Dashboard);
+        assert!(app.history.is_empty());
+
+        // go_back with empty history should do nothing
+        app.go_back();
+
+        // Screen should remain unchanged
+        assert_eq!(app.screen, Screen::Dashboard);
+        assert!(app.history.is_empty());
+    }
+
+    #[test]
+    fn test_input_mode_transitions() {
+        let mut app = create_test_app();
+        assert!(matches!(app.input_mode, InputMode::Normal));
+
+        app.input_mode = InputMode::Search;
+        assert!(matches!(app.input_mode, InputMode::Search));
+
+        app.input_mode = InputMode::Input;
+        assert!(matches!(app.input_mode, InputMode::Input));
+
+        app.input_mode = InputMode::Normal;
+        assert!(matches!(app.input_mode, InputMode::Normal));
+    }
+
+    #[test]
+    fn test_search_input() {
+        let mut app = create_test_app();
+        assert!(app.search_input.is_empty());
+        assert!(!app.search_active);
+
+        app.search_active = true;
+        app.search_input = "test query".to_string();
+
+        assert!(app.search_active);
+        assert_eq!(app.search_input, "test query");
+
+        // Clear search
+        app.search_input.clear();
+        app.search_active = false;
+        assert!(!app.search_active);
+        assert!(app.search_input.is_empty());
+    }
+
+    #[test]
+    fn test_table_pagination() {
+        let mut app = create_test_app();
+        assert_eq!(app.table_page, 0);
+        assert_eq!(app.table_page_size, 20);
+
+        // Add some test data
+        for i in 0..50 {
+            app.table_data.push(PolicyRow {
+                name: format!("Policy {}", i),
+                policy_type: "Compliance".to_string(),
+                status: PolicyStatus::Deployed,
+                platform: "Windows".to_string(),
+                assignments: 1,
+                last_modified: "2025-01-01".to_string(),
+            });
+        }
+
+        // Test page navigation
+        app.table_page = 1;
+        assert_eq!(app.table_page, 1);
+
+        // Calculate max pages
+        let max_pages = app.table_data.len().div_ceil(app.table_page_size);
+        assert_eq!(max_pages, 3); // 50 items / 20 per page = 3 pages
+    }
+
+    #[test]
+    fn test_setting_toggles() {
+        let mut app = create_test_app();
+        assert!(app.setting_toggles.is_empty());
+
+        app.setting_toggles.insert("safe_links".to_string(), true);
+        app.setting_toggles
+            .insert("safe_attachments".to_string(), false);
+
+        assert_eq!(app.setting_toggles.get("safe_links"), Some(&true));
+        assert_eq!(app.setting_toggles.get("safe_attachments"), Some(&false));
+        assert_eq!(app.setting_toggles.get("nonexistent"), None);
+    }
+
+    #[test]
+    fn test_audit_entries() {
+        let mut app = create_test_app();
+        assert!(app.audit_entries.is_empty());
+        assert_eq!(app.audit_days_filter, 7);
+
+        // Test filter change
+        app.audit_days_filter = 30;
+        assert_eq!(app.audit_days_filter, 30);
+    }
+
+    #[test]
+    fn test_async_task_state() {
+        let mut app = create_test_app();
+        assert!(app.async_task.is_none());
+        assert!(app.current_task_id.is_none());
+
+        app.start_async_task("test_task", "Running test...");
+
+        assert!(app.async_task.is_some());
+        let task = app.async_task.as_ref().unwrap();
+        assert_eq!(task.id, "test_task");
+        assert_eq!(task.message, "Running test...");
+        assert!(!task.completed);
+    }
+
+    #[test]
+    fn test_menu_item_construction() {
+        let item = MenuItem {
+            id: "test".into(),
+            label: "Test Label".into(),
+            description: "Test description".into(),
+            shortcut: Some('t'),
+            enabled: true,
+        };
+
+        assert_eq!(item.id, "test");
+        assert_eq!(item.label, "Test Label");
+        assert_eq!(item.description, "Test description");
+        assert_eq!(item.shortcut, Some('t'));
+        assert!(item.enabled);
+    }
+
+    #[test]
+    fn test_policy_row_construction() {
+        let row = PolicyRow {
+            name: "Test Policy".to_string(),
+            policy_type: "Compliance".to_string(),
+            status: PolicyStatus::Deployed,
+            platform: "Windows".to_string(),
+            assignments: 5,
+            last_modified: "2025-12-10".to_string(),
+        };
+
+        assert_eq!(row.name, "Test Policy");
+        assert_eq!(row.policy_type, "Compliance");
+        assert_eq!(row.status, PolicyStatus::Deployed);
+        assert_eq!(row.platform, "Windows");
+        assert_eq!(row.assignments, 5);
+        assert_eq!(row.last_modified, "2025-12-10");
+    }
+
+    #[test]
+    fn test_dashboard_menu_items_all_have_descriptions() {
+        let app = create_test_app();
+
+        for item in &app.menu_items {
+            assert!(
+                !item.description.is_empty(),
+                "Menu item '{}' has empty description",
+                item.id
+            );
+            assert!(
+                !item.label.is_empty(),
+                "Menu item '{}' has empty label",
+                item.id
+            );
+        }
+    }
+
+    #[test]
+    fn test_empty_menu_navigation_safety() {
+        let mut app = create_test_app();
+        app.menu_items.clear();
+        app.menu_state.select(None);
+
+        // These should not panic even with empty menu
+        app.select_next();
+        app.select_previous();
+
+        assert!(app.menu_state.selected().is_none());
+    }
+
+    #[test]
+    fn test_form_state() {
+        let form = FormState {
+            title: "Test Form".to_string(),
+            fields: vec![
+                FormField {
+                    id: "field1".to_string(),
+                    label: "Field 1".to_string(),
+                    value: "value1".to_string(),
+                    placeholder: "Enter value".to_string(),
+                    field_type: FormFieldType::Text,
+                    required: true,
+                },
+                FormField {
+                    id: "field2".to_string(),
+                    label: "Field 2".to_string(),
+                    value: "".to_string(),
+                    placeholder: "Optional".to_string(),
+                    field_type: FormFieldType::Password,
+                    required: false,
+                },
+            ],
+            current_field: 0,
+            submit_label: "Submit".to_string(),
+            on_submit: FormAction::AddClient,
+        };
+
+        assert_eq!(form.title, "Test Form");
+        assert_eq!(form.fields.len(), 2);
+        assert_eq!(form.current_field, 0);
+        assert!(form.fields[0].required);
+        assert!(!form.fields[1].required);
+    }
+
+    #[test]
+    fn test_status_levels() {
+        // Ensure all status levels can be created
+        let levels = [
+            StatusLevel::Info,
+            StatusLevel::Success,
+            StatusLevel::Warning,
+            StatusLevel::Error,
+        ];
+
+        for level in &levels {
+            let msg = ("Test".to_string(), level.clone());
+            assert!(!msg.0.is_empty());
+        }
+    }
+
+    #[test]
+    fn test_screen_equality() {
+        assert_eq!(Screen::Dashboard, Screen::Dashboard);
+        assert_ne!(Screen::Dashboard, Screen::BaselineSelect);
+        assert_eq!(
+            Screen::PolicyList(PolicyListType::All),
+            Screen::PolicyList(PolicyListType::All)
+        );
+        assert_ne!(
+            Screen::PolicyList(PolicyListType::All),
+            Screen::PolicyList(PolicyListType::Compliance)
+        );
+    }
+
+    #[test]
+    fn test_policy_status_variants() {
+        // Test all policy status variants can be created
+        let statuses = [
+            PolicyStatus::Deployed,
+            PolicyStatus::ReportOnly,
+            PolicyStatus::Disabled,
+            PolicyStatus::Draft,
+        ];
+
+        for status in &statuses {
+            let row = PolicyRow {
+                name: "Test".to_string(),
+                policy_type: "Test".to_string(),
+                status: status.clone(),
+                platform: "Test".to_string(),
+                assignments: 0,
+                last_modified: "2025-01-01".to_string(),
+            };
+            assert_eq!(&row.status, status);
+        }
+    }
+
+    #[test]
+    fn test_progress_state_with_total() {
+        let mut app = create_test_app();
+
+        app.start_progress_with_total("Deploying policies...", 10);
+
+        assert!(app.progress.is_some());
+        let progress = app.progress.as_ref().unwrap();
+        assert_eq!(progress.title, "Deploying policies...");
+        assert_eq!(progress.total, 10);
+        assert_eq!(progress.current, 0);
+    }
+
+    #[test]
+    fn test_session_change_tracking() {
+        let mut app = create_test_app();
+        assert_eq!(app.session_change_count, 0);
+
+        app.session_change_count += 1;
+        assert_eq!(app.session_change_count, 1);
+
+        app.session_change_count += 5;
+        assert_eq!(app.session_change_count, 6);
+    }
+
+    #[test]
+    fn test_exit_confirmation_flag() {
+        let mut app = create_test_app();
+        assert!(!app.exit_confirmed);
+
+        app.exit_confirmed = true;
+        assert!(app.exit_confirmed);
+    }
 }

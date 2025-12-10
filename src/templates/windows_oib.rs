@@ -1059,3 +1059,309 @@ fn get_cis_rationale() -> Vec<CISRationale> {
         // Add more as needed from OIBvsCIS-Rationale.csv
     ]
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn create_test_args(name: &str, encryption: bool, defender: bool) -> NewArgs {
+        NewArgs {
+            platform: "windows".to_string(),
+            encryption,
+            defender,
+            min_os: None,
+            mde_onboarding: None,
+            output: None,
+            name: name.to_string(),
+            template: "oib".to_string(),
+        }
+    }
+
+    #[test]
+    fn test_generate_oib_baseline_structure() {
+        let args = create_test_args("Test OIB", true, true);
+        let baseline = generate_oib_baseline(&args).unwrap();
+
+        assert_eq!(baseline["version"], "3.6");
+        assert_eq!(baseline["template"], "OpenIntuneBaseline");
+        assert_eq!(baseline["platform"], "windows");
+        assert!(
+            baseline["metadata"]["source"]
+                .as_str()
+                .unwrap()
+                .contains("OpenIntuneBaseline")
+        );
+    }
+
+    #[test]
+    fn test_oib_baseline_policy_count_with_all_options() {
+        let args = create_test_args("Test", true, true);
+        let baseline = generate_oib_baseline(&args).unwrap();
+
+        let policies = baseline["policies"].as_array().unwrap();
+        // 4 compliance + BitLocker + 3 Defender + Firewall + WHfB + LAPS + 4 security = 15
+        assert!(policies.len() >= 13);
+    }
+
+    #[test]
+    fn test_oib_baseline_without_encryption() {
+        let args = create_test_args("Test", false, true);
+        let baseline = generate_oib_baseline(&args).unwrap();
+
+        let policies = baseline["policies"].as_array().unwrap();
+        // Should not include BitLocker
+        let has_bitlocker = policies.iter().any(|p| {
+            p["name"]
+                .as_str()
+                .map(|n| n.contains("BitLocker"))
+                .unwrap_or(false)
+        });
+        assert!(!has_bitlocker);
+    }
+
+    #[test]
+    fn test_oib_baseline_without_defender() {
+        let args = create_test_args("Test", true, false);
+        let baseline = generate_oib_baseline(&args).unwrap();
+
+        let policies = baseline["policies"].as_array().unwrap();
+        // Should not include Defender AV or ASR
+        let has_defender_av = policies.iter().any(|p| {
+            p["name"]
+                .as_str()
+                .map(|n| n.contains("Defender Antivirus"))
+                .unwrap_or(false)
+        });
+        assert!(!has_defender_av);
+    }
+
+    #[test]
+    fn test_compliance_defender_for_endpoint() {
+        let args = create_test_args("Test", false, false);
+        let policy = generate_compliance_defender_for_endpoint(&args);
+
+        assert_eq!(
+            policy["@odata.type"],
+            "#microsoft.graph.windows10CompliancePolicy"
+        );
+        assert!(
+            policy["displayName"]
+                .as_str()
+                .unwrap()
+                .contains("Defender for Endpoint")
+        );
+        assert_eq!(policy["deviceThreatProtectionEnabled"], true);
+        assert_eq!(
+            policy["deviceThreatProtectionRequiredSecurityLevel"],
+            "medium"
+        );
+    }
+
+    #[test]
+    fn test_compliance_device_health() {
+        let args = create_test_args("Test", false, false);
+        let policy = generate_compliance_device_health(&args);
+
+        assert_eq!(
+            policy["@odata.type"],
+            "#microsoft.graph.windows10CompliancePolicy"
+        );
+        assert!(
+            policy["displayName"]
+                .as_str()
+                .unwrap()
+                .contains("Device Health")
+        );
+        assert_eq!(policy["secureBootEnabled"], true);
+        assert_eq!(policy["codeIntegrityEnabled"], true);
+    }
+
+    #[test]
+    fn test_compliance_device_security() {
+        let args = create_test_args("Test", false, false);
+        let policy = generate_compliance_device_security(&args);
+
+        assert_eq!(
+            policy["@odata.type"],
+            "#microsoft.graph.windows10CompliancePolicy"
+        );
+        assert!(
+            policy["displayName"]
+                .as_str()
+                .unwrap()
+                .contains("Device Security")
+        );
+        assert_eq!(policy["tpmRequired"], true);
+        assert_eq!(policy["activeFirewallRequired"], true);
+        assert_eq!(policy["antivirusRequired"], true);
+    }
+
+    #[test]
+    fn test_compliance_password() {
+        let args = create_test_args("Test", false, false);
+        let policy = generate_compliance_password(&args);
+
+        assert_eq!(
+            policy["@odata.type"],
+            "#microsoft.graph.windows10CompliancePolicy"
+        );
+        assert!(policy["displayName"].as_str().unwrap().contains("Password"));
+        // Password is managed by Entra ID in OIB
+        assert_eq!(policy["passwordRequired"], false);
+    }
+
+    #[test]
+    fn test_bitlocker_settings_catalog() {
+        let args = create_test_args("Test", true, false);
+        let policy = generate_bitlocker_settings_catalog(&args);
+
+        assert!(policy["name"].as_str().unwrap().contains("BitLocker"));
+        assert!(
+            policy["description"]
+                .as_str()
+                .unwrap()
+                .contains("XTS-AES 256")
+        );
+        assert!(policy["settings"].is_array());
+    }
+
+    #[test]
+    fn test_defender_antivirus_configuration() {
+        let args = create_test_args("Test", false, true);
+        let policy = generate_defender_antivirus_configuration(&args);
+
+        assert!(
+            policy["name"]
+                .as_str()
+                .unwrap()
+                .contains("Defender Antivirus")
+        );
+        assert!(policy["settings"].is_array());
+    }
+
+    #[test]
+    fn test_asr_rules_l2() {
+        let args = create_test_args("Test", false, true);
+        let policy = generate_asr_rules_l2(&args);
+
+        assert!(policy["name"].as_str().unwrap().contains("ASR Rules"));
+        assert!(
+            policy["description"]
+                .as_str()
+                .unwrap()
+                .contains("Block/Warn/Audit")
+        );
+    }
+
+    #[test]
+    fn test_windows_firewall_configuration() {
+        let args = create_test_args("Test", false, false);
+        let policy = generate_windows_firewall_configuration(&args);
+
+        assert!(policy["name"].as_str().unwrap().contains("Firewall"));
+        assert!(policy["settings"].is_array());
+    }
+
+    #[test]
+    fn test_windows_hello_for_business() {
+        let args = create_test_args("Test", false, false);
+        let policy = generate_windows_hello_for_business(&args);
+
+        assert!(policy["name"].as_str().unwrap().contains("Windows Hello"));
+        assert!(
+            policy["description"]
+                .as_str()
+                .unwrap()
+                .contains("Passwordless")
+        );
+    }
+
+    #[test]
+    fn test_windows_laps_configuration() {
+        let args = create_test_args("Test", false, false);
+        let policy = generate_windows_laps_configuration(&args);
+
+        assert!(policy["name"].as_str().unwrap().contains("LAPS"));
+        assert!(
+            policy["description"]
+                .as_str()
+                .unwrap()
+                .contains("Local Administrator Password")
+        );
+    }
+
+    #[test]
+    fn test_device_security_hardening() {
+        let args = create_test_args("Test", false, false);
+        let policy = generate_device_security_hardening(&args);
+
+        assert!(
+            policy["name"]
+                .as_str()
+                .unwrap()
+                .contains("Security Hardening")
+        );
+        assert!(policy["settings"].is_array());
+        let settings = policy["settings"].as_array().unwrap();
+        // Should have many hardening settings
+        assert!(settings.len() > 30);
+    }
+
+    #[test]
+    fn test_device_security_local_security_policies() {
+        let args = create_test_args("Test", false, false);
+        let policy = generate_device_security_local_security_policies(&args);
+
+        assert!(
+            policy["name"]
+                .as_str()
+                .unwrap()
+                .contains("Local Security Policies")
+        );
+        assert!(policy["description"].as_str().unwrap().contains("UAC"));
+    }
+
+    #[test]
+    fn test_device_security_login_and_lock_screen() {
+        let args = create_test_args("Test", false, false);
+        let policy = generate_device_security_login_and_lock_screen(&args);
+
+        assert!(
+            policy["name"]
+                .as_str()
+                .unwrap()
+                .contains("Login and Lock Screen")
+        );
+    }
+
+    #[test]
+    fn test_device_security_power_and_device_lock() {
+        let args = create_test_args("Test", false, false);
+        let policy = generate_device_security_power_and_device_lock(&args);
+
+        assert!(policy["name"].as_str().unwrap().contains("Power"));
+        assert!(
+            policy["description"]
+                .as_str()
+                .unwrap()
+                .contains("Inactivity")
+        );
+    }
+
+    #[test]
+    fn test_cis_rationale_not_empty() {
+        let rationale = get_cis_rationale();
+        assert!(!rationale.is_empty());
+        assert!(rationale.len() >= 4);
+    }
+
+    #[test]
+    fn test_cis_rationale_structure() {
+        let rationale = get_cis_rationale();
+        for item in &rationale {
+            assert!(!item.cis_ref.is_empty());
+            assert!(!item.setting_name.is_empty());
+            assert!(!item.rationale.is_empty());
+        }
+    }
+}

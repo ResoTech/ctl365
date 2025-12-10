@@ -8,7 +8,7 @@
 //! - Level 2 (L2): Defense-in-depth, may impact functionality
 //! - BitLocker (BL): Additional BitLocker hardening
 //!
-//! Reference: https://www.cisecurity.org/benchmark/microsoft_windows_desktop
+//! Reference: <https://www.cisecurity.org/benchmark/microsoft_windows_desktop>
 
 #![allow(dead_code)]
 

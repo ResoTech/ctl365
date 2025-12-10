@@ -149,7 +149,7 @@ pub async fn export_enhanced(args: ExportArgs) -> Result<()> {
             .ok()
             .flatten()
             .map(|t| t.name.clone())
-            .unwrap_or_else(|| "unknown".to_string())
+            .unwrap_or_else(|| "Unknown".to_string())
     };
 
     let active_tenant = config
@@ -448,8 +448,20 @@ pub async fn import_enhanced(args: ImportArgs) -> Result<()> {
     // Read metadata
     let metadata_path = args.input.join("export_metadata.json");
     let metadata: ExportMetadata = if metadata_path.exists() {
-        let metadata_str = fs::read_to_string(&metadata_path)?;
-        serde_json::from_str(&metadata_str)?
+        let metadata_str = fs::read_to_string(&metadata_path).map_err(|e| {
+            crate::error::Error::ConfigError(format!(
+                "Failed to read {}: {}",
+                metadata_path.display(),
+                e
+            ))
+        })?;
+        serde_json::from_str(&metadata_str).map_err(|e| {
+            crate::error::Error::ConfigError(format!(
+                "Invalid JSON in {}: {}",
+                metadata_path.display(),
+                e
+            ))
+        })?
     } else {
         return Err(crate::error::Error::ConfigError(
             "No export_metadata.json found in import directory".into(),
@@ -471,8 +483,20 @@ pub async fn import_enhanced(args: ImportArgs) -> Result<()> {
 
     // Load assignment mapping if provided
     let assignment_map: HashMap<String, String> = if let Some(map_file) = &args.assignment_map {
-        let map_str = fs::read_to_string(map_file)?;
-        serde_json::from_str(&map_str)?
+        let map_str = fs::read_to_string(map_file).map_err(|e| {
+            crate::error::Error::ConfigError(format!(
+                "Failed to read assignment map {}: {}",
+                map_file.display(),
+                e
+            ))
+        })?;
+        serde_json::from_str(&map_str).map_err(|e| {
+            crate::error::Error::ConfigError(format!(
+                "Invalid JSON in assignment map {}: {}",
+                map_file.display(),
+                e
+            ))
+        })?
     } else {
         HashMap::new()
     };
@@ -521,9 +545,22 @@ pub async fn import_enhanced(args: ImportArgs) -> Result<()> {
         for entry in fs::read_dir(compliance_dir)? {
             let entry = entry?;
             if entry.path().extension().and_then(|s| s.to_str()) == Some("json") {
-                let content = fs::read_to_string(entry.path())?;
-                let policy_with_assignments: PolicyWithAssignments =
-                    serde_json::from_str(&content)?;
+                let file_path = entry.path();
+                let content = fs::read_to_string(&file_path).map_err(|e| {
+                    crate::error::Error::ConfigError(format!(
+                        "Failed to read {}: {}",
+                        file_path.display(),
+                        e
+                    ))
+                })?;
+                let policy_with_assignments: PolicyWithAssignments = serde_json::from_str(&content)
+                    .map_err(|e| {
+                        crate::error::Error::ConfigError(format!(
+                            "Invalid JSON in {}: {}",
+                            file_path.display(),
+                            e
+                        ))
+                    })?;
 
                 let name = policy_with_assignments.policy["displayName"]
                     .as_str()
@@ -602,9 +639,22 @@ pub async fn import_enhanced(args: ImportArgs) -> Result<()> {
         for entry in fs::read_dir(config_dir)? {
             let entry = entry?;
             if entry.path().extension().and_then(|s| s.to_str()) == Some("json") {
-                let content = fs::read_to_string(entry.path())?;
-                let policy_with_assignments: PolicyWithAssignments =
-                    serde_json::from_str(&content)?;
+                let file_path = entry.path();
+                let content = fs::read_to_string(&file_path).map_err(|e| {
+                    crate::error::Error::ConfigError(format!(
+                        "Failed to read {}: {}",
+                        file_path.display(),
+                        e
+                    ))
+                })?;
+                let policy_with_assignments: PolicyWithAssignments = serde_json::from_str(&content)
+                    .map_err(|e| {
+                        crate::error::Error::ConfigError(format!(
+                            "Invalid JSON in {}: {}",
+                            file_path.display(),
+                            e
+                        ))
+                    })?;
 
                 let name = policy_with_assignments.policy["displayName"]
                     .as_str()
@@ -673,9 +723,22 @@ pub async fn import_enhanced(args: ImportArgs) -> Result<()> {
         for entry in fs::read_dir(settings_catalog_dir)? {
             let entry = entry?;
             if entry.path().extension().and_then(|s| s.to_str()) == Some("json") {
-                let content = fs::read_to_string(entry.path())?;
-                let policy_with_assignments: PolicyWithAssignments =
-                    serde_json::from_str(&content)?;
+                let file_path = entry.path();
+                let content = fs::read_to_string(&file_path).map_err(|e| {
+                    crate::error::Error::ConfigError(format!(
+                        "Failed to read {}: {}",
+                        file_path.display(),
+                        e
+                    ))
+                })?;
+                let policy_with_assignments: PolicyWithAssignments = serde_json::from_str(&content)
+                    .map_err(|e| {
+                        crate::error::Error::ConfigError(format!(
+                            "Invalid JSON in {}: {}",
+                            file_path.display(),
+                            e
+                        ))
+                    })?;
 
                 let name = policy_with_assignments.policy["name"]
                     .as_str()

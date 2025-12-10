@@ -161,6 +161,13 @@ All mutation commands support:
 - `--dry-run` - Preview changes without applying
 - `-y/--yes` - Skip confirmation prompts for automation
 
+### 📊 **Logging & Observability**
+
+- `-v` / `-vv` / `-vvv` - Verbosity levels (info/debug/trace)
+- `--log-file <FILE>` - Write logs to file for debugging
+- `-q` / `--quiet` - Suppress output except errors
+- Progress bars for long-running operations
+
 ---
 
 ## 🛠️ Command Reference
@@ -389,7 +396,8 @@ See [ROADMAP.md](ROADMAP.md) for detailed planning.
 - ✅ Copilot & AI agent discovery
 - ✅ CISA SCuBA baseline audits
 - ✅ Safety flags (--dry-run, -y/--yes)
-- ✅ Test infrastructure (38 tests)
+- ✅ Logging & observability (-v/-vv/-vvv, --log-file)
+- ✅ Test infrastructure (119 tests)
 - ⏳ End-to-end testing with production tenant
 - ⏳ Cross-platform binaries (Windows, macOS, Linux)
 

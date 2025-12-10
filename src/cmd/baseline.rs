@@ -191,8 +191,20 @@ pub async fn apply(args: ApplyArgs) -> Result<()> {
     );
 
     // Load baseline from file
-    let baseline_json = std::fs::read_to_string(&args.file)?;
-    let baseline: Value = serde_json::from_str(&baseline_json)?;
+    let baseline_json = std::fs::read_to_string(&args.file).map_err(|e| {
+        crate::error::Error::ConfigError(format!(
+            "Failed to read baseline file {}: {}",
+            args.file.display(),
+            e
+        ))
+    })?;
+    let baseline: Value = serde_json::from_str(&baseline_json).map_err(|e| {
+        crate::error::Error::ConfigError(format!(
+            "Invalid JSON in baseline file {}: {}",
+            args.file.display(),
+            e
+        ))
+    })?;
 
     // Get config manager
     let config = ConfigManager::load()?;
@@ -365,18 +377,6 @@ pub async fn list() -> Result<()> {
     );
     println!();
 
-    println!(
-        "  {} {} - Coming soon",
-        "•".cyan().dimmed(),
-        "microsoft-baseline".dimmed()
-    );
-    println!("    Official Microsoft Security Baseline (24H2)");
-    println!();
-
-    println!("  {} {} - Coming soon", "•".cyan().dimmed(), "cis".dimmed());
-    println!("    Pure CIS Benchmark compliance");
-    println!();
-
     println!("{} {}", "Platform:".bold(), "macOS".cyan());
     println!();
     println!("  {} {} - Basic macOS baseline", "•".cyan(), "basic".bold());
@@ -470,8 +470,6 @@ pub async fn list() -> Result<()> {
     println!("{}", "Templates:".bold());
     println!("  basic            - Simple, straightforward baseline (default)");
     println!("  oib/openintune   - OpenIntuneBaseline v3.6 (recommended for production)");
-    println!("  microsoft-baseline - Official MS Security Baseline (coming soon)");
-    println!("  cis              - Pure CIS Benchmark (coming soon)");
 
     Ok(())
 }

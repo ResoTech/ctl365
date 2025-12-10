@@ -1,7 +1,7 @@
 //! Conditional Access Baseline 2025
 //!
 //! 44 production-ready CA policies based on Kenneth van Surksum + Daniel Chronlund
-//! https://www.vansurksum.com/
+//! <https://www.vansurksum.com/>
 //!
 //! Policy Categories:
 //! - CAD: Device/Platform policies
@@ -23,6 +23,8 @@ pub struct CABaseline2025 {
     pub named_locations: Vec<NamedLocationTemplate>,
 }
 
+/// A Conditional Access policy template with deployment metadata
+#[derive(Debug, Clone)]
 pub struct CAPolicyTemplate {
     pub id: String,
     pub display_name: String,
@@ -32,6 +34,162 @@ pub struct CAPolicyTemplate {
     pub conditions: Value,
     pub grant_controls: Value,
     pub session_controls: Option<Value>,
+    /// Impact level when enforced (Low, Medium, High, Critical)
+    pub blast_radius: BlastRadius,
+    /// Short summary for TUI display
+    pub impact_summary: String,
+}
+
+impl Default for CAPolicyTemplate {
+    fn default() -> Self {
+        Self {
+            id: String::new(),
+            display_name: String::new(),
+            description: String::new(),
+            category: String::new(),
+            state: "enabledForReportingButNotEnforced".to_string(),
+            conditions: serde_json::json!({}),
+            grant_controls: serde_json::json!({}),
+            session_controls: None,
+            blast_radius: BlastRadius::Medium, // Safe default
+            impact_summary: "Review policy conditions before enabling.".to_string(),
+        }
+    }
+}
+
+/// Impact level for CA policy deployment
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BlastRadius {
+    /// Affects few users/apps, low risk
+    Low,
+    /// Affects moderate number of users, some risk
+    Medium,
+    /// Affects many users or critical apps
+    High,
+    /// Affects all users, critical business impact potential
+    Critical,
+}
+
+impl BlastRadius {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            BlastRadius::Low => "Low",
+            BlastRadius::Medium => "Medium",
+            BlastRadius::High => "High",
+            BlastRadius::Critical => "Critical",
+        }
+    }
+
+    pub fn description(&self) -> &'static str {
+        match self {
+            BlastRadius::Low => "Minimal user impact, safe to enable",
+            BlastRadius::Medium => "Moderate impact, review before enabling",
+            BlastRadius::High => "High impact, thorough testing required",
+            BlastRadius::Critical => "All users affected, careful validation essential",
+        }
+    }
+
+    /// Determine blast radius from policy conditions
+    pub fn from_conditions(conditions: &Value, category: &str) -> Self {
+        // Check if affects all users
+        let affects_all_users = conditions
+            .get("users")
+            .and_then(|u| u.get("includeUsers"))
+            .and_then(|i| i.as_array())
+            .map(|arr| arr.iter().any(|v| v.as_str() == Some("All")))
+            .unwrap_or(false);
+
+        // Check if affects all applications
+        let affects_all_apps = conditions
+            .get("applications")
+            .and_then(|a| a.get("includeApplications"))
+            .and_then(|i| i.as_array())
+            .map(|arr| arr.iter().any(|v| v.as_str() == Some("All")))
+            .unwrap_or(false);
+
+        // Check if it's a blocking policy (vs grant/allow)
+        let is_block_policy =
+            category.contains("block") || category.to_lowercase().contains("block");
+
+        // Determine blast radius
+        match (affects_all_users, affects_all_apps, is_block_policy) {
+            (true, true, true) => BlastRadius::Critical,
+            (true, true, false) => BlastRadius::High,
+            (true, false, _) => BlastRadius::High,
+            (false, true, true) => BlastRadius::High,
+            (false, true, false) => BlastRadius::Medium,
+            (false, false, true) => BlastRadius::Medium,
+            (false, false, false) => BlastRadius::Low,
+        }
+    }
+}
+
+impl CAPolicyTemplate {
+    /// Create a new policy template with auto-calculated metadata
+    pub fn new(
+        id: &str,
+        display_name: &str,
+        description: &str,
+        category: &str,
+        conditions: Value,
+        grant_controls: Value,
+        session_controls: Option<Value>,
+    ) -> Self {
+        let blast_radius = BlastRadius::from_conditions(&conditions, category);
+        let impact_summary = Self::generate_impact_summary(&conditions, category, &blast_radius);
+
+        Self {
+            id: id.to_string(),
+            display_name: display_name.to_string(),
+            description: description.to_string(),
+            category: category.to_string(),
+            state: "enabledForReportingButNotEnforced".to_string(),
+            conditions,
+            grant_controls,
+            session_controls,
+            blast_radius,
+            impact_summary,
+        }
+    }
+
+    fn generate_impact_summary(
+        conditions: &Value,
+        _category: &str,
+        blast_radius: &BlastRadius,
+    ) -> String {
+        let user_target = conditions
+            .get("users")
+            .and_then(|u| u.get("includeUsers"))
+            .and_then(|i| i.as_array())
+            .map(|arr| {
+                if arr.iter().any(|v| v.as_str() == Some("All")) {
+                    "All users"
+                } else if arr
+                    .iter()
+                    .any(|v| v.as_str().map(|s| s.contains("Admin")).unwrap_or(false))
+                {
+                    "Administrators"
+                } else {
+                    "Selected users"
+                }
+            })
+            .unwrap_or("Unknown");
+
+        let platform = conditions
+            .get("platforms")
+            .and_then(|p| p.get("includePlatforms"))
+            .and_then(|i| i.as_array())
+            .and_then(|arr| arr.first())
+            .and_then(|v| v.as_str())
+            .unwrap_or("All platforms");
+
+        format!(
+            "{} impact on {} ({}). Mode: Report-Only by default.",
+            blast_radius.as_str(),
+            user_target,
+            platform
+        )
+    }
 }
 
 pub struct CAGroupTemplate {
@@ -183,6 +341,8 @@ impl CABaseline2025 {
                 "builtInControls": ["compliantDevice", "domainJoinedDevice"]
             }),
             session_controls: None,
+            blast_radius: BlastRadius::High,
+            impact_summary: "Requires device compliance for all macOS users. Ensure Intune enrollment is complete before enabling.".to_string(),
         }
     }
 
@@ -212,6 +372,8 @@ impl CABaseline2025 {
                 "builtInControls": ["compliantDevice", "domainJoinedDevice"]
             }),
             session_controls: None,
+            blast_radius: BlastRadius::High,
+            impact_summary: "Requires device compliance for all Windows users. Ensure Intune/SCCM enrollment is complete before enabling.".to_string(),
         }
     }
 
@@ -240,6 +402,8 @@ impl CABaseline2025 {
                 "builtInControls": ["block"]
             }),
             session_controls: None,
+            blast_radius: BlastRadius::Critical,
+            impact_summary: "Blocks legacy auth for ALL users. Will break old Outlook, SMTP relay, IMAP/POP3 clients. Test thoroughly!".to_string(),
         }
     }
 
@@ -252,6 +416,8 @@ impl CABaseline2025 {
                 .to_string(),
             category: "User".to_string(),
             state: "enabledForReportingButNotEnforced".to_string(),
+            blast_radius: BlastRadius::Critical,
+            impact_summary: "MFA required for ALL users on ALL apps. Ensure all users have MFA registered before enabling.".to_string(),
             conditions: json!({
                 "users": {
                     "includeUsers": ["All"],
@@ -413,5 +579,221 @@ impl CABaseline2025 {
         }
 
         json
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_generate_all_policies() {
+        let baseline = CABaseline2025::generate();
+        // 15 CAD + 3 CAL + 4 CAP + 5 CAR + 8 CAS + 11 CAU = 46
+        assert_eq!(baseline.policies.len(), 46);
+    }
+
+    #[test]
+    fn test_policy_categories_represented() {
+        let baseline = CABaseline2025::generate();
+
+        let categories: Vec<&str> = baseline
+            .policies
+            .iter()
+            .map(|p| p.category.as_str())
+            .collect();
+
+        assert!(categories.contains(&"Device"));
+        assert!(categories.contains(&"Location"));
+        assert!(categories.contains(&"Protocol"));
+        assert!(categories.contains(&"Risk"));
+        assert!(categories.contains(&"Service"));
+        assert!(categories.contains(&"User"));
+    }
+
+    #[test]
+    fn test_blast_radius_from_conditions_critical() {
+        let conditions = json!({
+            "users": { "includeUsers": ["All"] },
+            "applications": { "includeApplications": ["All"] }
+        });
+        let radius = BlastRadius::from_conditions(&conditions, "block");
+        assert_eq!(radius, BlastRadius::Critical);
+    }
+
+    #[test]
+    fn test_blast_radius_from_conditions_high() {
+        let conditions = json!({
+            "users": { "includeUsers": ["All"] },
+            "applications": { "includeApplications": ["Office365"] }
+        });
+        let radius = BlastRadius::from_conditions(&conditions, "grant");
+        assert_eq!(radius, BlastRadius::High);
+    }
+
+    #[test]
+    fn test_blast_radius_from_conditions_low() {
+        let conditions = json!({
+            "users": { "includeUsers": ["AdminGroup"] },
+            "applications": { "includeApplications": ["SingleApp"] }
+        });
+        let radius = BlastRadius::from_conditions(&conditions, "grant");
+        assert_eq!(radius, BlastRadius::Low);
+    }
+
+    #[test]
+    fn test_blast_radius_as_str() {
+        assert_eq!(BlastRadius::Low.as_str(), "Low");
+        assert_eq!(BlastRadius::Medium.as_str(), "Medium");
+        assert_eq!(BlastRadius::High.as_str(), "High");
+        assert_eq!(BlastRadius::Critical.as_str(), "Critical");
+    }
+
+    #[test]
+    fn test_blast_radius_description() {
+        assert!(BlastRadius::Low.description().contains("safe"));
+        assert!(BlastRadius::Critical.description().contains("All users"));
+    }
+
+    #[test]
+    fn test_cap001_block_legacy_auth() {
+        let baseline = CABaseline2025::generate();
+        let policy = baseline.policies.iter().find(|p| p.id == "CAP001").unwrap();
+
+        assert!(policy.display_name.contains("Legacy Authentication"));
+        assert_eq!(policy.blast_radius, BlastRadius::Critical);
+        assert!(policy.impact_summary.contains("Blocks legacy auth"));
+    }
+
+    #[test]
+    fn test_cau001_require_mfa_all_users() {
+        let baseline = CABaseline2025::generate();
+        let policy = baseline.policies.iter().find(|p| p.id == "CAU001").unwrap();
+
+        assert!(policy.display_name.contains("MFA"));
+        assert_eq!(policy.blast_radius, BlastRadius::Critical);
+        assert!(
+            policy.conditions["users"]["includeUsers"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|v| v.as_str() == Some("All"))
+        );
+    }
+
+    #[test]
+    fn test_cad001_macos_compliant() {
+        let baseline = CABaseline2025::generate();
+        let policy = baseline.policies.iter().find(|p| p.id == "CAD001").unwrap();
+
+        assert!(policy.display_name.contains("macOS"));
+        assert_eq!(policy.category, "Device");
+        assert_eq!(policy.state, "enabledForReportingButNotEnforced");
+    }
+
+    #[test]
+    fn test_cad002_windows_compliant() {
+        let baseline = CABaseline2025::generate();
+        let policy = baseline.policies.iter().find(|p| p.id == "CAD002").unwrap();
+
+        assert!(policy.display_name.contains("Windows"));
+        assert_eq!(policy.category, "Device");
+        assert!(
+            policy.conditions["platforms"]["includePlatforms"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|v| v.as_str() == Some("windows"))
+        );
+    }
+
+    #[test]
+    fn test_all_policies_have_report_only_default() {
+        let baseline = CABaseline2025::generate();
+        for policy in &baseline.policies {
+            assert_eq!(
+                policy.state, "enabledForReportingButNotEnforced",
+                "Policy {} should default to report-only",
+                policy.id
+            );
+        }
+    }
+
+    #[test]
+    fn test_all_policies_have_blast_radius() {
+        let baseline = CABaseline2025::generate();
+        for policy in &baseline.policies {
+            // Just verify it's one of the valid enum values
+            let _ = policy.blast_radius.as_str();
+            assert!(!policy.impact_summary.is_empty());
+        }
+    }
+
+    #[test]
+    fn test_to_graph_json() {
+        let baseline = CABaseline2025::generate();
+        let policy = &baseline.policies[0];
+        let json = CABaseline2025::to_graph_json(policy);
+
+        assert_eq!(
+            json["@odata.type"],
+            "#microsoft.graph.conditionalAccessPolicy"
+        );
+        assert!(json["displayName"].is_string());
+        assert!(json["state"].is_string());
+        assert!(json["conditions"].is_object());
+        assert!(json["grantControls"].is_object());
+    }
+
+    #[test]
+    fn test_required_groups_generated() {
+        let baseline = CABaseline2025::generate();
+        assert!(!baseline.groups.is_empty());
+
+        let breakglass = baseline.groups.iter().find(|g| g.purpose == "breakglass");
+        assert!(breakglass.is_some());
+    }
+
+    #[test]
+    fn test_named_locations_generated() {
+        let baseline = CABaseline2025::generate();
+        assert!(!baseline.named_locations.is_empty());
+
+        let has_country_location = baseline
+            .named_locations
+            .iter()
+            .any(|l| l.location_type == "country");
+        assert!(has_country_location);
+    }
+
+    #[test]
+    fn test_ca_policy_template_new() {
+        let policy = CAPolicyTemplate::new(
+            "TEST001",
+            "Test Policy",
+            "Test Description",
+            "Test",
+            json!({
+                "users": { "includeUsers": ["All"] },
+                "applications": { "includeApplications": ["All"] }
+            }),
+            json!({ "operator": "OR", "builtInControls": ["mfa"] }),
+            None,
+        );
+
+        assert_eq!(policy.id, "TEST001");
+        assert_eq!(policy.display_name, "Test Policy");
+        // Auto-calculated blast radius should be High for all users + all apps (grant)
+        // Critical requires block category
+        assert_eq!(policy.blast_radius, BlastRadius::High);
+        assert!(!policy.impact_summary.is_empty());
+    }
+
+    #[test]
+    fn test_ca_policy_template_default() {
+        let policy = CAPolicyTemplate::default();
+        assert!(policy.id.is_empty());
+        assert_eq!(policy.state, "enabledForReportingButNotEnforced");
+        assert_eq!(policy.blast_radius, BlastRadius::Medium);
     }
 }

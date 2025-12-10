@@ -534,8 +534,20 @@ pub async fn deploy_converted(args: DeployConvertedArgs) -> Result<()> {
         )));
     }
 
-    let content = fs::read_to_string(&args.file)?;
-    let policy: ConvertedPolicy = serde_json::from_str(&content)?;
+    let content = fs::read_to_string(&args.file).map_err(|e| {
+        crate::error::Ctl365Error::ConfigError(format!(
+            "Failed to read {}: {}",
+            args.file.display(),
+            e
+        ))
+    })?;
+    let policy: ConvertedPolicy = serde_json::from_str(&content).map_err(|e| {
+        crate::error::Ctl365Error::ConfigError(format!(
+            "Invalid JSON in {}: {}",
+            args.file.display(),
+            e
+        ))
+    })?;
 
     println!("→ Policy: {}", policy.name.cyan());
     println!("→ Source GPO: {}", policy.source_gpo.cyan());

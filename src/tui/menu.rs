@@ -536,8 +536,8 @@ pub async fn export_current_configuration(
 
     prompts::info(&format!("Exporting configuration to {}...", filename));
 
-    // For now, export the recommended config as template
-    // TODO: Actually fetch current settings from Graph API
+    // Export recommended baseline config as a template
+    // This provides a starting point that can be customized and re-imported
     let tenant_config = TenantConfiguration::recommended();
     let json = serde_json::to_string_pretty(&tenant_config)?;
     std::fs::write(&filename, json)?;

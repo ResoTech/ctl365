@@ -10,7 +10,7 @@
 //! - SharePoint Online
 //! - Microsoft Teams
 //!
-//! Reference: https://github.com/cisagov/ScubaGear
+//! Reference: <https://github.com/cisagov/ScubaGear>
 
 use crate::config::ConfigManager;
 use crate::error::Result;

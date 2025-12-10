@@ -1,0 +1,18 @@
+{
+  "mappings": {
+    "source-all-users-group-id": "dest-all-users-group-id",
+    "source-windows-devices-group-id": "dest-windows-devices-group-id",
+    "source-ios-devices-group-id": "dest-ios-devices-group-id",
+    "source-android-devices-group-id": "dest-android-devices-group-id",
+    "source-macos-devices-group-id": "dest-macos-devices-group-id"
+  },
+  "auto_create_missing": true,
+  "match_by_name": true,
+  "comments": {
+    "description": "Group mapping file for tenant-to-tenant policy migration",
+    "usage": "ctl365 export import --directory export/ --group-mapping group-mapping.json",
+    "source_tenant": "source-tenant-name",
+    "dest_tenant": "destination-tenant-name",
+    "created": "2025-01-01"
+  }
+}

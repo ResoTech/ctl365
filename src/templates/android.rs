@@ -510,3 +510,214 @@ pub mod app_ids {
     pub const COMPANY_PORTAL: &str = "com.microsoft.windowsintune.companyportal";
     pub const DEFENDER: &str = "com.microsoft.scmx";
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn create_test_args(name: &str, defender: bool) -> NewArgs {
+        NewArgs {
+            platform: "android".to_string(),
+            encryption: true,
+            defender,
+            min_os: None,
+            mde_onboarding: None,
+            output: None,
+            name: name.to_string(),
+            template: "basic".to_string(),
+        }
+    }
+
+    #[test]
+    fn test_generate_android_baseline_structure() {
+        let args = create_test_args("Test Baseline", true);
+        let baseline = generate_android_baseline(&args).unwrap();
+
+        assert_eq!(baseline["version"], "1.0");
+        assert_eq!(baseline["platform"], "Android");
+        assert_eq!(baseline["template"], "android-baseline");
+
+        let policies = baseline["policies"].as_array().unwrap();
+        // 7 base policies + 1 defender = 8
+        assert_eq!(policies.len(), 8);
+    }
+
+    #[test]
+    fn test_generate_android_baseline_without_defender() {
+        let args = create_test_args("Test", false);
+        let baseline = generate_android_baseline(&args).unwrap();
+
+        let policies = baseline["policies"].as_array().unwrap();
+        // 7 base policies without defender
+        assert_eq!(policies.len(), 7);
+    }
+
+    #[test]
+    fn test_android_work_profile_compliance() {
+        let args = create_test_args("Test", true);
+        let policy = generate_android_work_profile_compliance(&args);
+
+        assert_eq!(
+            policy["@odata.type"],
+            "#microsoft.graph.androidWorkProfileCompliancePolicy"
+        );
+        assert!(
+            policy["displayName"]
+                .as_str()
+                .unwrap()
+                .contains("Android Work Profile Compliance")
+        );
+        assert_eq!(policy["osMinimumVersion"], "10.0");
+        assert_eq!(policy["passwordRequired"], true);
+        assert_eq!(policy["storageRequireEncryption"], true);
+        assert_eq!(policy["securityBlockJailbrokenDevices"], true);
+    }
+
+    #[test]
+    fn test_android_fully_managed_compliance() {
+        let args = create_test_args("Test", false);
+        let policy = generate_android_fully_managed_compliance(&args);
+
+        assert_eq!(
+            policy["@odata.type"],
+            "#microsoft.graph.androidDeviceOwnerCompliancePolicy"
+        );
+        assert!(
+            policy["displayName"]
+                .as_str()
+                .unwrap()
+                .contains("Fully Managed Compliance")
+        );
+        assert_eq!(policy["passwordMinimumLength"], 8);
+        assert_eq!(
+            policy["securityRequireSafetyNetAttestationCertifiedDevice"],
+            true
+        );
+    }
+
+    #[test]
+    fn test_android_work_profile_restrictions() {
+        let args = create_test_args("Test", false);
+        let policy = generate_android_work_profile_restrictions(&args);
+
+        assert_eq!(
+            policy["@odata.type"],
+            "#microsoft.graph.androidWorkProfileGeneralDeviceConfiguration"
+        );
+        assert_eq!(policy["workProfileDataSharingType"], "preventAny");
+        assert_eq!(policy["workProfileBlockCrossProfileCopyPaste"], true);
+        assert_eq!(policy["securityRequireVerifyApps"], true);
+    }
+
+    #[test]
+    fn test_android_fully_managed_restrictions() {
+        let args = create_test_args("Test", false);
+        let policy = generate_android_fully_managed_restrictions(&args);
+
+        assert_eq!(
+            policy["@odata.type"],
+            "#microsoft.graph.androidDeviceOwnerGeneralDeviceConfiguration"
+        );
+        assert_eq!(policy["appsBlockInstallFromUnknownSources"], true);
+        assert_eq!(policy["usbDebuggingBlocked"], true);
+        assert_eq!(policy["factoryResetBlocked"], true);
+    }
+
+    #[test]
+    fn test_android_app_protection_policy() {
+        let args = create_test_args("Test", false);
+        let policy = generate_android_app_protection_policy(&args);
+
+        assert_eq!(
+            policy["@odata.type"],
+            "#microsoft.graph.androidManagedAppProtection"
+        );
+        assert!(policy["apps"].is_array());
+        let apps = policy["apps"].as_array().unwrap();
+        assert!(!apps.is_empty());
+        assert_eq!(policy["pinRequired"], true);
+        assert_eq!(policy["encryptAppData"], true);
+        assert_eq!(policy["dataBackupBlocked"], true);
+    }
+
+    #[test]
+    fn test_android_email_profile() {
+        let args = create_test_args("Test", false);
+        let policy = generate_android_email_profile(&args);
+
+        assert_eq!(
+            policy["@odata.type"],
+            "#microsoft.graph.androidWorkProfileEasEmailProfileBase"
+        );
+        assert_eq!(policy["hostName"], "outlook.office365.com");
+        assert_eq!(policy["requireSsl"], true);
+    }
+
+    #[test]
+    fn test_android_wifi_profile() {
+        let args = create_test_args("Test", false);
+        let policy = generate_android_wifi_profile(&args);
+
+        assert_eq!(
+            policy["@odata.type"],
+            "#microsoft.graph.androidWorkProfileWiFiConfiguration"
+        );
+        assert_eq!(policy["wiFiSecurityType"], "wpaEnterprise");
+        assert_eq!(policy["connectAutomatically"], true);
+    }
+
+    #[test]
+    fn test_android_defender_policy() {
+        let args = create_test_args("Test", true);
+        let policy = generate_android_defender_policy(&args);
+
+        assert_eq!(
+            policy["@odata.type"],
+            "#microsoft.graph.androidManagedStoreApp"
+        );
+        assert_eq!(policy["packageId"], "com.microsoft.scmx");
+        assert!(
+            policy["configuration"]["DefenderEnabled"]
+                .as_bool()
+                .unwrap()
+        );
+    }
+
+    #[test]
+    fn test_generate_basic_android_baseline() {
+        let args = create_test_args("Basic Test", false);
+        let baseline = generate_basic_android_baseline(&args).unwrap();
+
+        assert_eq!(baseline["version"], "1.0");
+        assert_eq!(baseline["platform"], "Android");
+        assert_eq!(baseline["template"], "android-basic");
+
+        let policies = baseline["policies"].as_array().unwrap();
+        assert_eq!(policies.len(), 2); // Compliance + Restrictions
+    }
+
+    #[test]
+    fn test_android_compliance_with_custom_min_os() {
+        let args = NewArgs {
+            platform: "android".to_string(),
+            encryption: true,
+            defender: false,
+            min_os: Some("13.0".to_string()),
+            mde_onboarding: None,
+            output: None,
+            name: "Test".to_string(),
+            template: "basic".to_string(),
+        };
+        let policy = generate_android_work_profile_compliance(&args);
+
+        assert_eq!(policy["osMinimumVersion"], "13.0");
+    }
+
+    #[test]
+    fn test_app_ids_constants() {
+        assert_eq!(app_ids::OUTLOOK, "com.microsoft.office.outlook");
+        assert_eq!(app_ids::TEAMS, "com.microsoft.teams");
+        assert_eq!(app_ids::DEFENDER, "com.microsoft.scmx");
+        assert_eq!(app_ids::EDGE, "com.microsoft.emmx");
+    }
+}

@@ -5,6 +5,130 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2025-12-10
+
+### Added
+- **Testing Infrastructure Sprint**
+  - 51 new unit tests for template generators (Android, Windows OIB, CA Baseline 2025)
+  - Total test count: 125 tests (112 unit + 13 integration)
+  - Tests cover baseline generation, policy structure, and configuration validation
+
+- **Logging & Observability Sprint**
+  - Multi-level verbosity: `-v` (info), `-vv` (debug), `-vvv` (trace)
+  - File logging: `--log-file <FILE>` writes logs to file
+  - Quiet mode: `-q/--quiet` suppresses output except errors
+  - Progress bar utilities in `cmd/progress.rs` for long operations
+
+- **Professional HTML Report Template** (`cmd/report_template.rs`)
+  - Resolve Technology branded reports with logo
+  - Compliance scoring with letter grades (A-F)
+  - Category-based score breakdown with visual bars
+  - Findings section with severity badges (Critical/High/Medium/Low/Info)
+  - Configuration change tracking table
+  - Summary sections with card layout
+  - Print-friendly CSS with page break handling
+  - Full test coverage (6 tests)
+
+- **Documentation Sprint**
+  - `docs/PERMISSIONS.md` - Comprehensive Graph API permissions reference
+    - Permissions by command (baseline, CA, autopilot, etc.)
+    - Azure AD role requirements
+    - Admin consent instructions (Portal, PowerShell, Graph)
+    - Permission GUIDs for automation
+  - `examples/` folder with sample files:
+    - `autopilot-devices.csv` - Device import template
+    - `group-mapping.json` - Tenant migration mapping
+    - `windows-baseline-basic.json` - Baseline example
+
+### Security & Hardening
+- **Token Cache Permissions** - Unix file permissions now enforced:
+  - Token cache files set to `0o600` (owner read/write only)
+  - Config directories set to `0o700` (owner access only)
+  - Protects credentials from other system users
+
+- **Tenant Name Sanitization** - New validation and sanitization utilities:
+  - `sanitize_tenant_name()` - Converts names to safe filesystem identifiers
+  - `validate_tenant_name()` - Rejects invalid characters before saving
+  - Prevents path traversal and injection via tenant names
+
+- **CSV/JSON Validation Hardening** - Improved error handling for file imports:
+  - Autopilot CSV import now reports row-by-row parse errors with line numbers
+  - Validates required fields (serial number, hardware hash) before processing
+  - All JSON parsing now includes file path in error messages
+  - Graceful handling of malformed data (no panics)
+
+### Added
+- **CA Policy Blast Radius Metadata** - All 44 Conditional Access policy templates now include:
+  - `blast_radius` field: `Low`, `Medium`, `High`, or `Critical` impact rating
+  - `impact_summary` field: Human-readable description of business impact
+  - Helps operators understand risk before deploying policies
+  - Categories: Device (CAD), Location (CAL), Protocol (CAP), Risk (CAR), Service (CAS), User (CAU)
+
+- **Graph API Pagination Helpers** - New shared utilities in `GraphClient`:
+  - `get_all_pages<T>()` - Automatically follows `@odata.nextLink` for full result sets
+  - `get_all_pages_beta<T>()` - Same for beta API endpoints
+  - `get_pages_limited<T>()` - Paginated fetching with max page limit
+  - `PaginatedResponse<T>` struct for consistent pagination handling
+
+- **Enhanced TUI Export Help Text** - Detailed tooltips for export/report actions:
+  - Policy export: explains JSON/CSV output and save location
+  - Audit export: describes JSON format and compliance documentation use
+  - Report types: compliance, security, inventory, change control, executive summary
+  - Each description now includes output format and destination path info
+
+- **Compliance Policy Validation** - Real validation in `validate_compliance_baseline()`:
+  - Checks for scheduled actions on non-compliance
+  - Windows: BitLocker, Secure Boot, Code Integrity validation
+  - macOS: FileVault encryption, System Integrity Protection
+  - iOS/Android: Device encryption requirements
+
+- **TUI Unit Tests** - Comprehensive test coverage for TUI components:
+  - 27 new tests covering App state, navigation, menus, progress, forms
+  - Tests for empty/edge cases to prevent panics
+  - Compatible with PowerShell terminal environment
+
+- **Windows Installer Return Code Constants** - Documented constants in `package.rs`:
+  - `WIN_SUCCESS` (0) - Installation successful
+  - `WIN_SUCCESS_ALREADY_INSTALLED` (1707) - Already installed
+  - `WIN_SOFT_REBOOT` (3010) - Soft reboot required
+  - `WIN_HARD_REBOOT` (1641) - Hard reboot required
+  - `WIN_RETRY_INSTALL_IN_PROGRESS` (1618) - Another install in progress
+
+### Changed
+- **TUI Export/Report Panes** - Now display real tenant data instead of placeholders:
+  - Compliance reports show actual policy counts and deployment status
+  - Security reports reflect real setting toggles and CA policy states
+  - Executive summaries calculate scores from live data
+
+### Fixed
+- **Clippy Warnings** - All clippy warnings resolved across `tui/*` and `cmd/*` modules
+- **Unused Code** - Removed unused `with_impact()` constructor that triggered too-many-arguments warning
+- **Graph API Retry Error Messages** - Now include endpoint URL and HTTP method in error output
+- **"Coming Soon" Menu Items** - Removed unimplemented `microsoft-baseline` and `cis` options
+- **Standardized "Unknown" Defaults** - Consistent capitalization across all fallback values
+- **Task Failure Messages** - Now include tenant name, task type, and actionable context
+
+### TUI Polish Sprint (Production Hardening)
+- **Panic Prevention** - Eliminated all potential runtime panics:
+  - Test helper double unwrap replaced with triple fallback chain
+  - Added `ConfigManager::default()` implementation for fallback scenarios
+  - Array indexing replaced with safe `.get().copied().unwrap_or()` pattern
+  - Division by zero guards added with `.max(1)` on all divisors
+- **Windows Terminal Robustness** - Enhanced terminal state management:
+  - `restore_terminal()` now idempotent and safe to call multiple times
+  - Explicit cursor visibility restore for Windows terminals
+  - Stdout flush ensures all escape sequences are sent
+  - Improved panic hook with user-friendly error message
+  - Proper cleanup on initialization failures
+- **Version Strings** - Now read from `Cargo.toml` via `env!("CARGO_PKG_VERSION")`
+- **Disabled Features** - "Applications" menu item marked as coming in v0.2
+- **Doc Comments** - Fixed bare URL warnings in rustdoc
+
+### Dependencies
+- Requires Rust 1.88+ (for `let_chains` in wiremock dev dependency)
+
+---
+
 ## [Unreleased]
 
 ### Added

@@ -7,7 +7,7 @@
 
 #![allow(dead_code)]
 
-use super::ca_baseline_2025::CAPolicyTemplate;
+use super::ca_baseline_2025::{BlastRadius, CAPolicyTemplate};
 use serde_json::json;
 
 // ============================================================================
@@ -40,6 +40,8 @@ pub fn cad003_ios_android_approved_app() -> CAPolicyTemplate {
             "builtInControls": ["approvedApplication"]
         }),
         session_controls: None,
+        blast_radius: BlastRadius::High,
+        impact_summary: "Affects all mobile users. May block third-party email apps and non-approved browsers. Test with pilot group first.".to_string(),
     }
 }
 
@@ -73,6 +75,8 @@ pub fn cad004_browser_mfa_non_compliant() -> CAPolicyTemplate {
             "builtInControls": ["mfa"]
         }),
         session_controls: None,
+        blast_radius: BlastRadius::Medium,
+        impact_summary: "Additional MFA prompt for browser access on non-compliant devices. Low friction for compliant device users.".to_string(),
     }
 }
 
@@ -102,6 +106,10 @@ pub fn cad005_block_unsupported_platforms() -> CAPolicyTemplate {
             "builtInControls": ["block"]
         }),
         session_controls: None,
+        blast_radius: BlastRadius::Low,
+        impact_summary:
+            "Blocks uncommon platforms like ChromeOS. Low impact for most organizations."
+                .to_string(),
     }
 }
 
@@ -137,6 +145,8 @@ pub fn cad006_block_download_unmanaged() -> CAPolicyTemplate {
                 "isEnabled": true
             }
         })),
+        blast_radius: BlastRadius::Medium,
+        impact_summary: "Restricts downloads on personal devices. Users can still view but not download files. Good DLP control.".to_string(),
     }
 }
 
@@ -169,6 +179,8 @@ pub fn cad007_signin_frequency_apps() -> CAPolicyTemplate {
                 "isEnabled": true
             }
         })),
+        blast_radius: BlastRadius::Medium,
+        impact_summary: "Users re-authenticate every 12 hours on native apps. May affect user experience but increases security.".to_string(),
     }
 }
 
@@ -205,6 +217,10 @@ pub fn cad008_signin_frequency_browser() -> CAPolicyTemplate {
                 "isEnabled": true
             }
         })),
+        blast_radius: BlastRadius::Medium,
+        impact_summary:
+            "Browser sessions expire every 8 hours. Users must sign in at start of each workday."
+                .to_string(),
     }
 }
 
@@ -236,6 +252,8 @@ pub fn cad009_disable_browser_persistence() -> CAPolicyTemplate {
                 "isEnabled": true
             }
         })),
+        blast_radius: BlastRadius::Low,
+        impact_summary: "Browser sessions not persisted. Users sign in fresh each session. Good for shared computers.".to_string(),
     }
 }
 
@@ -261,6 +279,8 @@ pub fn cad010_mfa_device_join() -> CAPolicyTemplate {
             "builtInControls": ["mfa"]
         }),
         session_controls: None,
+        blast_radius: BlastRadius::Low,
+        impact_summary: "MFA required only during device registration. One-time friction, minimal ongoing impact.".to_string(),
     }
 }
 
@@ -289,6 +309,8 @@ pub fn cad011_linux_compliant() -> CAPolicyTemplate {
             "builtInControls": ["compliantDevice"]
         }),
         session_controls: None,
+        blast_radius: BlastRadius::Medium,
+        impact_summary: "Affects Linux users only. Requires Intune Linux enrollment. Low impact if Linux usage is minimal.".to_string(),
     }
 }
 
@@ -319,6 +341,8 @@ pub fn cad012_admin_compliant() -> CAPolicyTemplate {
             "builtInControls": ["compliantDevice", "mfa"]
         }),
         session_controls: None,
+        blast_radius: BlastRadius::Medium,
+        impact_summary: "Affects administrators only. Ensure admin devices are enrolled and compliant before enabling.".to_string(),
     }
 }
 
@@ -348,6 +372,8 @@ pub fn cad014_app_protection_edge() -> CAPolicyTemplate {
             "builtInControls": ["approvedApplication", "compliantApplication"]
         }),
         session_controls: None,
+        blast_radius: BlastRadius::Medium,
+        impact_summary: "Affects mobile browser users. Requires Edge with MAM policy. May block Safari/Chrome access.".to_string(),
     }
 }
 
@@ -376,6 +402,10 @@ pub fn cad015_windows_macos_compliant() -> CAPolicyTemplate {
             "builtInControls": ["compliantDevice", "domainJoinedDevice"]
         }),
         session_controls: None,
+        blast_radius: BlastRadius::High,
+        impact_summary:
+            "Affects all Windows and macOS users. Ensure all devices are enrolled before enabling."
+                .to_string(),
     }
 }
 
@@ -404,6 +434,8 @@ pub fn cad016_token_protection() -> CAPolicyTemplate {
             }
         }),
         session_controls: None,
+        blast_radius: BlastRadius::Critical,
+        impact_summary: "Requires FIDO2/Windows Hello for ALL users. Ensure all users have phishing-resistant methods registered.".to_string(),
     }
 }
 
@@ -439,6 +471,8 @@ pub fn cal002_mfa_registration_trusted_locations() -> CAPolicyTemplate {
             "builtInControls": ["mfa"]
         }),
         session_controls: None,
+        blast_radius: BlastRadius::Low,
+        impact_summary: "MFA required for security info registration outside office. Prevents remote MFA hijacking.".to_string(),
     }
 }
 
@@ -471,6 +505,8 @@ pub fn cal004_block_admin_untrusted_locations() -> CAPolicyTemplate {
             "builtInControls": ["block"]
         }),
         session_controls: None,
+        blast_radius: BlastRadius::High,
+        impact_summary: "Blocks admin access outside trusted locations. Ensure VPN/trusted IPs are configured correctly.".to_string(),
     }
 }
 
@@ -500,6 +536,8 @@ pub fn cal011_allow_trusted_countries() -> CAPolicyTemplate {
             "builtInControls": ["block"]
         }),
         session_controls: None,
+        blast_radius: BlastRadius::Critical,
+        impact_summary: "Blocks ALL access outside US/Canada. Will affect traveling users and international partners.".to_string(),
     }
 }
 
@@ -530,6 +568,10 @@ pub fn cap002_exchange_activesync_approved_app() -> CAPolicyTemplate {
             "builtInControls": ["approvedApplication"]
         }),
         session_controls: None,
+        blast_radius: BlastRadius::Medium,
+        impact_summary:
+            "Blocks legacy Exchange ActiveSync clients. Users must switch to modern Outlook app."
+                .to_string(),
     }
 }
 
@@ -559,6 +601,8 @@ pub fn cap003_require_approved_app_mobile() -> CAPolicyTemplate {
             "builtInControls": ["approvedApplication"]
         }),
         session_controls: None,
+        blast_radius: BlastRadius::High,
+        impact_summary: "Restricts mobile O365 access to Intune-approved apps only. Third-party mail apps blocked.".to_string(),
     }
 }
 
@@ -587,6 +631,8 @@ pub fn cap004_require_app_protection_mobile() -> CAPolicyTemplate {
             "builtInControls": ["compliantApplication"]
         }),
         session_controls: None,
+        blast_radius: BlastRadius::High,
+        impact_summary: "Requires Intune MAM policies on mobile. Data copy/paste restricted, company data wiped on unenroll.".to_string(),
     }
 }
 
@@ -617,6 +663,8 @@ pub fn car001_block_high_signin_risk() -> CAPolicyTemplate {
             "builtInControls": ["block"]
         }),
         session_controls: None,
+        blast_radius: BlastRadius::Low,
+        impact_summary: "Blocks only high-risk sign-ins (leaked credentials, impossible travel). Minimal impact to normal users.".to_string(),
     }
 }
 
@@ -643,6 +691,10 @@ pub fn car002_mfa_medium_signin_risk() -> CAPolicyTemplate {
             "builtInControls": ["mfa"]
         }),
         session_controls: None,
+        blast_radius: BlastRadius::Low,
+        impact_summary:
+            "Extra MFA prompt for suspicious sign-ins. Users complete MFA only when risk detected."
+                .to_string(),
     }
 }
 
@@ -669,6 +721,8 @@ pub fn car003_mfa_high_user_risk() -> CAPolicyTemplate {
             "builtInControls": ["mfa"]
         }),
         session_controls: None,
+        blast_radius: BlastRadius::Low,
+        impact_summary: "MFA challenge for compromised accounts. Only triggers for accounts flagged by Identity Protection.".to_string(),
     }
 }
 
@@ -696,6 +750,8 @@ pub fn car004_password_change_high_user_risk() -> CAPolicyTemplate {
             "builtInControls": ["mfa", "passwordChange"]
         }),
         session_controls: None,
+        blast_radius: BlastRadius::Medium,
+        impact_summary: "Forces immediate password reset for compromised accounts. User must change password at next sign-in.".to_string(),
     }
 }
 
@@ -724,6 +780,8 @@ pub fn car005_block_anonymous_ip() -> CAPolicyTemplate {
             "builtInControls": ["block"]
         }),
         session_controls: None,
+        blast_radius: BlastRadius::Medium,
+        impact_summary: "Blocks VPN, Tor, and anonymous proxy access. May affect users on corporate VPNs not whitelisted.".to_string(),
     }
 }
 
@@ -753,6 +811,8 @@ pub fn cas001_azure_management_mfa() -> CAPolicyTemplate {
             "builtInControls": ["mfa"]
         }),
         session_controls: None,
+        blast_radius: BlastRadius::Medium,
+        impact_summary: "MFA required for Azure Portal, CLI, and PowerShell. Affects cloud infrastructure admins.".to_string(),
     }
 }
 
@@ -778,6 +838,10 @@ pub fn cas002_exchange_mfa() -> CAPolicyTemplate {
             "builtInControls": ["mfa"]
         }),
         session_controls: None,
+        blast_radius: BlastRadius::High,
+        impact_summary:
+            "MFA required for all email access. All Outlook/OWA users must complete MFA challenge."
+                .to_string(),
     }
 }
 
@@ -803,6 +867,8 @@ pub fn cas003_sharepoint_compliant() -> CAPolicyTemplate {
             "builtInControls": ["compliantDevice", "domainJoinedDevice"]
         }),
         session_controls: None,
+        blast_radius: BlastRadius::High,
+        impact_summary: "Blocks SharePoint/OneDrive on personal devices. Users cannot access files from non-compliant devices.".to_string(),
     }
 }
 
@@ -828,6 +894,8 @@ pub fn cas004_teams_compliant() -> CAPolicyTemplate {
             "builtInControls": ["compliantDevice", "domainJoinedDevice"]
         }),
         session_controls: None,
+        blast_radius: BlastRadius::High,
+        impact_summary: "Blocks Teams on personal devices. Users cannot join meetings or chat from non-compliant devices.".to_string(),
     }
 }
 
@@ -853,6 +921,8 @@ pub fn cas005_security_info_registration_mfa() -> CAPolicyTemplate {
             "builtInControls": ["mfa"]
         }),
         session_controls: None,
+        blast_radius: BlastRadius::Low,
+        impact_summary: "MFA required when registering auth methods. Prevents attackers from adding their own MFA.".to_string(),
     }
 }
 
@@ -878,6 +948,8 @@ pub fn cas006_privileged_access_mfa() -> CAPolicyTemplate {
             "builtInControls": ["mfa"]
         }),
         session_controls: None,
+        blast_radius: BlastRadius::Low,
+        impact_summary: "MFA required for PIM role activation. Only affects users elevating to privileged roles.".to_string(),
     }
 }
 
@@ -904,6 +976,8 @@ pub fn cas007_powershell_block_basic_auth() -> CAPolicyTemplate {
             "builtInControls": ["block"]
         }),
         session_controls: None,
+        blast_radius: BlastRadius::Medium,
+        impact_summary: "Blocks legacy PowerShell basic auth. Old scripts using Connect-ExchangeOnline -Credential will fail.".to_string(),
     }
 }
 
@@ -929,6 +1003,8 @@ pub fn cas008_graph_api_compliant() -> CAPolicyTemplate {
             "builtInControls": ["compliantDevice", "domainJoinedDevice"]
         }),
         session_controls: None,
+        blast_radius: BlastRadius::Critical,
+        impact_summary: "Restricts Graph API to compliant devices. Breaks automation/scripts on non-compliant systems.".to_string(),
     }
 }
 
@@ -968,6 +1044,8 @@ pub fn cau002_block_guest_untrusted_locations() -> CAPolicyTemplate {
             "builtInControls": ["block"]
         }),
         session_controls: None,
+        blast_radius: BlastRadius::Medium,
+        impact_summary: "Blocks guest access from untrusted locations. External partners must connect from trusted IPs.".to_string(),
     }
 }
 
@@ -999,6 +1077,10 @@ pub fn cau003_guest_mfa() -> CAPolicyTemplate {
             "builtInControls": ["mfa"]
         }),
         session_controls: None,
+        blast_radius: BlastRadius::Low,
+        impact_summary:
+            "All guest/B2B users must complete MFA. Only affects external collaborators."
+                .to_string(),
     }
 }
 
@@ -1031,6 +1113,8 @@ pub fn cau004_admin_mfa_all_apps() -> CAPolicyTemplate {
             "builtInControls": ["mfa"]
         }),
         session_controls: None,
+        blast_radius: BlastRadius::Low,
+        impact_summary: "Admin roles require MFA for all apps. Targets Global Admin, Security Admin, Exchange Admin, etc.".to_string(),
     }
 }
 
@@ -1056,6 +1140,10 @@ pub fn cau005_block_disabled_accounts() -> CAPolicyTemplate {
             "builtInControls": ["block"]
         }),
         session_controls: None,
+        blast_radius: BlastRadius::Low,
+        impact_summary:
+            "Blocks access for accounts in disabled users group. Requires group configuration."
+                .to_string(),
     }
 }
 
@@ -1081,6 +1169,8 @@ pub fn cau006_terms_of_use() -> CAPolicyTemplate {
             "termsOfUse": ["{{TermsOfUse_ID}}"]
         }),
         session_controls: None,
+        blast_radius: BlastRadius::Medium,
+        impact_summary: "Users must accept terms of use before accessing apps. Requires terms of use configuration in Azure AD.".to_string(),
     }
 }
 
@@ -1106,6 +1196,8 @@ pub fn cau007_compliant_device_all_users() -> CAPolicyTemplate {
             "builtInControls": ["compliantDevice", "domainJoinedDevice"]
         }),
         session_controls: None,
+        blast_radius: BlastRadius::Critical,
+        impact_summary: "ALL users must have compliant or domain-joined devices. Blocks BYOD and personal devices entirely.".to_string(),
     }
 }
 
@@ -1142,6 +1234,9 @@ pub fn cau008_session_timeout_external_users() -> CAPolicyTemplate {
                 "isEnabled": true
             }
         })),
+        blast_radius: BlastRadius::Low,
+        impact_summary:
+            "Guest users re-authenticate every 4 hours. Only affects B2B collaborators.".to_string(),
     }
 }
 
@@ -1167,6 +1262,8 @@ pub fn cau009_require_password_change() -> CAPolicyTemplate {
             "builtInControls": ["passwordChange"]
         }),
         session_controls: None,
+        blast_radius: BlastRadius::Low,
+        impact_summary: "Forces password change for users in designated group. Manual group membership required.".to_string(),
     }
 }
 
@@ -1195,6 +1292,8 @@ pub fn cau010_block_countries() -> CAPolicyTemplate {
             "builtInControls": ["block"]
         }),
         session_controls: None,
+        blast_radius: BlastRadius::High,
+        impact_summary: "Blocks access from blacklisted countries. Requires named location with blocked country list.".to_string(),
     }
 }
 
@@ -1226,5 +1325,7 @@ pub fn cau011_privileged_admin_paw() -> CAPolicyTemplate {
             "builtInControls": ["compliantDevice", "mfa"]
         }),
         session_controls: None,
+        blast_radius: BlastRadius::Critical,
+        impact_summary: "Global Admins can ONLY sign in from PAW-* named devices. Requires dedicated secure workstations.".to_string(),
     }
 }

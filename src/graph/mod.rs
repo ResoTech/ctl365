@@ -168,9 +168,9 @@ impl GraphClient {
         }
 
         // If we get here, all retries failed
-        Err(last_error
-            .map(|e| e.into())
-            .unwrap_or_else(|| Ctl365Error::GraphApiError("Max retries exceeded".into())))
+        Err(last_error.map(|e| e.into()).unwrap_or_else(|| {
+            Ctl365Error::GraphApiError(format!("GET {} failed after {} retries", url, MAX_RETRIES))
+        }))
     }
 
     /// Make a POST request to Graph API with retry for transient failures
@@ -269,9 +269,9 @@ impl GraphClient {
             }
         }
 
-        Err(last_error
-            .map(|e| e.into())
-            .unwrap_or_else(|| Ctl365Error::GraphApiError("Max retries exceeded".into())))
+        Err(last_error.map(|e| e.into()).unwrap_or_else(|| {
+            Ctl365Error::GraphApiError(format!("POST {} failed after {} retries", url, MAX_RETRIES))
+        }))
     }
 
     /// Make a GET request to Graph API (beta endpoint) with retry
@@ -392,9 +392,12 @@ impl GraphClient {
             }
         }
 
-        Err(last_error
-            .map(|e| e.into())
-            .unwrap_or_else(|| Ctl365Error::GraphApiError("Max retries exceeded".into())))
+        Err(last_error.map(|e| e.into()).unwrap_or_else(|| {
+            Ctl365Error::GraphApiError(format!(
+                "PATCH {} failed after {} retries",
+                url, MAX_RETRIES
+            ))
+        }))
     }
 
     /// Make a DELETE request to Graph API with retry
@@ -486,9 +489,12 @@ impl GraphClient {
             }
         }
 
-        Err(last_error
-            .map(|e| e.into())
-            .unwrap_or_else(|| Ctl365Error::GraphApiError("Max retries exceeded".into())))
+        Err(last_error.map(|e| e.into()).unwrap_or_else(|| {
+            Ctl365Error::GraphApiError(format!(
+                "DELETE {} failed after {} retries",
+                url, MAX_RETRIES
+            ))
+        }))
     }
 
     /// Get raw response with headers (useful for long-running operations)
@@ -532,4 +538,171 @@ pub struct OperationStatus {
 pub struct OperationError {
     pub code: String,
     pub message: String,
+}
+
+// ============================================================================
+// Pagination Helpers
+// ============================================================================
+
+/// Generic paginated response from Graph API
+///
+/// Use this for standard OData paginated responses with `value` array and `@odata.nextLink`
+#[derive(Debug, Deserialize)]
+pub struct PaginatedResponse<T> {
+    pub value: Vec<T>,
+    #[serde(rename = "@odata.nextLink")]
+    pub next_link: Option<String>,
+    #[serde(rename = "@odata.count")]
+    pub count: Option<i64>,
+}
+
+impl GraphClient {
+    /// Fetch all pages of a paginated Graph API endpoint
+    ///
+    /// Automatically follows `@odata.nextLink` until all pages are retrieved.
+    ///
+    /// # Arguments
+    /// * `endpoint` - The initial API endpoint (e.g., "/users")
+    ///
+    /// # Returns
+    /// A vector containing all items from all pages
+    ///
+    /// # Example
+    /// ```ignore
+    /// let all_users: Vec<User> = client.get_all_pages("/users").await?;
+    /// ```
+    pub async fn get_all_pages<T: for<'de> Deserialize<'de>>(
+        &self,
+        endpoint: &str,
+    ) -> Result<Vec<T>> {
+        self.get_all_pages_with_base(endpoint, GRAPH_API_BASE).await
+    }
+
+    /// Fetch all pages from a beta endpoint
+    pub async fn get_all_pages_beta<T: for<'de> Deserialize<'de>>(
+        &self,
+        endpoint: &str,
+    ) -> Result<Vec<T>> {
+        self.get_all_pages_with_base(endpoint, GRAPH_API_BETA).await
+    }
+
+    /// Internal implementation for paginated fetching
+    async fn get_all_pages_with_base<T: for<'de> Deserialize<'de>>(
+        &self,
+        endpoint: &str,
+        base_url: &str,
+    ) -> Result<Vec<T>> {
+        let mut all_items: Vec<T> = Vec::new();
+        let mut current_url = format!("{}/{}", base_url, endpoint.trim_start_matches('/'));
+
+        loop {
+            let response: PaginatedResponse<T> = self.get_raw_url(&current_url).await?;
+            all_items.extend(response.value);
+
+            match response.next_link {
+                Some(next) => current_url = next,
+                None => break,
+            }
+        }
+
+        Ok(all_items)
+    }
+
+    /// Fetch paginated results with a maximum page limit
+    ///
+    /// Useful for large datasets where you only need a subset
+    ///
+    /// # Arguments
+    /// * `endpoint` - The initial API endpoint
+    /// * `max_pages` - Maximum number of pages to fetch (0 = unlimited)
+    pub async fn get_pages_limited<T: for<'de> Deserialize<'de>>(
+        &self,
+        endpoint: &str,
+        max_pages: usize,
+    ) -> Result<Vec<T>> {
+        let mut all_items: Vec<T> = Vec::new();
+        let mut current_url = format!("{}/{}", GRAPH_API_BASE, endpoint.trim_start_matches('/'));
+        let mut page_count = 0;
+
+        loop {
+            let response: PaginatedResponse<T> = self.get_raw_url(&current_url).await?;
+            all_items.extend(response.value);
+            page_count += 1;
+
+            if max_pages > 0 && page_count >= max_pages {
+                break;
+            }
+
+            match response.next_link {
+                Some(next) => current_url = next,
+                None => break,
+            }
+        }
+
+        Ok(all_items)
+    }
+
+    /// Make a GET request to a raw URL (for following nextLink)
+    async fn get_raw_url<T: for<'de> Deserialize<'de>>(&self, url: &str) -> Result<T> {
+        let mut last_error = None;
+
+        for attempt in 0..MAX_RETRIES {
+            let response = self
+                .client
+                .get(url)
+                .bearer_auth(&self.access_token)
+                .send()
+                .await;
+
+            match response {
+                Ok(resp) => {
+                    let status = resp.status();
+
+                    if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
+                        let retry_after = resp
+                            .headers()
+                            .get("Retry-After")
+                            .and_then(|v| v.to_str().ok())
+                            .and_then(|v| v.parse::<u64>().ok())
+                            .unwrap_or(INITIAL_BACKOFF_MS / 1000);
+
+                        let wait_time = Duration::from_secs(retry_after);
+                        tokio::time::sleep(wait_time).await;
+                        continue;
+                    }
+
+                    if status.is_server_error() && attempt < MAX_RETRIES - 1 {
+                        let wait_time = calculate_backoff_with_jitter(attempt);
+                        tokio::time::sleep(wait_time).await;
+                        continue;
+                    }
+
+                    if !status.is_success() {
+                        let error_text = resp.text().await.unwrap_or_default();
+                        let enhanced_error = crate::error::enhance_graph_error(&error_text);
+                        return Err(Ctl365Error::GraphApiError(format!(
+                            "HTTP {}: {}",
+                            status, enhanced_error
+                        )));
+                    }
+
+                    let data = resp.json::<T>().await?;
+                    return Ok(data);
+                }
+                Err(e) => {
+                    if attempt < MAX_RETRIES - 1 {
+                        let wait_time = calculate_backoff_with_jitter(attempt);
+                        tokio::time::sleep(wait_time).await;
+                        last_error = Some(e);
+                        continue;
+                    }
+                    return Err(e.into());
+                }
+            }
+        }
+
+        Err(last_error.map(|e| e.into()).unwrap_or_else(|| {
+            Ctl365Error::GraphApiError(format!("GET {} failed after {} retries", url, MAX_RETRIES))
+        }))
+    }
 }

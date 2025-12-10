@@ -503,8 +503,20 @@ pub async fn drift_enhanced(args: DriftArgs) -> Result<()> {
     let graph = GraphClient::from_config(&config, &active_tenant.name).await?;
 
     // Load baseline
-    let baseline_content = fs::read_to_string(&args.baseline)?;
-    let baseline: Value = serde_json::from_str(&baseline_content)?;
+    let baseline_content = fs::read_to_string(&args.baseline).map_err(|e| {
+        crate::error::Error::ConfigError(format!(
+            "Failed to read baseline {}: {}",
+            args.baseline.display(),
+            e
+        ))
+    })?;
+    let baseline: Value = serde_json::from_str(&baseline_content).map_err(|e| {
+        crate::error::Error::ConfigError(format!(
+            "Invalid JSON in baseline {}: {}",
+            args.baseline.display(),
+            e
+        ))
+    })?;
 
     let baseline_policies = baseline["policies"]
         .as_array()
@@ -614,7 +626,7 @@ pub async fn drift_enhanced(args: DriftArgs) -> Result<()> {
             // Policy missing
             missing_policies.push(PolicyDrift {
                 policy_name: policy_name.to_string(),
-                policy_type: "unknown".to_string(),
+                policy_type: "Unknown".to_string(),
                 drift_type: "missing".to_string(),
                 differences: vec![],
             });
@@ -805,8 +817,20 @@ fn load_baseline_expectations(
         }
         "custom" => {
             if let Some(file) = baseline_file {
-                let content = fs::read_to_string(file)?;
-                let baseline: Value = serde_json::from_str(&content)?;
+                let content = fs::read_to_string(file).map_err(|e| {
+                    crate::error::Error::ConfigError(format!(
+                        "Failed to read custom baseline {}: {}",
+                        file.display(),
+                        e
+                    ))
+                })?;
+                let baseline: Value = serde_json::from_str(&content).map_err(|e| {
+                    crate::error::Error::ConfigError(format!(
+                        "Invalid JSON in custom baseline {}: {}",
+                        file.display(),
+                        e
+                    ))
+                })?;
                 if let Some(obj) = baseline.as_object() {
                     for (key, value) in obj {
                         expectations.insert(key.clone(), value.clone());
@@ -821,14 +845,189 @@ fn load_baseline_expectations(
 }
 
 fn validate_compliance_policy(
-    _policy: &Value,
+    policy: &Value,
     _expectations: &HashMap<String, Value>,
-    _findings: &mut [Finding],
-    _total_controls: &mut usize,
-    _passed_controls: &mut usize,
+    findings: &mut Vec<Finding>,
+    total_controls: &mut usize,
+    passed_controls: &mut usize,
 ) {
-    // TODO: Validation logic for individual compliance policies
-    // This would check specific settings against baseline expectations
+    let policy_name = policy["displayName"].as_str().unwrap_or("Unknown Policy");
+    let platform = policy["@odata.type"]
+        .as_str()
+        .unwrap_or("")
+        .split('.')
+        .next_back()
+        .unwrap_or("Unknown");
+
+    // Check if policy has scheduled actions (required for non-compliant devices)
+    *total_controls += 1;
+    let has_scheduled_actions = policy["scheduledActionsForRule"]
+        .as_array()
+        .is_some_and(|actions| !actions.is_empty());
+
+    if !has_scheduled_actions {
+        findings.push(Finding {
+            severity: "MEDIUM".to_string(),
+            category: "Compliance".to_string(),
+            control: "COMP-ACTIONS".to_string(),
+            description: format!(
+                "Compliance policy '{}' has no scheduled actions for non-compliance",
+                policy_name
+            ),
+            remediation: "Add scheduled actions (mark non-compliant, notify user, etc.)"
+                .to_string(),
+            affected_resource: Some(policy_name.to_string()),
+            current_value: Some("No scheduled actions".to_string()),
+            expected_value: Some("At least one scheduled action configured".to_string()),
+        });
+    } else {
+        *passed_controls += 1;
+    }
+
+    // Platform-specific validation
+    match platform {
+        "windows10CompliancePolicy" | "windows81CompliancePolicy" => {
+            // Check for BitLocker requirement
+            *total_controls += 1;
+            let bitlocker_required = policy["bitLockerEnabled"].as_bool().unwrap_or(false);
+            if !bitlocker_required {
+                findings.push(Finding {
+                    severity: "HIGH".to_string(),
+                    category: "Compliance".to_string(),
+                    control: "COMP-BITLOCKER".to_string(),
+                    description: format!(
+                        "Windows compliance policy '{}' does not require BitLocker",
+                        policy_name
+                    ),
+                    remediation: "Enable BitLocker requirement in compliance policy".to_string(),
+                    affected_resource: Some(policy_name.to_string()),
+                    current_value: Some("BitLocker not required".to_string()),
+                    expected_value: Some("BitLocker required".to_string()),
+                });
+            } else {
+                *passed_controls += 1;
+            }
+
+            // Check for secure boot
+            *total_controls += 1;
+            let secure_boot_required = policy["secureBootEnabled"].as_bool().unwrap_or(false);
+            if !secure_boot_required {
+                findings.push(Finding {
+                    severity: "MEDIUM".to_string(),
+                    category: "Compliance".to_string(),
+                    control: "COMP-SECUREBOOT".to_string(),
+                    description: format!(
+                        "Windows compliance policy '{}' does not require Secure Boot",
+                        policy_name
+                    ),
+                    remediation: "Enable Secure Boot requirement in compliance policy".to_string(),
+                    affected_resource: Some(policy_name.to_string()),
+                    current_value: Some("Secure Boot not required".to_string()),
+                    expected_value: Some("Secure Boot required".to_string()),
+                });
+            } else {
+                *passed_controls += 1;
+            }
+
+            // Check for code integrity
+            *total_controls += 1;
+            let code_integrity = policy["codeIntegrityEnabled"].as_bool().unwrap_or(false);
+            if !code_integrity {
+                findings.push(Finding {
+                    severity: "MEDIUM".to_string(),
+                    category: "Compliance".to_string(),
+                    control: "COMP-CODEINTEGRITY".to_string(),
+                    description: format!(
+                        "Windows compliance policy '{}' does not require Code Integrity",
+                        policy_name
+                    ),
+                    remediation: "Enable Code Integrity requirement in compliance policy"
+                        .to_string(),
+                    affected_resource: Some(policy_name.to_string()),
+                    current_value: Some("Code Integrity not required".to_string()),
+                    expected_value: Some("Code Integrity required".to_string()),
+                });
+            } else {
+                *passed_controls += 1;
+            }
+        }
+        "macOSCompliancePolicy" => {
+            // Check for FileVault requirement
+            *total_controls += 1;
+            let filevault_required = policy["storageRequireEncryption"]
+                .as_bool()
+                .unwrap_or(false);
+            if !filevault_required {
+                findings.push(Finding {
+                    severity: "HIGH".to_string(),
+                    category: "Compliance".to_string(),
+                    control: "COMP-FILEVAULT".to_string(),
+                    description: format!(
+                        "macOS compliance policy '{}' does not require FileVault encryption",
+                        policy_name
+                    ),
+                    remediation: "Enable storage encryption requirement in compliance policy"
+                        .to_string(),
+                    affected_resource: Some(policy_name.to_string()),
+                    current_value: Some("FileVault not required".to_string()),
+                    expected_value: Some("FileVault required".to_string()),
+                });
+            } else {
+                *passed_controls += 1;
+            }
+
+            // Check for System Integrity Protection
+            *total_controls += 1;
+            let sip_enabled = policy["systemIntegrityProtectionEnabled"]
+                .as_bool()
+                .unwrap_or(false);
+            if !sip_enabled {
+                findings.push(Finding {
+                    severity: "HIGH".to_string(),
+                    category: "Compliance".to_string(),
+                    control: "COMP-SIP".to_string(),
+                    description: format!(
+                        "macOS compliance policy '{}' does not require System Integrity Protection",
+                        policy_name
+                    ),
+                    remediation: "Enable SIP requirement in compliance policy".to_string(),
+                    affected_resource: Some(policy_name.to_string()),
+                    current_value: Some("SIP not required".to_string()),
+                    expected_value: Some("SIP required".to_string()),
+                });
+            } else {
+                *passed_controls += 1;
+            }
+        }
+        "iosCompliancePolicy" | "aospDeviceOwnerCompliancePolicy" | "androidCompliancePolicy" => {
+            // Check for device encryption
+            *total_controls += 1;
+            let encryption_required = policy["storageRequireEncryption"]
+                .as_bool()
+                .or_else(|| policy["securityRequireDeviceEncryption"].as_bool())
+                .unwrap_or(false);
+            if !encryption_required {
+                findings.push(Finding {
+                    severity: "HIGH".to_string(),
+                    category: "Compliance".to_string(),
+                    control: "COMP-ENCRYPTION".to_string(),
+                    description: format!(
+                        "Mobile compliance policy '{}' does not require device encryption",
+                        policy_name
+                    ),
+                    remediation: "Enable device encryption requirement".to_string(),
+                    affected_resource: Some(policy_name.to_string()),
+                    current_value: Some("Encryption not required".to_string()),
+                    expected_value: Some("Device encryption required".to_string()),
+                });
+            } else {
+                *passed_controls += 1;
+            }
+        }
+        _ => {
+            // Unknown platform - skip platform-specific checks
+        }
+    }
 }
 
 fn validate_ca_baseline(

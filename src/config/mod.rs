@@ -5,6 +5,118 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 
+/// Sanitize a tenant name for use in filenames and identifiers
+///
+/// Rules:
+/// - Converts to lowercase
+/// - Replaces spaces with hyphens
+/// - Removes characters invalid for Windows/Unix filenames: <>:"/\|?*
+/// - Removes control characters
+/// - Collapses multiple hyphens to single
+/// - Trims leading/trailing hyphens and whitespace
+/// - Returns None if result would be empty
+pub fn sanitize_tenant_name(name: &str) -> Option<String> {
+    let sanitized: String = name
+        .chars()
+        .map(|c| {
+            if c.is_whitespace() || c.is_ascii_control() || "<>:\"/\\|?*".contains(c) {
+                '-'
+            } else {
+                c.to_ascii_lowercase()
+            }
+        })
+        .collect();
+
+    // Collapse multiple hyphens and trim
+    let mut result = String::new();
+    let mut prev_hyphen = false;
+    for c in sanitized.chars() {
+        if c == '-' {
+            if !prev_hyphen && !result.is_empty() {
+                result.push(c);
+            }
+            prev_hyphen = true;
+        } else {
+            result.push(c);
+            prev_hyphen = false;
+        }
+    }
+
+    // Trim trailing hyphen
+    let result = result.trim_end_matches('-').to_string();
+
+    if result.is_empty() {
+        None
+    } else {
+        Some(result)
+    }
+}
+
+/// Validate a tenant name
+///
+/// Returns Ok if valid, Err with message if invalid
+pub fn validate_tenant_name(name: &str) -> std::result::Result<(), String> {
+    if name.is_empty() {
+        return Err("Tenant name cannot be empty".to_string());
+    }
+
+    if name.len() > 64 {
+        return Err("Tenant name cannot exceed 64 characters".to_string());
+    }
+
+    // Check for invalid characters
+    let invalid_chars: Vec<char> = name
+        .chars()
+        .filter(|c| c.is_ascii_control() || "<>:\"/\\|?*".contains(*c))
+        .collect();
+
+    if !invalid_chars.is_empty() {
+        return Err(format!(
+            "Tenant name contains invalid characters: {:?}",
+            invalid_chars
+        ));
+    }
+
+    // Check it doesn't start or end with space/hyphen
+    if name.starts_with(' ') || name.starts_with('-') {
+        return Err("Tenant name cannot start with space or hyphen".to_string());
+    }
+
+    if name.ends_with(' ') || name.ends_with('-') {
+        return Err("Tenant name cannot end with space or hyphen".to_string());
+    }
+
+    Ok(())
+}
+
+/// Set restrictive permissions (0o600) on a file (Unix only)
+#[cfg(unix)]
+fn set_restricted_permissions(path: &std::path::Path) -> std::io::Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+    let perms = std::fs::Permissions::from_mode(0o600);
+    std::fs::set_permissions(path, perms)
+}
+
+/// No-op on non-Unix platforms
+#[cfg(not(unix))]
+fn set_restricted_permissions(_path: &std::path::Path) -> std::io::Result<()> {
+    Ok(())
+}
+
+/// Set restrictive permissions (0o700) on a directory (Unix only)
+#[cfg(unix)]
+fn set_restricted_dir_permissions(path: &std::path::Path) -> std::io::Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+    let perms = std::fs::Permissions::from_mode(0o700);
+    std::fs::set_permissions(path, perms)
+}
+
+/// No-op on non-Unix platforms
+#[cfg(not(unix))]
+fn set_restricted_dir_permissions(_path: &std::path::Path) -> std::io::Result<()> {
+    Ok(())
+}
+
 /// Main configuration structure
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Config {
@@ -58,6 +170,19 @@ pub struct ConfigManager {
     config_dir: PathBuf,
 }
 
+impl Default for ConfigManager {
+    /// Create a ConfigManager with a fallback config directory.
+    /// This is used when normal initialization fails (e.g., in tests or restricted environments).
+    fn default() -> Self {
+        // Try standard location first, fall back to temp directory
+        let config_dir = directories::ProjectDirs::from("com", "ctl365", "ctl365")
+            .map(|pd| pd.config_dir().to_path_buf())
+            .unwrap_or_else(|| std::env::temp_dir().join("ctl365"));
+
+        Self { config_dir }
+    }
+}
+
 impl ConfigManager {
     pub fn new() -> Result<Self> {
         let project_dirs = ProjectDirs::from("com", "ctl365", "ctl365").ok_or_else(|| {
@@ -69,6 +194,8 @@ impl ConfigManager {
         // Create config directory if it doesn't exist
         if !config_dir.exists() {
             fs::create_dir_all(&config_dir)?;
+            // Set config directory to 0o700 (owner only) - contains sensitive credentials
+            set_restricted_dir_permissions(&config_dir)?;
         }
 
         Ok(Self { config_dir })
@@ -139,7 +266,8 @@ impl ConfigManager {
         Ok(file.tenants)
     }
 
-    /// Save all tenants
+    /// Save all tenants with restrictive permissions (0o600 on Unix)
+    /// Note: tenants.toml may contain client secrets
     pub fn save_tenants(&self, tenants: &[TenantConfig]) -> Result<()> {
         let tenants_path = self.tenants_file();
 
@@ -151,12 +279,23 @@ impl ConfigManager {
         let file = TenantsFile { tenants };
         let contents = toml::to_string_pretty(&file)
             .map_err(|e| Ctl365Error::ConfigError(format!("Failed to serialize tenants: {}", e)))?;
-        fs::write(tenants_path, contents)?;
+        fs::write(&tenants_path, contents)?;
+
+        // Set tenants file to 0o600 (owner read/write only) - contains client secrets
+        set_restricted_permissions(&tenants_path)?;
+
         Ok(())
     }
 
     /// Add or update tenant
+    ///
+    /// Validates tenant name before adding
     pub fn add_tenant(&self, tenant: TenantConfig) -> Result<()> {
+        // Validate tenant name
+        if let Err(msg) = validate_tenant_name(&tenant.name) {
+            return Err(Ctl365Error::ConfigError(msg));
+        }
+
         let mut tenants = self.load_tenants()?;
 
         // Remove existing tenant with same name
@@ -186,16 +325,22 @@ impl ConfigManager {
         }
     }
 
-    /// Save token cache
+    /// Save token cache with restrictive permissions (0o600 on Unix)
     pub fn save_token(&self, tenant_name: &str, token: &TokenCache) -> Result<()> {
         let cache_dir = self.config_dir.join("cache");
         if !cache_dir.exists() {
             fs::create_dir_all(&cache_dir)?;
+            // Set cache directory to 0o700 (owner only)
+            set_restricted_dir_permissions(&cache_dir)?;
         }
 
         let token_path = self.token_cache_file(tenant_name);
         let contents = serde_json::to_string_pretty(token)?;
-        fs::write(token_path, contents)?;
+        fs::write(&token_path, contents)?;
+
+        // Set token file to 0o600 (owner read/write only) - prevents credential exposure
+        set_restricted_permissions(&token_path)?;
+
         Ok(())
     }
 

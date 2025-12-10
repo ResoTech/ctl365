@@ -464,9 +464,10 @@ pub async fn list(args: ListArgs) -> Result<()> {
                         _ => state.to_string(),
                     };
 
-                    // Truncate name if too long
-                    let name_display = if name.len() > 48 {
-                        format!("{}...", &name[..45])
+                    // Truncate name if too long (char-safe for UTF-8)
+                    let name_display = if name.chars().count() > 48 {
+                        let truncated: String = name.chars().take(45).collect();
+                        format!("{}...", truncated)
                     } else {
                         name.to_string()
                     };

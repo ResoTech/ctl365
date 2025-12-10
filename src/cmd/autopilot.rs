@@ -225,8 +225,51 @@ pub async fn import(args: ImportArgs) -> Result<()> {
     let csv_content = std::fs::read_to_string(&args.file)?;
     let mut rdr = csv::Reader::from_reader(csv_content.as_bytes());
 
-    // Parse all records first
-    let records: Vec<CsvRecord> = rdr.deserialize().filter_map(|r| r.ok()).collect();
+    // Parse all records, tracking errors
+    let mut records: Vec<CsvRecord> = Vec::new();
+    let mut errors: Vec<(usize, String)> = Vec::new();
+
+    for (row_idx, result) in rdr.deserialize().enumerate() {
+        let row_num = row_idx + 2; // +1 for 0-index, +1 for header row
+        match result {
+            Ok(record) => {
+                let record: CsvRecord = record;
+                // Validate required fields
+                if record.device_serial_number.trim().is_empty() {
+                    errors.push((row_num, "Missing or empty device_serial_number".to_string()));
+                } else if record.hardware_hash.trim().is_empty() {
+                    errors.push((row_num, "Missing or empty hardware_hash".to_string()));
+                } else {
+                    records.push(record);
+                }
+            }
+            Err(e) => {
+                errors.push((row_num, format!("Parse error: {}", e)));
+            }
+        }
+    }
+
+    // Report any errors found
+    if !errors.is_empty() {
+        println!(
+            "\n{} Found {} error(s) in CSV file:",
+            "⚠".yellow().bold(),
+            errors.len()
+        );
+        for (row, msg) in &errors {
+            println!("  Row {}: {}", row, msg.red());
+        }
+        if records.is_empty() {
+            println!("\n{} No valid devices found in CSV file", "✗".red());
+            return Ok(());
+        }
+        println!(
+            "\n{} Continuing with {} valid record(s), skipping {} invalid",
+            "→".cyan(),
+            records.len(),
+            errors.len()
+        );
+    }
 
     if records.is_empty() {
         println!("\n{} No valid devices found in CSV file", "✗".red());

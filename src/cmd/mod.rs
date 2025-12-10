@@ -9,6 +9,8 @@ pub mod export_enhanced;
 pub mod gpo;
 pub mod login;
 pub mod package;
+pub mod progress;
+pub mod report_template;
 pub mod script;
 pub mod scuba;
 pub mod sharepoint;

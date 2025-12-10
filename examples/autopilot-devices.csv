@@ -1,0 +1,6 @@
+Device Serial Number,Windows Product ID,Hardware Hash,Group Tag,Model Name,Manufacturer Name
+LAPTOP-001,12345-67890-ABCDE,,Production,Surface Laptop 4,Microsoft Corporation
+LAPTOP-002,12345-67890-FGHIJ,,Production,Surface Laptop 4,Microsoft Corporation
+LAPTOP-003,12345-67890-KLMNO,,Development,ThinkPad X1 Carbon,Lenovo
+DESKTOP-001,12345-67890-PQRST,,Engineering,OptiPlex 7090,Dell Inc.
+DESKTOP-002,12345-67890-UVWXY,,Engineering,OptiPlex 7090,Dell Inc.

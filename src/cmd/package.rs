@@ -10,6 +10,24 @@
 //! - Upload to Intune (via Graph API)
 
 use crate::config::ConfigManager;
+
+// Windows Installer (MSI) return codes
+// See: https://learn.microsoft.com/en-us/windows/win32/msi/error-codes
+
+/// Installation completed successfully
+const WIN_SUCCESS: i32 = 0;
+
+/// Installation completed successfully (used by some installers for "already installed")
+const WIN_SUCCESS_ALREADY_INSTALLED: i32 = 1707;
+
+/// Installation requires a restart to complete (soft reboot - user can defer)
+const WIN_SOFT_REBOOT: i32 = 3010;
+
+/// Installation requires an immediate restart (hard reboot - cannot defer)
+const WIN_HARD_REBOOT: i32 = 1641;
+
+/// Another installation is in progress - retry later
+const WIN_RETRY_INSTALL_IN_PROGRESS: i32 = 1618;
 use crate::error::Result;
 use crate::graph::GraphClient;
 use clap::Args;
@@ -279,11 +297,11 @@ pub async fn upload(args: UploadArgs) -> Result<()> {
             "deviceRestartBehavior": "suppress"
         },
         "returnCodes": [
-            {"returnCode": 0, "type": "success"},
-            {"returnCode": 1707, "type": "success"},
-            {"returnCode": 3010, "type": "softReboot"},
-            {"returnCode": 1641, "type": "hardReboot"},
-            {"returnCode": 1618, "type": "retry"}
+            {"returnCode": WIN_SUCCESS, "type": "success"},
+            {"returnCode": WIN_SUCCESS_ALREADY_INSTALLED, "type": "success"},
+            {"returnCode": WIN_SOFT_REBOOT, "type": "softReboot"},
+            {"returnCode": WIN_HARD_REBOOT, "type": "hardReboot"},
+            {"returnCode": WIN_RETRY_INSTALL_IN_PROGRESS, "type": "retry"}
         ],
         "detectionRules": build_detection_rules(&args),
         "requirementRules": [],

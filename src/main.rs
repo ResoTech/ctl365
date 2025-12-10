@@ -33,9 +33,17 @@ struct Cli {
     #[command(subcommand)]
     command: Commands,
 
-    /// Enable verbose logging
+    /// Enable verbose logging (-v info, -vv debug, -vvv trace)
+    #[arg(short, long, global = true, action = clap::ArgAction::Count)]
+    verbose: u8,
+
+    /// Write logs to file instead of stderr
+    #[arg(long, global = true, value_name = "FILE")]
+    log_file: Option<std::path::PathBuf>,
+
+    /// Suppress all output except errors
     #[arg(short, long, global = true)]
-    verbose: bool,
+    quiet: bool,
 }
 
 #[derive(Subcommand, Debug)]
@@ -438,10 +446,38 @@ async fn main() {
 async fn run() -> error::Result<()> {
     let cli = Cli::parse();
 
-    // Initialize logging
-    if cli.verbose {
+    // Initialize logging based on verbosity level
+    // -v = info, -vv = debug, -vvv = trace
+    let log_level = match cli.verbose {
+        0 => "warn",
+        1 => "info",
+        2 => "debug",
+        _ => "trace",
+    };
+
+    let env_filter = if cli.quiet {
+        "error".to_string()
+    } else {
+        format!("ctl365={}", log_level)
+    };
+
+    if let Some(log_file) = &cli.log_file {
+        // Log to file
+        let file = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(log_file)
+            .map_err(|e| error::Error::ConfigError(format!("Failed to open log file: {}", e)))?;
+
         tracing_subscriber::fmt()
-            .with_env_filter("ctl365=debug")
+            .with_env_filter(&env_filter)
+            .with_writer(file)
+            .with_ansi(false) // No color codes in file
+            .init();
+    } else if cli.verbose > 0 {
+        // Log to stderr with colors
+        tracing_subscriber::fmt()
+            .with_env_filter(&env_filter)
             .init();
     }
 
