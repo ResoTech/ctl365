@@ -7,9 +7,10 @@ on:
     branches: [main]
 
 env:
-  CARGO: /home/runner/.cargo/bin/cargo
-  RUSTC: /home/runner/.cargo/bin/rustc
-  RUSTFMT: /home/runner/.cargo/bin/rustfmt
+  CARGO: /home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo
+  CARGO_NIGHTLY: /home/runner/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo
+  RUSTC: /home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc
+  RUSTFMT: /home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustfmt
 
 jobs:
   build-and-test:
@@ -38,7 +39,7 @@ jobs:
         run: $CARGO fmt --check || echo "::warning::Format issues found"
 
       - name: Unit Tests (nightly for wiremock)
-        run: $CARGO +nightly test
+        run: $CARGO_NIGHTLY test
 
       - name: CLI Smoke Test
         run: |

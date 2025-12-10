@@ -1302,7 +1302,7 @@ impl App {
                 label: format!("{} - {}", c.abbreviation, c.full_name),
                 description: format!(
                     "Tenant: {}",
-                    c.tenant_id.get(..8).unwrap_or(&c.tenant_id)
+                    c.tenant_id.chars().take(8).collect::<String>()
                 ),
                 shortcut: None,
                 enabled: true,
