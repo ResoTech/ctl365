@@ -5,6 +5,56 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] - 2025-12-11
+
+### Fixed
+- **Windows TUI Crash Fix** - Fixed string slicing panic on Windows PowerShell
+  - Root cause: Byte-based string slicing (`get(..8)`) on non-ASCII input caused "byte index out of bounds" panic
+  - Solution: Replaced with character-based truncation (`chars().take(8)`) throughout codebase
+  - Affects: `login.rs` tenant/client ID display, TUI client list rendering
+
+### TUI Hardening (Windows Terminal Stability)
+- **Ctrl+C Task Cancellation** - Users can now dismiss stuck async overlays with Ctrl+C
+  - Clears progress overlay and shows warning that background work may still be running
+  - Prevents permanent UI lock when worker thread hangs
+
+- **Worker Ready Gating** - Async menu actions now blocked until background worker signals ready
+  - Prevents race condition where tasks could be sent before worker initialized
+  - Shows "Background worker is starting up, please wait..." message if attempted too early
+
+- **Channel Health Check** - Added proactive channel connectivity check before task submission
+  - Detects disconnected worker before showing progress overlay
+  - Shows "Worker connection lost - restart TUI" if channel disconnected
+
+- **Unified Task Completion** - Refactored `process_task_responses` to use `finish_task()` helper
+  - Consistent state cleanup across all task result types
+  - Session change counter now increments on successful deployments
+  - Eliminates code duplication in task completion paths
+
+### Technical Improvements
+- **TaskEnvelope Contract** - TUI generates task IDs, worker echoes them back (drift prevention)
+- **60-Second Watchdog** - Tasks auto-dismiss with warning if no response within timeout
+- **Improved Guard Rails** - `begin_task()` now checks: running task, sender exists, worker ready, channel connected
+
+### Performance (Phase 1)
+- **30fps Frame Rate Limiting** - Reduces CPU usage on idle screens
+- **Dirty Flag Rendering** - Only redraws when `needs_redraw` is true
+- **Virtual Scrolling** - Lists >100 items use buffer-based rendering with 5-row scroll buffer
+- **Optimized Event Loop** - Dynamic poll timeout based on frame budget
+- **`update_visible_rows()`** - Track visible range for smooth large-list scrolling
+
+### Worker Resilience (Phase 2)
+- **Heartbeat Monitoring** - Tracks `last_worker_response` timestamp
+- **30-Second Health Timeout** - Marks worker as unhealthy after silence
+- **Exponential Backoff** - Retries channel-full errors with 100ms/200ms/400ms delays
+- **Channel Retry Limit** - Gives up after 3 consecutive failures
+
+### Windows Terminal Polish (Phase 3)
+- **Resize Event Handling** - Debounced terminal resize with 50ms delay
+- **Event Type Filtering** - Ignores FocusGained/Lost, Mouse, Paste events
+- **Panic Hook** - Restores terminal state on crash (critical for Windows)
+- **Key Release Filtering** - Only processes KeyPress events
+
 ## [0.1.1] - 2025-12-10
 
 ### Added

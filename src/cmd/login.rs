@@ -5,6 +5,11 @@ use crate::tui::change_tracker;
 use clap::Args;
 use colored::Colorize;
 
+/// Safely truncate a string to n characters (not bytes) to prevent panics on non-ASCII
+fn truncate_chars(s: &str, n: usize) -> String {
+    s.chars().take(n).collect()
+}
+
 #[derive(Args, Debug)]
 pub struct LoginArgs {
     /// Tenant/client name or abbreviation (e.g., RESO)
@@ -69,14 +74,8 @@ pub async fn login(args: LoginArgs) -> Result<()> {
                     name.bold(),
                     tenant.description.as_deref().unwrap_or("")
                 );
-                println!(
-                    "  Tenant ID: {}...",
-                    tenant.tenant_id.get(..8).unwrap_or(&tenant.tenant_id)
-                );
-                println!(
-                    "  Client ID: {}...",
-                    tenant.client_id.get(..8).unwrap_or(&tenant.client_id)
-                );
+                println!("  Tenant ID: {}...", truncate_chars(&tenant.tenant_id, 8));
+                println!("  Client ID: {}...", truncate_chars(&tenant.client_id, 8));
                 if tenant.client_secret.is_some() {
                     println!("  Auth: Client Credentials");
                 } else {

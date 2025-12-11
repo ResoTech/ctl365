@@ -8,6 +8,17 @@
 //! - Interactive policy tables with sorting/filtering
 //! - Progress indicators for async operations
 //! - Confirmation dialogs for destructive actions
+//!
+//! Performance (v0.1.2):
+//! - 30fps frame rate limiting to reduce CPU usage
+//! - Dirty flag tracking to skip unnecessary redraws
+//! - Virtual scrolling for large policy lists
+//! - Lazy rendering - only visible rows are processed
+//!
+//! Windows Terminal Compatibility (v0.1.2):
+//! - Defensive crossterm error handling
+//! - Clean terminal restore on panic
+//! - Resize event debouncing
 
 use crate::config::ConfigManager;
 use crate::error::Result;
@@ -31,6 +42,33 @@ use ratatui::{
     },
 };
 use std::io;
+use std::time::{Duration, Instant};
+
+// ============================================================================
+// Performance Constants (Phase 1)
+// ============================================================================
+
+/// Target frame rate for TUI rendering (30fps = ~33ms per frame)
+const TARGET_FPS: u64 = 30;
+/// Duration per frame based on target FPS
+const FRAME_DURATION: Duration = Duration::from_millis(1000 / TARGET_FPS);
+/// Event poll timeout - shorter than frame duration to stay responsive
+const EVENT_POLL_TIMEOUT: Duration = Duration::from_millis(16);
+/// Threshold for "large" policy lists that trigger virtual scrolling
+const VIRTUAL_SCROLL_THRESHOLD: usize = 100;
+/// Number of rows to render above/below visible area for smooth scrolling
+const SCROLL_BUFFER_ROWS: usize = 5;
+
+// ============================================================================
+// Worker Health Constants (Phase 2)
+// ============================================================================
+
+/// How long to wait before marking worker as unhealthy
+const WORKER_HEARTBEAT_TIMEOUT: Duration = Duration::from_secs(30);
+/// Maximum retries for channel-full errors before giving up
+const MAX_CHANNEL_RETRIES: u32 = 3;
+/// Base delay for exponential backoff (doubles each retry)
+const BACKOFF_BASE_MS: u64 = 100;
 
 /// Application state
 pub struct App {
@@ -96,6 +134,26 @@ pub struct App {
     pub table_page: usize,
     /// Page size for table pagination
     pub table_page_size: usize,
+    /// Whether the background worker has signaled ready
+    pub worker_ready: bool,
+    /// When the current task was started (for timeout detection)
+    pub task_started_at: Option<std::time::Instant>,
+    // ========================================================================
+    // Phase 1: Performance fields
+    // ========================================================================
+    /// Dirty flag - UI needs redraw (reduces unnecessary renders)
+    pub needs_redraw: bool,
+    /// Last frame render time for FPS limiting
+    pub last_frame_time: Instant,
+    /// Visible row range for virtual scrolling (start, end)
+    pub visible_rows: (usize, usize),
+    // ========================================================================
+    // Phase 2: Worker health fields
+    // ========================================================================
+    /// Last time we received any response from worker
+    pub last_worker_response: Instant,
+    /// Number of consecutive channel-full errors (for backoff)
+    pub channel_retry_count: u32,
 }
 
 /// State for tracking async operations
@@ -313,7 +371,7 @@ pub struct MenuItem {
     pub enabled: bool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StatusLevel {
     Info,
     Success,
@@ -359,16 +417,26 @@ impl App {
             exit_confirmed: false,
             table_page: 0,
             table_page_size: 20, // Show 20 items per page by default
+            worker_ready: false,
+            task_started_at: None,
+            // Phase 1: Performance
+            needs_redraw: true,
+            last_frame_time: Instant::now(),
+            visible_rows: (0, 20),
+            // Phase 2: Worker health
+            last_worker_response: Instant::now(),
+            channel_retry_count: 0,
         };
 
         // Spawn background task worker
-        match std::panic::catch_unwind(|| crate::tui::tasks::spawn_task_worker(app.config.clone())) {
+        match std::panic::catch_unwind(|| crate::tui::tasks::spawn_task_worker(app.config.clone()))
+        {
             Ok((sender, receiver)) => {
                 app.task_sender = Some(sender);
                 app.task_receiver = Some(receiver);
             }
             Err(err) => {
-                log::warn!(
+                tracing::warn!(
                     "Background task worker failed to start; async actions disabled: {:?}",
                     err
                 );
@@ -441,9 +509,48 @@ impl App {
     }
 
     /// Start an async task with progress tracking
+    /// DEPRECATED: Use begin_task() for proper guard checking
     pub fn start_async_task(&mut self, id: &str, message: &str) {
         self.async_task = Some(AsyncTaskState::new(id, message));
         self.progress = Some(ProgressState::new(message));
+    }
+
+    /// Begin a new async task with proper guard checking
+    /// Returns Ok if task can be started, Err with reason otherwise
+    pub fn begin_task(&mut self, message: &str) -> std::result::Result<(), String> {
+        // Guard 1: Check if another task is already running
+        if self.is_async_task_running() {
+            return Err("Another task is already in progress".into());
+        }
+
+        // Guard 2: Check if worker is available
+        if self.task_sender.is_none() {
+            return Err("Background worker unavailable".into());
+        }
+
+        // Guard 3: Check if worker is ready (has signaled Ready response)
+        if !self.worker_ready {
+            return Err("Background worker is starting up, please wait...".into());
+        }
+
+        // Guard 4: Check channel health before proceeding
+        if let Some(ref sender) = self.task_sender {
+            if !sender.is_connected() {
+                return Err("Worker connection lost - restart TUI".into());
+            }
+        }
+
+        // Initialize the async task state (progress will be set when ID is known)
+        self.async_task = Some(AsyncTaskState::new("pending", message));
+        self.progress = Some(ProgressState::new(message));
+        self.task_started_at = Some(std::time::Instant::now());
+
+        Ok(())
+    }
+
+    /// Check if worker is ready and connected
+    pub fn is_worker_available(&self) -> bool {
+        self.task_sender.as_ref().is_some_and(|s| s.is_connected())
     }
 
     /// Update async task progress
@@ -476,6 +583,47 @@ impl App {
             },
         ));
         self.async_task = None;
+        self.current_task_id = None;
+        self.task_started_at = None;
+    }
+
+    /// Clear async task state without setting a result message
+    /// Used when task submission fails (status message already set by send_task)
+    pub fn clear_async_task(&mut self) {
+        self.async_task = None;
+        self.progress = None;
+        self.current_task_id = None;
+        self.task_started_at = None;
+    }
+
+    /// Cancel a running async task with a user-facing message
+    /// Used for manual dismissal via Ctrl+C
+    pub fn cancel_async_task(&mut self, message: &str) {
+        self.clear_async_task();
+        self.status_message = Some((message.to_string(), StatusLevel::Warning));
+    }
+
+    /// Finish a task with consistent state cleanup and status message
+    /// Centralizes the completion logic for both success and error cases
+    pub fn finish_task(&mut self, success: bool, message: String) {
+        // Clear all task state
+        self.current_task_id = None;
+        self.progress = None;
+        self.async_task = None;
+        self.task_started_at = None;
+
+        // Set status message with appropriate level
+        let level = if success {
+            StatusLevel::Success
+        } else {
+            StatusLevel::Error
+        };
+        self.status_message = Some((message, level));
+
+        // Increment session change count on successful deployments
+        if success {
+            self.session_change_count += 1;
+        }
     }
 
     /// Check if async task is running
@@ -484,6 +632,83 @@ impl App {
             .as_ref()
             .map(|t| !t.completed)
             .unwrap_or(false)
+    }
+
+    /// Task timeout threshold (60 seconds)
+    const TASK_TIMEOUT_SECS: u64 = 60;
+
+    /// Check for timed-out tasks and clear their state
+    /// Returns true if a timeout occurred
+    pub fn check_task_timeout(&mut self) -> bool {
+        if let Some(started_at) = self.task_started_at {
+            if started_at.elapsed().as_secs() >= Self::TASK_TIMEOUT_SECS {
+                let task_id = self.current_task_id.clone().unwrap_or_default();
+                tracing::warn!(
+                    "Task {} timed out after {} seconds",
+                    task_id,
+                    Self::TASK_TIMEOUT_SECS
+                );
+
+                // Clear all task state
+                self.clear_async_task();
+
+                // Notify user
+                self.status_message = Some((
+                    format!(
+                        "Operation timed out after {} seconds. Try again or check connection.",
+                        Self::TASK_TIMEOUT_SECS
+                    ),
+                    StatusLevel::Warning,
+                ));
+
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Check worker health based on last response time (Phase 2)
+    /// If worker hasn't responded within WORKER_HEARTBEAT_TIMEOUT, mark as unhealthy
+    pub fn check_worker_health(&mut self) {
+        // Only check if we think worker is ready
+        if self.worker_ready {
+            let elapsed = self.last_worker_response.elapsed();
+            if elapsed >= WORKER_HEARTBEAT_TIMEOUT {
+                tracing::warn!("Worker heartbeat timeout: no response for {:?}", elapsed);
+                self.worker_ready = false;
+                // Don't spam the user - only show message if they try to do something
+            }
+        }
+    }
+
+    /// Reset channel retry count after successful send (Phase 2)
+    pub fn reset_channel_retries(&mut self) {
+        self.channel_retry_count = 0;
+    }
+
+    /// Handle channel-full error with exponential backoff (Phase 2)
+    /// Returns true if we should retry, false if max retries exceeded
+    pub fn handle_channel_full(&mut self) -> bool {
+        self.channel_retry_count += 1;
+        if self.channel_retry_count > MAX_CHANNEL_RETRIES {
+            tracing::error!(
+                "Max channel retries ({}) exceeded, giving up",
+                MAX_CHANNEL_RETRIES
+            );
+            self.channel_retry_count = 0;
+            return false;
+        }
+
+        // Exponential backoff: 100ms, 200ms, 400ms...
+        let delay_ms = BACKOFF_BASE_MS * (1 << (self.channel_retry_count - 1));
+        tracing::warn!(
+            "Channel full, retry {} of {} in {}ms",
+            self.channel_retry_count,
+            MAX_CHANNEL_RETRIES,
+            delay_ms
+        );
+        std::thread::sleep(Duration::from_millis(delay_ms));
+        true
     }
 
     /// Toggle search mode
@@ -826,7 +1051,11 @@ impl App {
     /// Handle form field navigation (next/prev)
     pub fn form_next_field(&mut self) {
         if let Some(ref mut form) = self.form_state {
-            if form.current_field < form.fields.len() - 1 {
+            // Guard against empty fields
+            if form.fields.is_empty() {
+                return;
+            }
+            if form.current_field < form.fields.len().saturating_sub(1) {
                 form.current_field += 1;
             }
         }
@@ -3080,10 +3309,12 @@ impl App {
             _ => "Settings",
         };
 
-        self.start_async_task(
-            "apply_settings",
-            &format!("Applying {} settings...", category_name),
-        );
+        // Guard check before starting task
+        let message = format!("Applying {} settings...", category_name);
+        if let Err(reason) = self.begin_task(&message) {
+            self.status_message = Some((reason, StatusLevel::Warning));
+            return;
+        }
 
         let request = crate::tui::tasks::TaskRequest::ApplySettings {
             tenant_name: tenant_name.clone(),
@@ -3091,14 +3322,9 @@ impl App {
             settings: self.setting_toggles.clone(),
         };
 
-        if !self.send_task(request) {
-            self.status_message = Some((
-                format!(
-                    "Failed to start settings task for {} ({:?}). Task queue may be full.",
-                    tenant_name, task_category
-                ),
-                StatusLevel::Error,
-            ));
+        if self.send_task(request).is_none() {
+            // send_task already sets status_message on failure
+            self.clear_async_task();
         }
     }
 
@@ -3234,11 +3460,12 @@ impl App {
             }
         };
 
-        // Start progress indicator (non-blocking)
-        self.start_async_task(
-            "deploy_baseline",
-            &format!("Deploying {} baseline...", template),
-        );
+        // Guard check before starting task
+        let message = format!("Deploying {} baseline...", template);
+        if let Err(reason) = self.begin_task(&message) {
+            self.status_message = Some((reason, StatusLevel::Warning));
+            return;
+        }
 
         let baseline_type = format!("{}_{}", platform, template);
         let request = crate::tui::tasks::TaskRequest::DeployBaseline {
@@ -3247,14 +3474,9 @@ impl App {
             baseline_data: baseline,
         };
 
-        if !self.send_task(request) {
-            self.complete_async_task(
-                false,
-                &format!(
-                    "Failed to start baseline deployment ({} to {}). Task queue may be full.",
-                    baseline_type, tenant_name
-                ),
-            );
+        if self.send_task(request).is_none() {
+            // send_task already sets status_message on failure
+            self.clear_async_task();
         }
     }
 
@@ -3269,21 +3491,19 @@ impl App {
             }
         };
 
-        // Start progress indicator (non-blocking)
-        self.start_async_task("deploy_ca", "Deploying CA Baseline 2025...");
+        // Guard check before starting task
+        if let Err(reason) = self.begin_task("Deploying CA Baseline 2025...") {
+            self.status_message = Some((reason, StatusLevel::Warning));
+            return;
+        }
 
         let request = crate::tui::tasks::TaskRequest::DeployConditionalAccess {
             tenant_name: tenant_name.clone(),
         };
 
-        if !self.send_task(request) {
-            self.complete_async_task(
-                false,
-                &format!(
-                    "Failed to start CA deployment to {}. Task queue may be full.",
-                    tenant_name
-                ),
-            );
+        if self.send_task(request).is_none() {
+            // send_task already sets status_message on failure
+            self.clear_async_task();
         }
     }
 
@@ -3404,15 +3624,37 @@ impl App {
     }
 
     /// Get paginated view of filtered table data
+    /// Uses virtual scrolling optimization for large lists (>100 items)
     pub fn paginated_table_data(&self) -> Vec<&PolicyRow> {
         let filtered = self.filtered_table_data();
+        let total = filtered.len();
+
+        // For large lists, use virtual scrolling with buffer rows
+        if total > VIRTUAL_SCROLL_THRESHOLD {
+            let (visible_start, visible_end) = self.visible_rows;
+            // Add buffer rows above and below for smooth scrolling
+            let start = visible_start.saturating_sub(SCROLL_BUFFER_ROWS);
+            let end = (visible_end + SCROLL_BUFFER_ROWS).min(total);
+            if start >= total {
+                return Vec::new();
+            }
+            return filtered[start..end].to_vec();
+        }
+
+        // Standard pagination for smaller lists
         let start = self.table_page * self.table_page_size;
-        let end = (start + self.table_page_size).min(filtered.len());
-        if start >= filtered.len() {
+        let end = (start + self.table_page_size).min(total);
+        if start >= total {
             Vec::new()
         } else {
             filtered[start..end].to_vec()
         }
+    }
+
+    /// Update visible rows range (for virtual scrolling)
+    pub fn update_visible_rows(&mut self, start: usize, end: usize) {
+        self.visible_rows = (start, end);
+        self.needs_redraw = true;
     }
 
     /// Get total number of pages
@@ -3471,12 +3713,17 @@ impl App {
         };
 
         for response in responses {
+            // Phase 2: Track last worker response time for health monitoring
+            self.last_worker_response = Instant::now();
+
             match response {
                 TaskResponse::Ready => {
-                    // Worker is ready
+                    // Worker is ready - gate menu actions until this fires
+                    tracing::info!("Task worker signaled ready");
+                    self.worker_ready = true;
                 }
                 TaskResponse::Progress(progress) => {
-                    // Update progress indicator
+                    // Verify task ID matches before updating progress
                     if Some(&progress.task_id) == self.current_task_id.as_ref() {
                         if let Some(ref mut task) = self.async_task {
                             task.progress = progress.percent;
@@ -3486,15 +3733,21 @@ impl App {
                         if let Some(ref mut p) = self.progress {
                             p.current = progress.percent;
                             p.message = progress.message;
+                            p.indeterminate = false;
                         }
+                    } else {
+                        // Log ID mismatch for debugging (drift detection)
+                        tracing::warn!(
+                            "Progress for unknown task: {} (expected: {:?})",
+                            progress.task_id,
+                            self.current_task_id
+                        );
                     }
                 }
                 TaskResponse::Completed { task_id, result } => {
-                    // Task completed
+                    // Verify task ID matches before processing completion
                     if Some(&task_id) == self.current_task_id.as_ref() {
-                        self.current_task_id = None;
-                        self.progress = None;
-
+                        // Process result-specific data before clearing state
                         match result {
                             TaskResult::PoliciesLoaded { policies } => {
                                 // Convert to table data
@@ -3515,55 +3768,74 @@ impl App {
                                     })
                                     .collect();
                                 self.reset_table_pagination();
-                                self.status_message = Some((
-                                    format!("Loaded {} policies", self.table_data.len()),
-                                    StatusLevel::Success,
-                                ));
+                                let msg = format!("Loaded {} policies", self.table_data.len());
+                                self.finish_task(true, msg);
                             }
-                            TaskResult::BaselineDeployed { count, message } => {
-                                self.complete_async_task(true, &message);
-                                self.status_message = Some((
-                                    format!("Deployed {} policies", count),
-                                    StatusLevel::Success,
-                                ));
+                            TaskResult::BaselineDeployed { count, message: _ } => {
+                                self.finish_task(true, format!("Deployed {} policies", count));
                             }
-                            TaskResult::CaDeployed { count, message } => {
-                                self.complete_async_task(true, &message);
-                                self.status_message = Some((
-                                    format!("Deployed {} CA policies", count),
-                                    StatusLevel::Success,
-                                ));
+                            TaskResult::CaDeployed { count, message: _ } => {
+                                self.finish_task(true, format!("Deployed {} CA policies", count));
                             }
                             TaskResult::SettingsApplied { message } => {
-                                self.complete_async_task(true, &message);
-                                self.status_message = Some((message, StatusLevel::Success));
+                                self.finish_task(true, message);
                             }
                             TaskResult::AuthResult { success, message } => {
-                                if success {
-                                    self.status_message = Some((message, StatusLevel::Success));
-                                } else {
-                                    self.status_message = Some((message, StatusLevel::Error));
-                                }
+                                self.finish_task(success, message);
                             }
                             TaskResult::Error { message } => {
-                                self.complete_async_task(false, &message);
-                                self.status_message = Some((message, StatusLevel::Error));
+                                self.finish_task(false, message);
                             }
                         }
+                    } else {
+                        // Log ID mismatch for debugging
+                        tracing::warn!(
+                            "Completion for unknown task: {} (expected: {:?})",
+                            task_id,
+                            self.current_task_id
+                        );
                     }
                 }
             }
         }
     }
 
-    /// Send a task to the background worker
-    pub fn send_task(&mut self, request: crate::tui::tasks::TaskRequest) -> bool {
+    /// Send a task to the background worker using TaskEnvelope
+    /// Returns the task ID on success, None on failure
+    pub fn send_task(&mut self, request: crate::tui::tasks::TaskRequest) -> Option<String> {
         if let Some(ref sender) = self.task_sender {
-            let task_id = format!("task_{}", chrono::Utc::now().timestamp_millis());
-            self.current_task_id = Some(task_id.clone());
-            sender.send(request).is_ok()
+            // Create envelope with TUI-generated ID - this is the single source of truth
+            let envelope = crate::tui::tasks::TaskEnvelope::new(request);
+            let task_id = envelope.id.clone();
+
+            match sender.try_send(envelope) {
+                Ok(()) => {
+                    self.current_task_id = Some(task_id.clone());
+                    tracing::debug!("Task submitted: {}", task_id);
+                    Some(task_id)
+                }
+                Err(crate::tui::tasks::TaskSendError::ChannelFull(_)) => {
+                    tracing::warn!("Task queue full, cannot submit: {}", task_id);
+                    self.status_message = Some((
+                        "Task queue full - please wait for current operation".into(),
+                        StatusLevel::Warning,
+                    ));
+                    None
+                }
+                Err(crate::tui::tasks::TaskSendError::Disconnected(_)) => {
+                    tracing::error!("Task worker disconnected");
+                    self.status_message = Some((
+                        "Background worker unavailable - restart TUI".into(),
+                        StatusLevel::Error,
+                    ));
+                    None
+                }
+            }
         } else {
-            false
+            tracing::warn!("No task sender available");
+            self.status_message =
+                Some(("Async operations unavailable".into(), StatusLevel::Warning));
+            None
         }
     }
 
@@ -3583,21 +3855,20 @@ impl App {
             PolicyListType::All => crate::tui::tasks::PolicyType::All,
         };
 
-        self.start_async_task("load_policies", "Loading policies...");
+        // Guard check before starting task
+        if let Err(reason) = self.begin_task("Loading policies...") {
+            self.status_message = Some((reason, StatusLevel::Warning));
+            return;
+        }
 
         let request = crate::tui::tasks::TaskRequest::LoadPolicies {
             tenant_name: tenant.clone(),
             policy_type: task_type.clone(),
         };
 
-        if !self.send_task(request) {
-            self.status_message = Some((
-                format!(
-                    "Failed to load {:?} policies from {}. Task queue may be full.",
-                    task_type, tenant
-                ),
-                StatusLevel::Error,
-            ));
+        if self.send_task(request).is_none() {
+            // send_task already sets status_message on failure
+            self.clear_async_task();
         }
     }
 
@@ -3644,6 +3915,81 @@ fn restore_terminal() {
 
     // Flush stdout to ensure all commands are sent
     let _ = std::io::Write::flush(&mut stdout);
+}
+
+/// Show the Resolve Technology splash screen on startup
+fn show_splash_screen<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>) -> io::Result<()> {
+    use ratatui::layout::{Alignment, Rect};
+    use ratatui::style::{Color, Modifier, Style};
+    use ratatui::widgets::{Block, Paragraph};
+
+    // Resolve Technology blue color (approximation)
+    let resolve_blue = Color::Rgb(0, 120, 215);
+
+    // ASCII art logo with Resolve Technology branding
+    let logo = r#"
+   ██████╗████████╗██╗     ██████╗  ██████╗ ███████╗
+  ██╔════╝╚══██╔══╝██║     ╚════██╗██╔════╝ ██╔════╝
+  ██║        ██║   ██║      █████╔╝███████╗ ███████╗
+  ██║        ██║   ██║      ╚═══██╗██╔═══██╗╚════██║
+  ╚██████╗   ██║   ███████╗██████╔╝╚██████╔╝███████║
+   ╚═════╝   ╚═╝   ╚══════╝╚═════╝  ╚═════╝ ╚══════╝
+
+        Microsoft 365 Management Tool
+
+           Resolve Technology
+              v0.1.2
+"#;
+
+    terminal.draw(|f| {
+        let area = f.area();
+
+        // Center the logo vertically and horizontally
+        let logo_height = 13u16;
+        let logo_width = 55u16;
+        let y = area.height.saturating_sub(logo_height) / 2;
+        let x = area.width.saturating_sub(logo_width) / 2;
+
+        let logo_area = Rect::new(
+            x,
+            y,
+            logo_width.min(area.width),
+            logo_height.min(area.height),
+        );
+
+        let splash = Paragraph::new(logo)
+            .style(
+                Style::default()
+                    .fg(resolve_blue)
+                    .add_modifier(Modifier::BOLD),
+            )
+            .alignment(Alignment::Center)
+            .block(Block::default());
+
+        f.render_widget(splash, logo_area);
+
+        // Add "Press any key to continue" at the bottom
+        let hint_y = area.height.saturating_sub(2);
+        let hint_area = Rect::new(0, hint_y, area.width, 1);
+        let hint = Paragraph::new("Press any key to continue...")
+            .style(Style::default().fg(Color::DarkGray))
+            .alignment(Alignment::Center);
+        f.render_widget(hint, hint_area);
+    })?;
+
+    // Wait for a key press or timeout (2 seconds max)
+    let timeout = std::time::Duration::from_secs(2);
+    let start = std::time::Instant::now();
+
+    while start.elapsed() < timeout {
+        if event::poll(std::time::Duration::from_millis(100))? {
+            if let Event::Key(_) = event::read()? {
+                break;
+            }
+        }
+    }
+
+    Ok(())
 }
 
 /// Run the TUI application
@@ -3694,6 +4040,11 @@ pub fn run_tui() -> Result<()> {
         }
     };
 
+    // Show splash screen
+    if let Err(e) = show_splash_screen(&mut terminal) {
+        tracing::warn!("Splash screen error (continuing): {}", e);
+    }
+
     // Create app
     let mut app = match App::new() {
         Ok(a) => a,
@@ -3727,18 +4078,87 @@ fn run_app<B: ratatui::backend::Backend>(
     terminal: &mut Terminal<B>,
     app: &mut App,
 ) -> io::Result<()> {
+    // Track last resize for debouncing (Phase 3)
+    let mut last_resize: Option<Instant> = None;
+    const RESIZE_DEBOUNCE: Duration = Duration::from_millis(50);
+
     loop {
+        let frame_start = Instant::now();
+
         // Process any pending responses from background tasks (non-blocking)
         app.process_task_responses();
 
-        terminal.draw(|f| ui(f, app))?;
+        // Check for stuck/timed-out tasks
+        app.check_task_timeout();
 
-        if event::poll(std::time::Duration::from_millis(50))? {
-            if let Event::Key(key) = event::read()? {
-                if key.kind == KeyEventKind::Press {
+        // Phase 2: Check worker health
+        app.check_worker_health();
+
+        // Phase 1: Only redraw if needed OR if enough time has passed
+        // This reduces CPU usage on static screens
+        let should_redraw = app.needs_redraw
+            || app.is_async_task_running() // Always redraw during async tasks (progress updates)
+            || last_resize.is_some(); // Redraw after resize
+
+        if should_redraw {
+            // Handle resize debouncing (Phase 3)
+            if let Some(resize_time) = last_resize {
+                if resize_time.elapsed() >= RESIZE_DEBOUNCE {
+                    last_resize = None;
+                }
+            }
+
+            terminal.draw(|f| ui(f, app))?;
+            app.needs_redraw = false;
+        }
+
+        // Poll for events with timeout based on frame budget
+        let elapsed = frame_start.elapsed();
+        let poll_timeout = if elapsed < FRAME_DURATION {
+            FRAME_DURATION - elapsed
+        } else {
+            EVENT_POLL_TIMEOUT
+        };
+
+        if event::poll(poll_timeout)? {
+            match event::read()? {
+                // Phase 3: Handle terminal resize events
+                Event::Resize(width, height) => {
+                    tracing::debug!("Terminal resized to {}x{}", width, height);
+                    last_resize = Some(Instant::now());
+                    app.needs_redraw = true;
+                    // Update visible rows based on new height
+                    let visible_count = (height as usize).saturating_sub(6); // Header + footer
+                    app.visible_rows = (
+                        app.table_page * app.table_page_size,
+                        app.table_page * app.table_page_size + visible_count,
+                    );
+                    continue;
+                }
+                // Ignore focus and mouse events
+                Event::FocusGained | Event::FocusLost | Event::Mouse(_) | Event::Paste(_) => {
+                    continue;
+                }
+                Event::Key(key) if key.kind != KeyEventKind::Press => {
+                    continue; // Ignore key release events
+                }
+                Event::Key(key) => {
+                    // Mark UI as dirty on any keypress
+                    app.needs_redraw = true;
                     // Clear status message on any key (except in search mode)
                     if app.input_mode != InputMode::Search {
                         app.status_message = None;
+                    }
+
+                    // Ctrl+C to cancel running async task (overlay dismissal)
+                    if key.code == KeyCode::Char('c')
+                        && key.modifiers.contains(KeyModifiers::CONTROL)
+                    {
+                        if app.is_async_task_running() {
+                            tracing::warn!("User cancelled async task via Ctrl+C");
+                            app.cancel_async_task("Operation cancelled by user. Background work may still be running.");
+                            continue;
+                        }
                     }
 
                     // Handle confirmation dialog first
@@ -5310,6 +5730,15 @@ mod tests {
             exit_confirmed: false,
             table_page: 0,
             table_page_size: 20,
+            worker_ready: false,
+            task_started_at: None,
+            // Phase 1: Performance
+            needs_redraw: true,
+            last_frame_time: Instant::now(),
+            visible_rows: (0, 20),
+            // Phase 2: Worker health
+            last_worker_response: Instant::now(),
+            channel_retry_count: 0,
         };
 
         app.refresh_menu();
@@ -5749,5 +6178,137 @@ mod tests {
 
         app.exit_confirmed = true;
         assert!(app.exit_confirmed);
+    }
+
+    // =========================================================================
+    // Task Orchestration Tests (v0.1.2)
+    // =========================================================================
+
+    #[test]
+    fn test_begin_task_guard_no_worker() {
+        let mut app = create_test_app();
+        // No worker attached, so begin_task should fail
+        assert!(app.task_sender.is_none());
+
+        let result = app.begin_task("Test operation...");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("worker unavailable"));
+    }
+
+    #[test]
+    fn test_begin_task_guard_already_running() {
+        let mut app = create_test_app();
+        // Simulate having a worker
+        app.task_sender = Some(crate::tui::tasks::TaskSender::test_stub());
+        app.async_task = Some(AsyncTaskState::new("existing", "Already running..."));
+
+        let result = app.begin_task("New operation...");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("already in progress"));
+    }
+
+    #[test]
+    fn test_clear_async_task() {
+        let mut app = create_test_app();
+        app.async_task = Some(AsyncTaskState::new("test", "Test..."));
+        app.progress = Some(ProgressState::new("Test..."));
+        app.current_task_id = Some("test_123".to_string());
+        app.task_started_at = Some(std::time::Instant::now());
+
+        app.clear_async_task();
+
+        assert!(app.async_task.is_none());
+        assert!(app.progress.is_none());
+        assert!(app.current_task_id.is_none());
+        assert!(app.task_started_at.is_none());
+    }
+
+    #[test]
+    fn test_complete_async_task() {
+        let mut app = create_test_app();
+        app.async_task = Some(AsyncTaskState::new("test", "Test..."));
+        app.progress = Some(ProgressState::new("Test..."));
+        app.current_task_id = Some("test_123".to_string());
+        app.task_started_at = Some(std::time::Instant::now());
+
+        app.complete_async_task(true, "Success!");
+
+        assert!(app.async_task.is_none());
+        assert!(app.progress.is_none());
+        assert!(app.current_task_id.is_none());
+        assert!(app.task_started_at.is_none());
+        assert!(app.status_message.is_some());
+        let (msg, level) = app.status_message.unwrap();
+        assert_eq!(msg, "Success!");
+        assert_eq!(level, StatusLevel::Success);
+    }
+
+    #[test]
+    fn test_complete_async_task_failure() {
+        let mut app = create_test_app();
+        app.async_task = Some(AsyncTaskState::new("test", "Test..."));
+
+        app.complete_async_task(false, "Failed!");
+
+        let (msg, level) = app.status_message.unwrap();
+        assert_eq!(msg, "Failed!");
+        assert_eq!(level, StatusLevel::Error);
+    }
+
+    #[test]
+    fn test_is_async_task_running() {
+        let mut app = create_test_app();
+        assert!(!app.is_async_task_running());
+
+        app.async_task = Some(AsyncTaskState::new("test", "Running..."));
+        assert!(app.is_async_task_running());
+
+        // Mark as completed
+        if let Some(ref mut task) = app.async_task {
+            task.completed = true;
+        }
+        assert!(!app.is_async_task_running());
+    }
+
+    #[test]
+    fn test_task_timeout_check() {
+        let mut app = create_test_app();
+        // No task running - should return false
+        assert!(!app.check_task_timeout());
+
+        // Simulate task that just started - should not timeout
+        app.task_started_at = Some(std::time::Instant::now());
+        app.current_task_id = Some("test_task".to_string());
+        assert!(!app.check_task_timeout());
+
+        // We can't easily test the actual timeout without waiting 60s,
+        // but we can verify the method doesn't panic with various states
+    }
+
+    #[test]
+    fn test_worker_ready_flag() {
+        let mut app = create_test_app();
+        assert!(!app.worker_ready);
+
+        app.worker_ready = true;
+        assert!(app.worker_ready);
+    }
+
+    #[test]
+    fn test_form_navigation_empty_fields() {
+        let mut app = create_test_app();
+        app.form_state = Some(FormState {
+            title: "Empty Form".to_string(),
+            fields: vec![], // Empty!
+            current_field: 0,
+            submit_label: "Submit".to_string(),
+            on_submit: FormAction::ExportPolicies, // Use existing variant
+        });
+
+        // Should not panic with empty fields
+        app.form_next_field();
+        app.form_prev_field();
+        app.form_input_char('a');
+        app.form_backspace();
     }
 }
