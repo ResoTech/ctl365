@@ -33,7 +33,7 @@ use crossterm::{
 use ratatui::{
     Frame, Terminal,
     backend::CrosstermBackend,
-    layout::{Alignment, Constraint, Direction, Layout, Rect},
+    layout::{Alignment, Constraint, Direction, Layout, Position, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{
@@ -88,6 +88,8 @@ pub struct App {
     pub menu_items: Vec<MenuItem>,
     /// Status message
     pub status_message: Option<(String, StatusLevel)>,
+    /// When the status message was set
+    pub status_timestamp: Option<chrono::DateTime<chrono::Local>>,
     /// Should quit
     pub should_quit: bool,
     /// Show help overlay
@@ -339,6 +341,7 @@ pub enum Screen {
     PolicyList(PolicyListType),
     BaselineSelect,
     AuditHistory,
+    SecurityMonitoring,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -394,6 +397,7 @@ impl App {
             menu_state: ListState::default(),
             menu_items: Vec::new(),
             status_message: None,
+            status_timestamp: None,
             should_quit: false,
             show_help: false,
             search_input: String::new(),
@@ -594,6 +598,12 @@ impl App {
         self.progress = None;
         self.current_task_id = None;
         self.task_started_at = None;
+    }
+
+    /// Set status message with automatic timestamp
+    pub fn set_status(&mut self, message: impl Into<String>, level: StatusLevel) {
+        self.status_message = Some((message.into(), level));
+        self.status_timestamp = Some(chrono::Local::now());
     }
 
     /// Cancel a running async task with a user-facing message
@@ -1291,6 +1301,7 @@ impl App {
             Screen::PolicyList(_) => self.policy_list_menu(),
             Screen::BaselineSelect => self.baseline_select_menu(),
             Screen::AuditHistory => self.audit_history_menu(),
+            Screen::SecurityMonitoring => self.security_monitoring_menu(),
         };
 
         // Load policies after match to avoid borrow conflict (non-blocking)
@@ -1361,6 +1372,54 @@ impl App {
                 label: "Clear Session".into(),
                 description: "Clear current session entries".into(),
                 shortcut: Some('c'),
+                enabled: true,
+            },
+            MenuItem {
+                id: "back".into(),
+                label: "← Back".into(),
+                description: "Return to dashboard".into(),
+                shortcut: Some('b'),
+                enabled: true,
+            },
+        ]
+    }
+
+    /// Security Monitoring menu - Identity Protection features
+    fn security_monitoring_menu(&self) -> Vec<MenuItem> {
+        vec![
+            MenuItem {
+                id: "sec_signin_logs".into(),
+                label: "Sign-in Logs".into(),
+                description: "View recent sign-in activity. Requires AuditLog.Read.All permission.".into(),
+                shortcut: Some('1'),
+                enabled: true,
+            },
+            MenuItem {
+                id: "sec_risky_users".into(),
+                label: "Risky Users".into(),
+                description: "Users flagged by Identity Protection. Requires IdentityRiskyUser.Read.All (Entra P1/P2).".into(),
+                shortcut: Some('2'),
+                enabled: true,
+            },
+            MenuItem {
+                id: "sec_risky_signins".into(),
+                label: "Risky Sign-ins".into(),
+                description: "Sign-ins flagged as risky. Requires IdentityRiskEvent.Read.All (Entra P1/P2).".into(),
+                shortcut: Some('3'),
+                enabled: true,
+            },
+            MenuItem {
+                id: "sec_directory_audit".into(),
+                label: "Directory Audit".into(),
+                description: "Directory changes and admin activity. Requires AuditLog.Read.All.".into(),
+                shortcut: Some('4'),
+                enabled: true,
+            },
+            MenuItem {
+                id: "sec_summary".into(),
+                label: "Security Summary".into(),
+                description: "Dashboard summary of identity protection status.".into(),
+                shortcut: Some('5'),
                 enabled: true,
             },
             MenuItem {
@@ -1502,6 +1561,13 @@ impl App {
                 ),
                 shortcut: Some('h'),
                 enabled: true,
+            },
+            MenuItem {
+                id: "security_monitoring".into(),
+                label: "Security Monitoring".into(),
+                description: "Sign-in logs, risky users, risky sign-ins (P1/P2)".into(),
+                shortcut: Some('s'),
+                enabled: self.active_tenant.is_some(),
             },
             MenuItem {
                 id: "baseline".into(),
@@ -1958,6 +2024,7 @@ impl App {
             "baseline" => self.navigate_to(Screen::BaselineSelect),
             "audit" => self.navigate_to(Screen::PolicyList(PolicyListType::All)),
             "audit_history" => self.navigate_to(Screen::AuditHistory),
+            "security_monitoring" => self.navigate_to(Screen::SecurityMonitoring),
 
             // Audit history actions
             "audit_7d" => {
@@ -2195,7 +2262,10 @@ impl App {
                     &tenant,
                 );
                 self.status_message = Some((
-                    format!("Report saved: {}", report_path.display()),
+                    format!(
+                        "Report saved: {} (open in browser, Ctrl+P to save as PDF)",
+                        report_path.display()
+                    ),
                     StatusLevel::Success,
                 ));
             }
@@ -4405,6 +4475,7 @@ fn render_header(f: &mut Frame, app: &App, area: Rect) {
         }
         Screen::BaselineSelect => "Home > Deploy Baseline".into(),
         Screen::AuditHistory => "Home > Audit History".into(),
+        Screen::SecurityMonitoring => "Home > Security Monitoring".into(),
     };
 
     // Microsoft 365-inspired header with Fluent Design blue accent
@@ -4623,33 +4694,40 @@ fn render_details(f: &mut Frame, app: &App, area: Rect) {
 }
 
 fn render_status_bar(f: &mut Frame, app: &App, area: Rect) {
+    // Format timestamp if available
+    let timestamp_prefix = app
+        .status_timestamp
+        .map(|ts| format!("[{}] ", ts.format("%H:%M:%S")))
+        .unwrap_or_default();
+
+    // Use basic ANSI colors for Windows PowerShell compatibility
     let (msg, style) = match &app.status_message {
         Some((msg, StatusLevel::Success)) => (
-            format!(" [OK] {} ", msg),
-            Style::default().fg(Color::Rgb(16, 124, 16)), // M365 green
+            format!(" [OK] {}{} ", timestamp_prefix, msg),
+            Style::default().fg(Color::Green),
         ),
         Some((msg, StatusLevel::Warning)) => (
-            format!(" [!] {} ", msg),
-            Style::default().fg(Color::Rgb(255, 185, 0)), // M365 gold
+            format!(" [!] {}{} ", timestamp_prefix, msg),
+            Style::default().fg(Color::Yellow),
         ),
         Some((msg, StatusLevel::Error)) => (
-            format!(" [X] {} ", msg),
-            Style::default().fg(Color::Rgb(209, 52, 56)), // M365 red
+            format!(" [X] {}{} ", timestamp_prefix, msg),
+            Style::default().fg(Color::Red),
         ),
         Some((msg, StatusLevel::Info)) => (
-            format!(" [i] {} ", msg),
-            Style::default().fg(Color::Rgb(0, 120, 212)), // M365 blue
+            format!(" [i] {}{} ", timestamp_prefix, msg),
+            Style::default().fg(Color::Cyan),
         ),
         None => (
             " Arrow/jk: Navigate | Enter: Select | Esc: Back | ?: Help | q: Quit ".into(),
-            Style::default().fg(Color::Rgb(120, 120, 120)),
+            Style::default().fg(Color::DarkGray),
         ),
     };
 
     let status = Paragraph::new(msg).style(style).block(
         Block::default()
             .borders(Borders::TOP)
-            .border_style(Style::default().fg(Color::Rgb(60, 60, 60))),
+            .border_style(Style::default().fg(Color::DarkGray)),
     );
 
     f.render_widget(status, area);
@@ -4697,6 +4775,17 @@ fn render_help_overlay(f: &mut Frame, app: &App) {
             "  3           Last 30 days",
             "  a           All history",
             "  e           Export to JSON",
+        ],
+        Screen::SecurityMonitoring => vec![
+            "  SECURITY MONITORING",
+            "  ──────────────────────────────────────",
+            "  1           Sign-in logs",
+            "  2           Risky users",
+            "  3           Risky sign-ins",
+            "  4           Directory audit",
+            "  5           Security summary",
+            "",
+            "  Requires Entra ID P1/P2 for risk data",
         ],
         _ => vec![],
     };
@@ -5237,41 +5326,40 @@ fn render_search_overlay(f: &mut Frame, app: &App) {
     f.render_widget(search, area);
 }
 
-/// Render form overlay with M365 Fluent Design styling
+/// Render form overlay following ratatui official patterns for Windows compatibility
+/// Key insight: Use frame.set_cursor_position() for the real terminal cursor
+/// instead of appending a fake "_" character to the text
 fn render_form_overlay(f: &mut Frame, form: &FormState) {
-    // Use basic blue for form border (RGB may not work on Windows PowerShell legacy console)
-    let m365_blue = Color::Blue;
-
     // Calculate form height based on number of fields
     let field_height = 3; // Each field takes 3 rows
-    let total_height = (form.fields.len() as u16 * field_height) + 8; // +8 for title, buttons, margins
+    let total_height = (form.fields.len() as u16 * field_height) + 8;
     let area = centered_rect(70, total_height.min(80), f.area());
 
+    // Clear the area with a simple block (no explicit bg color - let terminal handle it)
     f.render_widget(Clear, area);
 
-    // Main form block with M365 blue
-    let block = Block::default()
+    // Main form block - simple styling like ratatui examples
+    let block = Block::bordered()
         .title(format!(" {} ", form.title))
         .title_style(
             Style::default()
-                .fg(Color::White)
+                .fg(Color::Cyan)
                 .add_modifier(Modifier::BOLD),
         )
-        .borders(Borders::ALL)
-        .border_style(Style::default().fg(m365_blue));
+        .border_style(Style::default().fg(Color::Blue));
     f.render_widget(block, area);
 
     // Create layout for fields
     let inner = Rect {
         x: area.x + 2,
-        y: area.y + 1,
+        y: area.y + 2,
         width: area.width.saturating_sub(4),
-        height: area.height.saturating_sub(2),
+        height: area.height.saturating_sub(3),
     };
 
     let mut constraints: Vec<Constraint> =
         form.fields.iter().map(|_| Constraint::Length(3)).collect();
-    constraints.push(Constraint::Length(3)); // Submit button area
+    constraints.push(Constraint::Length(2)); // Help area
     constraints.push(Constraint::Min(0)); // Remaining space
 
     let chunks = Layout::default()
@@ -5279,38 +5367,40 @@ fn render_form_overlay(f: &mut Frame, form: &FormState) {
         .constraints(constraints)
         .split(inner);
 
+    // Track cursor position for the active field
+    let mut cursor_position: Option<(u16, u16)> = None;
+
     // Render each field
     for (i, field) in form.fields.iter().enumerate() {
         let is_active = i == form.current_field;
-        // Use basic colors for Windows PowerShell compatibility
-        let border_color = if is_active {
-            Color::Yellow // Active field border
-        } else {
-            Color::DarkGray // Inactive field border
-        };
 
+        // Determine display value
         let display_value =
             if matches!(field.field_type, FormFieldType::Password) && !field.value.is_empty() {
                 "*".repeat(field.value.len())
-            } else if field.value.is_empty() {
+            } else if field.value.is_empty() && !is_active {
                 field.placeholder.clone()
             } else {
                 field.value.clone()
             };
 
-        let cursor = if is_active { "_" } else { "" };
-        // Use basic colors for Windows PowerShell compatibility
-        // RGB colors don't render properly on legacy Windows console
-        let text_style = if field.value.is_empty() && !is_active {
-            Style::default().fg(Color::DarkGray) // Placeholder text
+        // Simple styling - active field gets yellow border, others get gray
+        let border_color = if is_active {
+            Color::Yellow
         } else {
-            Style::default().fg(Color::White) // Actual input text
+            Color::DarkGray
+        };
+
+        // Text style - placeholder is dimmed, actual text is default
+        let text_style = if field.value.is_empty() && !is_active {
+            Style::default().fg(Color::DarkGray)
+        } else {
+            Style::default()
         };
 
         let required_marker = if field.required { " *" } else { "" };
         let title = format!(" {}{} ", field.label, required_marker);
 
-        // Use basic colors for Windows PowerShell compatibility
         let title_style = if is_active {
             Style::default()
                 .fg(Color::Yellow)
@@ -5319,23 +5409,30 @@ fn render_form_overlay(f: &mut Frame, form: &FormState) {
             Style::default().fg(Color::Gray)
         };
 
-        let input = Paragraph::new(format!("{}{}", display_value, cursor))
+        // Create the input paragraph WITHOUT a fake cursor character
+        let input = Paragraph::new(display_value.as_str())
             .style(text_style)
             .block(
-                Block::default()
+                Block::bordered()
                     .title(title)
                     .title_style(title_style)
-                    .borders(Borders::ALL)
                     .border_style(Style::default().fg(border_color)),
             );
 
         f.render_widget(input, chunks[i]);
+
+        // Calculate cursor position for active field
+        // Cursor goes at end of text, inside the bordered block (offset by 1 for border)
+        if is_active {
+            let cursor_x = chunks[i].x + 1 + display_value.len() as u16;
+            let cursor_y = chunks[i].y + 1; // +1 for border
+            cursor_position = Some((cursor_x, cursor_y));
+        }
     }
 
-    // Submit button / help area
-    let submit_idx = form.fields.len();
+    // Help area
     let help_text = format!(
-        " Field {}/{} │ Tab/↓: Next │ Shift+Tab/↑: Prev │ Enter: {} │ Esc: Cancel ",
+        "Field {}/{} | Tab: Next | Shift+Tab: Prev | Enter: {} | Esc: Cancel",
         form.current_field + 1,
         form.fields.len(),
         if form.current_field >= form.fields.len() - 1 {
@@ -5346,10 +5443,17 @@ fn render_form_overlay(f: &mut Frame, form: &FormState) {
     );
 
     let help = Paragraph::new(help_text)
-        .style(Style::default().fg(Color::Rgb(120, 120, 120)))
+        .style(Style::default().fg(Color::DarkGray))
         .alignment(Alignment::Center);
 
-    f.render_widget(help, chunks[submit_idx]);
+    f.render_widget(help, chunks[form.fields.len()]);
+
+    // CRITICAL: Set the real terminal cursor position for the active field
+    // This is how ratatui examples handle input - the terminal's native cursor
+    // is visible and blinking, which works on all platforms including Windows
+    if let Some((x, y)) = cursor_position {
+        f.set_cursor_position(Position::new(x, y));
+    }
 }
 
 // ============================================================================
@@ -5712,6 +5816,7 @@ mod tests {
             menu_state: ListState::default(),
             menu_items: Vec::new(),
             status_message: None,
+            status_timestamp: None,
             should_quit: false,
             show_help: false,
             search_input: String::new(),

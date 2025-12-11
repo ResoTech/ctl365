@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3] - 2025-12-11
+
+### Added
+- **Identity Protection Graph API Module** (`src/graph/identity_protection.rs`)
+  - Sign-in logs API: `get_sign_in_logs()` with flexible filtering
+  - Risky users API: `get_risky_users()`, `dismiss_risky_user()`, `confirm_user_compromised()`
+  - Risky sign-ins API: `get_risky_sign_ins()` with risk level filtering
+  - Directory audit API: `get_directory_audits()` with category/activity filtering
+  - Security summary: `get_identity_protection_summary()` for dashboard view
+  - Filter types: `SignInFilter`, `RiskyUserFilter`, `DirectoryAuditFilter`
+  - Enums: `RiskLevel`, `RiskState`, `RiskDetail`
+  - Full documentation with permission requirements
+
+- **TUI Security Monitoring Screen**
+  - New dashboard menu item: "Security Monitoring" (shortcut: `s`)
+  - Sub-menu with sign-in logs, risky users, risky sign-ins, directory audit, security summary
+  - Help text with keyboard shortcuts
+  - Requires Entra ID P1/P2 for risk-based features
+
+### Improved
+- **TUI Status Bar** - Now shows timestamps on status messages (`[HH:MM:SS] message`)
+- **PDF Export Hint** - Report success message now includes "Ctrl+P to save as PDF" tip
+- **Documentation** - Added Identity Protection permissions to `docs/PERMISSIONS.md`:
+  - `AuditLog.Read.All` - Sign-in logs, directory audit
+  - `IdentityRiskyUser.Read.All` - Risky users (read-only)
+  - `IdentityRiskyUser.ReadWrite.All` - Dismiss/confirm risky users
+  - `IdentityRiskEvent.Read.All` - Risky sign-ins
+  - Added permission GUIDs to reference table
+
+### Technical
+- Windows PowerShell compatible (basic ANSI colors only)
+- All 141+ tests passing
+- Zero clippy warnings
+
 ## [0.1.2] - 2025-12-11
 
 ### Fixed

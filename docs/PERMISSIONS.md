@@ -121,6 +121,19 @@ Mail.Read                                       # Copilot
 | `Policy.Read.All` | Both | Yes |
 | `AuditLog.Read.All` | Both | Yes |
 
+### Security Monitoring (TUI - Identity Protection)
+
+View sign-in logs, risky users, risky sign-ins, and directory audit logs. Some features require Entra ID P1/P2 licensing.
+
+| Permission | Type | Required |
+|------------|------|----------|
+| `AuditLog.Read.All` | Both | Sign-in logs, directory audit |
+| `IdentityRiskyUser.Read.All` | Both | Risky users (read-only) |
+| `IdentityRiskyUser.ReadWrite.All` | Both | Dismiss/confirm risky users |
+| `IdentityRiskEvent.Read.All` | Both | Risky sign-ins |
+
+**Note:** Risky user and risky sign-in data requires **Entra ID P1 or P2** licensing. Without P1/P2, the API will return empty results.
+
 ---
 
 ## Permission Types
@@ -259,12 +272,16 @@ Error: AADSTS65001 - User has not consented
 
 | Permission | GUID |
 |------------|------|
-| DeviceManagementConfiguration.ReadWrite.All | 9241abd9-d0e6-425a-bd4f-47ba86e767a4 |
+| AuditLog.Read.All | b0afded3-3588-46d8-8b3d-9842eff778da |
 | DeviceManagementApps.ReadWrite.All | 78145de6-330d-4800-a6ce-494ff2d33d07 |
+| DeviceManagementConfiguration.ReadWrite.All | 9241abd9-d0e6-425a-bd4f-47ba86e767a4 |
 | DeviceManagementManagedDevices.ReadWrite.All | 243333ab-4d21-40cb-a475-36241daa0842 |
 | DeviceManagementServiceConfig.ReadWrite.All | 5ac13192-7ace-4fcf-b828-1a26f28068ee |
 | Directory.ReadWrite.All | 19dbc75e-c2e2-444c-a770-ec69d8559fc7 |
 | Group.ReadWrite.All | 62a82d76-70ea-41e2-9197-370581804d09 |
+| IdentityRiskEvent.Read.All | db06fb33-1953-4b7b-a9d4-f6f2b14b9e4e |
+| IdentityRiskyUser.Read.All | dc5007c0-2d7d-4c42-879c-2dab87571379 |
+| IdentityRiskyUser.ReadWrite.All | 656f6061-f9fe-4807-9708-6a2e0934df76 |
 | Policy.ReadWrite.ConditionalAccess | ad902697-1014-4ef5-81ef-2b4301988e8c |
 | Sites.FullControl.All | a82116e5-55eb-4c41-a434-62fe8a61c773 |
 

@@ -3,6 +3,7 @@ pub mod conditional_access;
 pub mod copilot;
 pub mod defender;
 pub mod exchange_online;
+pub mod identity_protection;
 pub mod intune;
 pub mod sharepoint;
 pub mod viva;
