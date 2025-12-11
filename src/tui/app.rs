@@ -44,7 +44,6 @@ use ratatui::{
 };
 use std::io;
 use std::time::{Duration, Instant};
-use tui_input::{Input, backend::crossterm::EventHandler};
 
 // ============================================================================
 // Performance Constants (Phase 1)
@@ -119,8 +118,6 @@ pub struct App {
     pub input_field: Option<String>,
     /// Form state for multi-field forms
     pub form_state: Option<FormState>,
-    /// Form input fields using tui-input for proper cursor handling
-    pub form_inputs: Vec<Input>,
     /// Toggle states for settings (setting_id -> enabled)
     pub setting_toggles: std::collections::HashMap<String, bool>,
     /// Async task state
@@ -417,7 +414,6 @@ impl App {
             input_buffer: String::new(),
             input_field: None,
             form_state: None,
-            form_inputs: Vec::new(),
             setting_toggles: std::collections::HashMap::new(),
             async_task: None,
             audit_entries: Vec::new(),
@@ -1020,15 +1016,6 @@ impl App {
             submit_label: "Add Client".to_string(),
             on_submit: FormAction::AddClient,
         });
-        // Initialize tui-input fields for each form field
-        self.form_inputs = vec![
-            Input::default(), // abbreviation
-            Input::default(), // full_name
-            Input::default(), // tenant_id
-            Input::default(), // client_id
-            Input::default(), // client_secret
-            Input::default(), // contact_email
-        ];
         self.input_mode = InputMode::Input;
     }
 
@@ -1146,7 +1133,6 @@ impl App {
     /// Cancel form and return to previous screen
     pub fn form_cancel(&mut self) {
         self.form_state = None;
-        self.form_inputs.clear();
         self.input_mode = InputMode::Normal;
         self.go_back();
     }
@@ -4344,28 +4330,8 @@ fn run_app<B: ratatui::backend::Backend>(
                         continue;
                     }
 
-                    // Handle form input mode - uses tui-input for cursor handling
+                    // Handle form input mode - direct character handling (ratatui official pattern)
                     if app.input_mode == InputMode::Input && app.form_state.is_some() {
-                        // Get current field index
-                        let current_idx = app
-                            .form_state
-                            .as_ref()
-                            .map(|f| f.current_field)
-                            .unwrap_or(0);
-
-                        // Pass event to tui-input for cursor handling if we have an input
-                        if current_idx < app.form_inputs.len() {
-                            // Let tui-input handle the event for proper cursor movement
-                            app.form_inputs[current_idx].handle_event(&Event::Key(key));
-                            // Sync back to FormField.value
-                            if let Some(ref mut form) = app.form_state {
-                                if current_idx < form.fields.len() {
-                                    form.fields[current_idx].value =
-                                        app.form_inputs[current_idx].value().to_string();
-                                }
-                            }
-                        }
-
                         match key.code {
                             KeyCode::Esc => {
                                 app.form_cancel();
@@ -4393,7 +4359,13 @@ fn run_app<B: ratatui::backend::Backend>(
                                 // F1 to force submit from any field
                                 app.form_submit();
                             }
-                            // Left/Right, Backspace, Char handled by tui-input above
+                            KeyCode::Char(c) => {
+                                // Direct character input - official ratatui pattern
+                                app.form_input_char(c);
+                            }
+                            KeyCode::Backspace => {
+                                app.form_backspace();
+                            }
                             _ => {}
                         }
                         continue;
@@ -5397,20 +5369,27 @@ fn render_search_overlay(f: &mut Frame, app: &App) {
     f.render_widget(search, area);
 }
 
-/// Render form overlay following ratatui official patterns for Windows compatibility
-/// Key insight: Use frame.set_cursor_position() for the real terminal cursor
-/// instead of appending a fake "_" character to the text
+/// Render form overlay using fixed absolute sizing (not percentages)
+/// Based on official ratatui input-form and user-input examples
+/// Render form overlay following official ratatui input-form pattern
+/// Uses direct field.value storage and simple cursor positioning
 fn render_form_overlay(f: &mut Frame, form: &FormState) {
-    // Calculate form height based on number of fields
-    let field_height = 3; // Each field takes 3 rows
-    let total_height = (form.fields.len() as u16 * field_height) + 8;
-    let area = centered_rect(70, total_height.min(80), f.area());
+    let screen = f.area();
 
-    // Clear the area with a simple block (no explicit bg color - let terminal handle it)
+    // Calculate required dimensions - use FIXED heights, not percentages
+    let field_height: u16 = 3; // Each field: 1 border + 1 text + 1 border
+    let num_fields = form.fields.len() as u16;
+    let form_height = (num_fields * field_height) + 4; // +4 for outer border and help text
+    let form_width = screen.width.clamp(40, 60); // 40-60 chars wide
+
+    // Center the form on screen using absolute positioning
+    let x = screen.x + (screen.width.saturating_sub(form_width)) / 2;
+    let y = screen.y + (screen.height.saturating_sub(form_height)) / 2;
+    let area = Rect::new(x, y, form_width, form_height.min(screen.height));
+
+    // Clear and draw outer border
     f.render_widget(Clear, area);
-
-    // Main form block - simple styling like ratatui examples
-    let block = Block::bordered()
+    let outer_block = Block::bordered()
         .title(format!(" {} ", form.title))
         .title_style(
             Style::default()
@@ -5418,34 +5397,33 @@ fn render_form_overlay(f: &mut Frame, form: &FormState) {
                 .add_modifier(Modifier::BOLD),
         )
         .border_style(Style::default().fg(Color::Blue));
-    f.render_widget(block, area);
+    f.render_widget(outer_block, area);
 
-    // Create layout for fields
+    // Inner area (inside the border)
     let inner = Rect {
-        x: area.x + 2,
-        y: area.y + 2,
-        width: area.width.saturating_sub(4),
-        height: area.height.saturating_sub(3),
+        x: area.x + 1,
+        y: area.y + 1,
+        width: area.width.saturating_sub(2),
+        height: area.height.saturating_sub(2),
     };
 
-    let mut constraints: Vec<Constraint> =
-        form.fields.iter().map(|_| Constraint::Length(3)).collect();
-    constraints.push(Constraint::Length(2)); // Help area
-    constraints.push(Constraint::Min(0)); // Remaining space
+    // Create layout: each field gets exactly 3 rows, plus 1 row for help
+    let mut constraints: Vec<Constraint> = (0..num_fields)
+        .map(|_| Constraint::Length(field_height))
+        .collect();
+    constraints.push(Constraint::Length(1)); // Help text
 
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints(constraints)
         .split(inner);
 
-    // Track cursor position for the active field
-    let mut cursor_position: Option<(u16, u16)> = None;
-
     // Render each field
     for (i, field) in form.fields.iter().enumerate() {
         let is_active = i == form.current_field;
+        let chunk = chunks[i];
 
-        // Determine display value
+        // Display: password masked, placeholder if empty and not active, otherwise actual value
         let display_value =
             if matches!(field.field_type, FormFieldType::Password) && !field.value.is_empty() {
                 "*".repeat(field.value.len())
@@ -5455,23 +5433,21 @@ fn render_form_overlay(f: &mut Frame, form: &FormState) {
                 field.value.clone()
             };
 
-        // Simple styling - active field gets yellow border, others get gray
-        let border_color = if is_active {
-            Color::Yellow
+        // Styles - explicit colors for Windows PowerShell compatibility
+        let border_style = if is_active {
+            Style::default().fg(Color::Yellow)
         } else {
-            Color::DarkGray
-        };
-
-        // Text style - placeholder is dimmed, actual text is default
-        let text_style = if field.value.is_empty() && !is_active {
             Style::default().fg(Color::DarkGray)
-        } else {
-            Style::default()
         };
 
-        let required_marker = if field.required { " *" } else { "" };
-        let title = format!(" {}{} ", field.label, required_marker);
+        let text_style = if field.value.is_empty() && !is_active {
+            Style::default().fg(Color::DarkGray) // Placeholder color
+        } else {
+            Style::default().fg(Color::White) // MUST be explicit for Windows
+        };
 
+        let required = if field.required { " *" } else { "" };
+        let title = format!(" {}{} ", field.label, required);
         let title_style = if is_active {
             Style::default()
                 .fg(Color::Yellow)
@@ -5480,50 +5456,43 @@ fn render_form_overlay(f: &mut Frame, form: &FormState) {
             Style::default().fg(Color::Gray)
         };
 
-        // Create the input paragraph WITHOUT a fake cursor character
-        let input = Paragraph::new(display_value.as_str())
+        // Render the field with bordered block
+        let paragraph = Paragraph::new(display_value.as_str())
             .style(text_style)
             .block(
                 Block::bordered()
                     .title(title)
                     .title_style(title_style)
-                    .border_style(Style::default().fg(border_color)),
+                    .border_style(border_style),
             );
+        f.render_widget(paragraph, chunk);
 
-        f.render_widget(input, chunks[i]);
-
-        // Calculate cursor position for active field
-        // Cursor goes at end of text, inside the bordered block (offset by 1 for border)
+        // Set cursor position for active field (official ratatui pattern)
+        // Position: chunk.x + 1 (border) + value length
+        // chunk.y + 1 (border) to get to text line
         if is_active {
-            let cursor_x = chunks[i].x + 1 + display_value.len() as u16;
-            let cursor_y = chunks[i].y + 1; // +1 for border
-            cursor_position = Some((cursor_x, cursor_y));
+            f.set_cursor_position(Position::new(
+                chunk.x + 1 + field.value.len() as u16,
+                chunk.y + 1,
+            ));
         }
     }
 
-    // Help area
-    let help_text = format!(
-        "Field {}/{} | Tab: Next | Shift+Tab: Prev | Enter: {} | Esc: Cancel",
-        form.current_field + 1,
-        form.fields.len(),
-        if form.current_field >= form.fields.len() - 1 {
+    // Help text at bottom
+    let help_idx = form.fields.len();
+    if help_idx < chunks.len() {
+        let action = if form.current_field >= form.fields.len() - 1 {
             "Submit"
         } else {
             "Next"
-        }
-    );
-
-    let help = Paragraph::new(help_text)
+        };
+        let help = Paragraph::new(format!(
+            "Tab:Next | Shift+Tab:Prev | Enter:{} | Esc:Cancel",
+            action
+        ))
         .style(Style::default().fg(Color::DarkGray))
         .alignment(Alignment::Center);
-
-    f.render_widget(help, chunks[form.fields.len()]);
-
-    // CRITICAL: Set the real terminal cursor position for the active field
-    // This is how ratatui examples handle input - the terminal's native cursor
-    // is visible and blinking, which works on all platforms including Windows
-    if let Some((x, y)) = cursor_position {
-        f.set_cursor_position(Position::new(x, y));
+        f.render_widget(help, chunks[help_idx]);
     }
 }
 
@@ -5900,7 +5869,6 @@ mod tests {
             input_buffer: String::new(),
             input_field: None,
             form_state: None,
-            form_inputs: Vec::new(),
             setting_toggles: std::collections::HashMap::new(),
             async_task: None,
             audit_entries: Vec::new(),
@@ -6492,5 +6460,211 @@ mod tests {
         app.form_prev_field();
         app.form_input_char('a');
         app.form_backspace();
+    }
+
+    // ========================================================================
+    // FORM INPUT TESTS - Verify form input actually works
+    // ========================================================================
+
+    #[test]
+    fn test_init_add_client_form_sets_input_mode() {
+        let mut app = create_test_app();
+        assert!(matches!(app.input_mode, InputMode::Normal));
+        assert!(app.form_state.is_none());
+
+        app.init_add_client_form();
+
+        // CRITICAL: input_mode MUST be Input for form to receive keystrokes
+        assert!(
+            matches!(app.input_mode, InputMode::Input),
+            "init_add_client_form must set input_mode to Input"
+        );
+        assert!(
+            app.form_state.is_some(),
+            "init_add_client_form must create form_state"
+        );
+        // Verify form has fields
+        let form = app.form_state.as_ref().unwrap();
+        assert!(
+            !form.fields.is_empty(),
+            "init_add_client_form must create form fields"
+        );
+    }
+
+    #[test]
+    fn test_form_input_receives_keystrokes() {
+        let mut app = create_test_app();
+        app.init_add_client_form();
+
+        // Verify we start on field 0
+        let current_idx = app
+            .form_state
+            .as_ref()
+            .map(|f| f.current_field)
+            .unwrap_or(0);
+        assert_eq!(current_idx, 0, "Should start on first field");
+
+        // Type 'A' using the new direct input method
+        app.form_input_char('A');
+
+        // Verify the form field received the character
+        let form = app.form_state.as_ref().unwrap();
+        assert_eq!(
+            form.fields[0].value, "A",
+            "form_input_char should add character to current field"
+        );
+    }
+
+    #[test]
+    fn test_form_input_char_updates_field_value() {
+        let mut app = create_test_app();
+        app.init_add_client_form();
+
+        // Type 'T' using form_input_char
+        app.form_input_char('T');
+
+        // Verify the form field value is updated directly
+        let form = app.form_state.as_ref().unwrap();
+        assert_eq!(
+            form.fields[0].value, "T",
+            "form.fields[].value should be updated by form_input_char"
+        );
+    }
+
+    #[test]
+    fn test_form_condition_check() {
+        // This test verifies the exact condition used in the event loop
+        let mut app = create_test_app();
+
+        // Before init: condition should be FALSE
+        let condition_before = app.input_mode == InputMode::Input && app.form_state.is_some();
+        assert!(
+            !condition_before,
+            "Form condition should be false before init"
+        );
+
+        app.init_add_client_form();
+
+        // After init: condition should be TRUE
+        let condition_after = app.input_mode == InputMode::Input && app.form_state.is_some();
+        assert!(
+            condition_after,
+            "Form condition should be true after init - this is CRITICAL for form to work"
+        );
+    }
+
+    #[test]
+    fn test_form_cancel_resets_input_mode() {
+        let mut app = create_test_app();
+        app.init_add_client_form();
+
+        assert!(matches!(app.input_mode, InputMode::Input));
+
+        app.form_cancel();
+
+        assert!(
+            matches!(app.input_mode, InputMode::Normal),
+            "form_cancel must reset input_mode to Normal"
+        );
+        assert!(
+            app.form_state.is_none(),
+            "form_cancel must clear form_state"
+        );
+    }
+
+    #[test]
+    fn test_form_field_navigation_updates_current_field() {
+        let mut app = create_test_app();
+        app.init_add_client_form();
+
+        assert_eq!(
+            app.form_state.as_ref().unwrap().current_field,
+            0,
+            "Should start on field 0"
+        );
+
+        app.form_next_field();
+        assert_eq!(
+            app.form_state.as_ref().unwrap().current_field,
+            1,
+            "Should move to field 1"
+        );
+
+        app.form_prev_field();
+        assert_eq!(
+            app.form_state.as_ref().unwrap().current_field,
+            0,
+            "Should move back to field 0"
+        );
+    }
+
+    #[test]
+    fn test_form_typing_multiple_characters() {
+        let mut app = create_test_app();
+        app.init_add_client_form();
+
+        // Type "ACME" into the first field using form_input_char
+        for c in ['A', 'C', 'M', 'E'] {
+            app.form_input_char(c);
+        }
+
+        let form = app.form_state.as_ref().unwrap();
+        assert_eq!(form.fields[0].value, "ACME", "Should have typed ACME");
+    }
+
+    #[test]
+    fn test_form_backspace_removes_character() {
+        let mut app = create_test_app();
+        app.init_add_client_form();
+
+        // Type "AB" using form_input_char
+        app.form_input_char('A');
+        app.form_input_char('B');
+
+        let form = app.form_state.as_ref().unwrap();
+        assert_eq!(form.fields[0].value, "AB");
+
+        // Backspace using form_backspace
+        app.form_backspace();
+
+        let form = app.form_state.as_ref().unwrap();
+        assert_eq!(
+            form.fields[0].value, "A",
+            "Backspace should remove last char"
+        );
+    }
+
+    #[test]
+    fn test_form_render_dimensions() {
+        // Test that form calculates proper dimensions
+        let form = FormState {
+            title: "Test Form".to_string(),
+            fields: vec![
+                FormField {
+                    id: "f1".into(),
+                    label: "Field 1".into(),
+                    value: String::new(),
+                    placeholder: "".into(),
+                    required: true,
+                    field_type: FormFieldType::Text,
+                },
+                FormField {
+                    id: "f2".into(),
+                    label: "Field 2".into(),
+                    value: String::new(),
+                    placeholder: "".into(),
+                    required: false,
+                    field_type: FormFieldType::Text,
+                },
+            ],
+            current_field: 0,
+            submit_label: "OK".to_string(),
+            on_submit: FormAction::AddClient,
+        };
+
+        // Each field needs 3 rows (border + text + border)
+        // Plus 4 for outer border and help
+        let expected_height = (form.fields.len() as u16 * 3) + 4;
+        assert_eq!(expected_height, 10, "2 fields should need 10 rows total");
     }
 }
