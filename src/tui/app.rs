@@ -5239,9 +5239,8 @@ fn render_search_overlay(f: &mut Frame, app: &App) {
 
 /// Render form overlay with M365 Fluent Design styling
 fn render_form_overlay(f: &mut Frame, form: &FormState) {
-    // M365 color palette
-    let m365_blue = Color::Rgb(0, 120, 212);
-    let m365_gold = Color::Rgb(255, 185, 0);
+    // Use basic blue for form border (RGB may not work on Windows PowerShell legacy console)
+    let m365_blue = Color::Blue;
 
     // Calculate form height based on number of fields
     let field_height = 3; // Each field takes 3 rows
@@ -5283,10 +5282,11 @@ fn render_form_overlay(f: &mut Frame, form: &FormState) {
     // Render each field
     for (i, field) in form.fields.iter().enumerate() {
         let is_active = i == form.current_field;
+        // Use basic colors for Windows PowerShell compatibility
         let border_color = if is_active {
-            m365_gold // M365 gold for active field
+            Color::Yellow // Active field border
         } else {
-            Color::Rgb(80, 80, 80)
+            Color::DarkGray // Inactive field border
         };
 
         let display_value =
@@ -5299,19 +5299,24 @@ fn render_form_overlay(f: &mut Frame, form: &FormState) {
             };
 
         let cursor = if is_active { "_" } else { "" };
+        // Use basic colors for Windows PowerShell compatibility
+        // RGB colors don't render properly on legacy Windows console
         let text_style = if field.value.is_empty() && !is_active {
-            Style::default().fg(Color::Rgb(100, 100, 100))
+            Style::default().fg(Color::DarkGray) // Placeholder text
         } else {
-            Style::default().fg(Color::Rgb(220, 220, 220))
+            Style::default().fg(Color::White) // Actual input text
         };
 
         let required_marker = if field.required { " *" } else { "" };
         let title = format!(" {}{} ", field.label, required_marker);
 
+        // Use basic colors for Windows PowerShell compatibility
         let title_style = if is_active {
-            Style::default().fg(m365_gold).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD)
         } else {
-            Style::default().fg(Color::Rgb(180, 180, 180))
+            Style::default().fg(Color::Gray)
         };
 
         let input = Paragraph::new(format!("{}{}", display_value, cursor))
