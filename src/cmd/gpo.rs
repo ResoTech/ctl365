@@ -655,15 +655,266 @@ fn parse_gpo_backup(path: &PathBuf) -> Result<Vec<GpoSetting>> {
     Ok(settings)
 }
 
-fn parse_registry_pol(_path: &std::path::Path, scope: &str) -> Result<Vec<GpoSetting>> {
-    // Registry.pol is a binary format
-    // For now, return empty and fall back to sample data
-    // A full implementation would parse the binary PReg format
+/// Parse Registry.pol (PReg binary format)
+///
+/// The PReg format is documented by Microsoft:
+/// - Header: 4-byte signature (PReg) + 4-byte version
+/// - Body: Series of entries, each containing:
+///   - `[` (open bracket, UTF-16LE)
+///   - Key path (null-terminated UTF-16LE)
+///   - `;` (semicolon separator)
+///   - Value name (null-terminated UTF-16LE)
+///   - `;` (semicolon separator)
+///   - Type (4-byte DWORD)
+///   - `;` (semicolon separator)
+///   - Size (4-byte DWORD)
+///   - `;` (semicolon separator)
+///   - Data (variable length)
+///   - `]` (close bracket, UTF-16LE)
+///
+/// See: <https://learn.microsoft.com/en-us/previous-versions/windows/desktop/policy/registry-policy-file-format>
+fn parse_registry_pol(path: &std::path::Path, scope: &str) -> Result<Vec<GpoSetting>> {
+    use std::io::Read;
 
     println!("  {} Parsing Registry.pol ({})...", "→".cyan(), scope);
 
-    // Placeholder - in production would parse binary format
-    Ok(Vec::new())
+    let mut file = std::fs::File::open(path)?;
+    let mut data = Vec::new();
+    file.read_to_end(&mut data)?;
+
+    // Validate header: "PReg" signature (0x50 0x52 0x65 0x67) + version (0x01 0x00 0x00 0x00)
+    if data.len() < 8 {
+        return Err(crate::error::Ctl365Error::ConfigError(
+            "Registry.pol file too small".into(),
+        ));
+    }
+
+    let signature = &data[0..4];
+    if signature != b"PReg" {
+        return Err(crate::error::Ctl365Error::ConfigError(format!(
+            "Invalid Registry.pol signature: expected 'PReg', got {:?}",
+            signature
+        )));
+    }
+
+    let version = u32::from_le_bytes([data[4], data[5], data[6], data[7]]);
+    if version != 1 {
+        println!(
+            "    {} Unexpected PReg version: {}, attempting to parse anyway",
+            "!".yellow(),
+            version
+        );
+    }
+
+    let mut settings = Vec::new();
+    let mut pos = 8; // Skip header
+
+    while pos < data.len() {
+        // Look for opening bracket '[' in UTF-16LE (0x5B 0x00)
+        if pos + 1 >= data.len() || data[pos] != 0x5B || data[pos + 1] != 0x00 {
+            pos += 1;
+            continue;
+        }
+        pos += 2; // Skip '['
+
+        // Parse key path (null-terminated UTF-16LE string)
+        let key_path = match read_utf16le_string(&data, &mut pos) {
+            Some(s) => s,
+            None => continue,
+        };
+
+        // Skip semicolon separator
+        if !skip_semicolon(&data, &mut pos) {
+            continue;
+        }
+
+        // Parse value name
+        let value_name = match read_utf16le_string(&data, &mut pos) {
+            Some(s) => s,
+            None => continue,
+        };
+
+        // Skip semicolon separator
+        if !skip_semicolon(&data, &mut pos) {
+            continue;
+        }
+
+        // Parse type (4-byte DWORD)
+        if pos + 4 > data.len() {
+            break;
+        }
+        let reg_type = u32::from_le_bytes([data[pos], data[pos + 1], data[pos + 2], data[pos + 3]]);
+        pos += 4;
+
+        // Skip semicolon separator
+        if !skip_semicolon(&data, &mut pos) {
+            continue;
+        }
+
+        // Parse size (4-byte DWORD)
+        if pos + 4 > data.len() {
+            break;
+        }
+        let size =
+            u32::from_le_bytes([data[pos], data[pos + 1], data[pos + 2], data[pos + 3]]) as usize;
+        pos += 4;
+
+        // Skip semicolon separator
+        if !skip_semicolon(&data, &mut pos) {
+            continue;
+        }
+
+        // Parse data
+        if pos + size > data.len() {
+            break;
+        }
+        let value_data = &data[pos..pos + size];
+        pos += size;
+
+        // Skip closing bracket ']' (0x5D 0x00)
+        if pos + 1 < data.len() && data[pos] == 0x5D && data[pos + 1] == 0x00 {
+            pos += 2;
+        }
+
+        // Convert data to string representation based on type
+        let value_str = format_registry_value(reg_type, value_data);
+        let type_str = registry_type_name(reg_type);
+
+        // Extract a friendly name from the value name or key path
+        let friendly_name = if value_name.is_empty() {
+            key_path
+                .split('\\')
+                .next_back()
+                .unwrap_or(&key_path)
+                .to_string()
+        } else {
+            value_name.clone()
+        };
+
+        settings.push(GpoSetting {
+            name: friendly_name,
+            path: format!("{}\\{}", key_path, value_name),
+            value: value_str,
+            policy_type: format!("Registry ({})", type_str),
+        });
+    }
+
+    println!(
+        "    {} Found {} registry settings",
+        "✓".green(),
+        settings.len()
+    );
+    Ok(settings)
+}
+
+/// Read a null-terminated UTF-16LE string from the buffer
+fn read_utf16le_string(data: &[u8], pos: &mut usize) -> Option<String> {
+    let mut chars: Vec<u16> = Vec::new();
+    while *pos + 1 < data.len() {
+        let c = u16::from_le_bytes([data[*pos], data[*pos + 1]]);
+        *pos += 2;
+        if c == 0 {
+            break;
+        }
+        chars.push(c);
+    }
+    String::from_utf16(&chars).ok()
+}
+
+/// Skip a semicolon separator in UTF-16LE (0x3B 0x00)
+fn skip_semicolon(data: &[u8], pos: &mut usize) -> bool {
+    if *pos + 1 < data.len() && data[*pos] == 0x3B && data[*pos + 1] == 0x00 {
+        *pos += 2;
+        true
+    } else {
+        false
+    }
+}
+
+/// Convert registry value type to human-readable name
+fn registry_type_name(reg_type: u32) -> &'static str {
+    match reg_type {
+        0 => "REG_NONE",
+        1 => "REG_SZ",
+        2 => "REG_EXPAND_SZ",
+        3 => "REG_BINARY",
+        4 => "REG_DWORD",
+        5 => "REG_DWORD_BIG_ENDIAN",
+        6 => "REG_LINK",
+        7 => "REG_MULTI_SZ",
+        11 => "REG_QWORD",
+        _ => "REG_UNKNOWN",
+    }
+}
+
+/// Format registry value data based on type
+fn format_registry_value(reg_type: u32, data: &[u8]) -> String {
+    match reg_type {
+        1 | 2 => {
+            // REG_SZ or REG_EXPAND_SZ - UTF-16LE string
+            let chars: Vec<u16> = data
+                .chunks_exact(2)
+                .map(|c| u16::from_le_bytes([c[0], c[1]]))
+                .take_while(|&c| c != 0)
+                .collect();
+            String::from_utf16_lossy(&chars)
+        }
+        3 => {
+            // REG_BINARY - hex representation
+            if data.len() <= 16 {
+                data.iter()
+                    .map(|b| format!("{:02X}", b))
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            } else {
+                format!(
+                    "{} ... ({} bytes)",
+                    data.iter()
+                        .take(16)
+                        .map(|b| format!("{:02X}", b))
+                        .collect::<Vec<_>>()
+                        .join(" "),
+                    data.len()
+                )
+            }
+        }
+        4 => {
+            // REG_DWORD
+            if data.len() >= 4 {
+                let val = u32::from_le_bytes([data[0], data[1], data[2], data[3]]);
+                format!("{} (0x{:08X})", val, val)
+            } else {
+                "Invalid DWORD".to_string()
+            }
+        }
+        7 => {
+            // REG_MULTI_SZ - multiple null-terminated UTF-16LE strings
+            let chars: Vec<u16> = data
+                .chunks_exact(2)
+                .map(|c| u16::from_le_bytes([c[0], c[1]]))
+                .collect();
+            let s = String::from_utf16_lossy(&chars);
+            s.trim_end_matches('\0')
+                .split('\0')
+                .collect::<Vec<_>>()
+                .join("; ")
+        }
+        11 => {
+            // REG_QWORD
+            if data.len() >= 8 {
+                let val = u64::from_le_bytes([
+                    data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7],
+                ]);
+                format!("{}", val)
+            } else {
+                "Invalid QWORD".to_string()
+            }
+        }
+        _ => {
+            // Unknown or unsupported type
+            format!("({} bytes)", data.len())
+        }
+    }
 }
 
 fn parse_gpreport_xml(path: &PathBuf) -> Result<Vec<GpoSetting>> {

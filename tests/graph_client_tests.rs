@@ -365,3 +365,165 @@ async fn test_batch_request_format() {
     let body: serde_json::Value = response.json().await.unwrap();
     assert_eq!(body["responses"].as_array().unwrap().len(), 2);
 }
+
+/// Test Intune device management endpoint
+#[tokio::test]
+async fn test_intune_device_management() {
+    let server = setup_mock_server().await;
+
+    Mock::given(method("GET"))
+        .and(path("/beta/deviceManagement/deviceConfigurations"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "value": [
+                {"id": "config-1", "displayName": "Windows Security Baseline"},
+                {"id": "config-2", "displayName": "macOS Compliance Policy"}
+            ],
+            "@odata.count": 2
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let client = reqwest::Client::new();
+    let response = client
+        .get(format!(
+            "{}/beta/deviceManagement/deviceConfigurations",
+            server.uri()
+        ))
+        .send()
+        .await
+        .unwrap();
+
+    assert!(response.status().is_success());
+    let body: serde_json::Value = response.json().await.unwrap();
+    assert_eq!(body["value"].as_array().unwrap().len(), 2);
+}
+
+/// Test Conditional Access policy creation
+#[tokio::test]
+async fn test_conditional_access_create() {
+    let server = setup_mock_server().await;
+
+    Mock::given(method("POST"))
+        .and(path("/v1.0/identity/conditionalAccess/policies"))
+        .respond_with(ResponseTemplate::new(201).set_body_json(serde_json::json!({
+            "id": "ca-policy-123",
+            "displayName": "Block Legacy Auth",
+            "state": "enabledForReportingButNotEnforced"
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let client = reqwest::Client::new();
+    let response = client
+        .post(format!(
+            "{}/v1.0/identity/conditionalAccess/policies",
+            server.uri()
+        ))
+        .json(&serde_json::json!({
+            "displayName": "Block Legacy Auth",
+            "state": "enabledForReportingButNotEnforced",
+            "conditions": {
+                "clientAppTypes": ["exchangeActiveSync", "other"]
+            },
+            "grantControls": {
+                "operator": "OR",
+                "builtInControls": ["block"]
+            }
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), 201);
+}
+
+/// Test Win32 app content version creation
+#[tokio::test]
+async fn test_win32_content_version() {
+    let server = setup_mock_server().await;
+
+    Mock::given(method("POST"))
+        .and(path("/beta/deviceAppManagement/mobileApps/app-123/microsoft.graph.win32LobApp/contentVersions"))
+        .respond_with(ResponseTemplate::new(201).set_body_json(serde_json::json!({
+            "id": "1"
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let client = reqwest::Client::new();
+    let response = client
+        .post(format!("{}/beta/deviceAppManagement/mobileApps/app-123/microsoft.graph.win32LobApp/contentVersions", server.uri()))
+        .json(&serde_json::json!({}))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), 201);
+}
+
+/// Test paginated response handling
+#[tokio::test]
+async fn test_paginated_response() {
+    let server = setup_mock_server().await;
+
+    Mock::given(method("GET"))
+        .and(path("/v1.0/users"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "value": [
+                {"id": "user-1", "displayName": "User One"},
+                {"id": "user-2", "displayName": "User Two"}
+            ],
+            "@odata.nextLink": format!("{}/v1.0/users?$skiptoken=abc", "https://graph.microsoft.com")
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let client = reqwest::Client::new();
+    let response = client
+        .get(format!("{}/v1.0/users", server.uri()))
+        .send()
+        .await
+        .unwrap();
+
+    assert!(response.status().is_success());
+    let body: serde_json::Value = response.json().await.unwrap();
+    assert!(body.get("@odata.nextLink").is_some());
+}
+
+/// Test risky users endpoint
+#[tokio::test]
+async fn test_risky_users_endpoint() {
+    let server = setup_mock_server().await;
+
+    Mock::given(method("GET"))
+        .and(path("/beta/identityProtection/riskyUsers"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "value": [
+                {
+                    "id": "user-123",
+                    "riskLevel": "high",
+                    "riskState": "atRisk",
+                    "userDisplayName": "Test User"
+                }
+            ]
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let client = reqwest::Client::new();
+    let response = client
+        .get(format!(
+            "{}/beta/identityProtection/riskyUsers",
+            server.uri()
+        ))
+        .send()
+        .await
+        .unwrap();
+
+    assert!(response.status().is_success());
+}

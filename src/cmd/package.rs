@@ -19,7 +19,7 @@
 //! 5. Upload content in chunks to Azure Blob Storage
 //! 6. Commit the file with encryption metadata
 //!
-//! See: https://learn.microsoft.com/en-us/mem/intune/developer/intune-graph-apis
+//! See: <https://learn.microsoft.com/en-us/mem/intune/developer/intune-graph-apis>
 
 use crate::config::ConfigManager;
 

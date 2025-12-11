@@ -356,7 +356,7 @@ impl<'a> VivaLearningClient<'a> {
 ///
 /// # API Availability
 /// Most Viva Insights APIs are in beta and may change.
-/// See: https://learn.microsoft.com/en-us/graph/api/resources/viva-insights-api-overview
+/// See: <https://learn.microsoft.com/en-us/graph/api/resources/viva-insights-api-overview>
 pub struct VivaInsightsClient<'a> {
     client: &'a GraphClient,
 }

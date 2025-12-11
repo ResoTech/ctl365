@@ -968,8 +968,19 @@ fn generate_device_security_login_and_lock_screen(args: &NewArgs) -> Value {
             choice_setting("device_vendor_msft_policy_config_devicelock_preventlockscreenslideshow", "device_vendor_msft_policy_config_devicelock_preventlockscreenslideshow_1"),
             choice_setting("device_vendor_msft_policy_config_windowslogon_disablelockscreenappnotifications", "device_vendor_msft_policy_config_windowslogon_disablelockscreenappnotifications_1"),
             choice_setting("device_vendor_msft_policy_config_credentialsui_disablepasswordreveal", "device_vendor_msft_policy_config_credentialsui_disablepasswordreveal_1"),
-            // TODO Phase 2: configautomaticrestartsignon requires child settings
-            // choice_setting("device_vendor_msft_policy_config_windowslogon_configautomaticrestartsignon", "device_vendor_msft_policy_config_windowslogon_configautomaticrestartsignon_1"),
+            // Configure Automatic Restart Sign-On (ARSO) - enabled with child settings
+            // This setting controls whether Windows automatically signs in after restart from Windows Update
+            // EnableIfSecure: Only enable ARSO if BitLocker is on and device is not in shared mode
+            choice_setting_with_children(
+                "device_vendor_msft_policy_config_windowslogon_configautomaticrestartsignon",
+                "device_vendor_msft_policy_config_windowslogon_configautomaticrestartsignon_1",
+                vec![
+                    integer_setting(
+                        "device_vendor_msft_policy_config_windowslogon_configautomaticrestartsignon_enableifsecure",
+                        1, // 1 = Enable if Secure (recommended by OIB)
+                    ),
+                ],
+            ),
             choice_setting("device_vendor_msft_policy_config_windowslogon_allowautomaticrestartsignon", "device_vendor_msft_policy_config_windowslogon_allowautomaticrestartsignon_1"),
             choice_setting("device_vendor_msft_policy_config_authentication_allowaadpasswordreset", "device_vendor_msft_policy_config_authentication_allowaadpasswordreset_1"),
             choice_setting("device_vendor_msft_policy_config_privacy_letappsactivatewithvoiceabovelock", "device_vendor_msft_policy_config_privacy_letappsactivatewithvoiceabovelock_2"),
