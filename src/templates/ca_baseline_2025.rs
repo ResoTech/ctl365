@@ -298,7 +298,23 @@ impl CABaseline2025 {
     }
 
     /// Generate named locations (Trusted IPs, Countries)
+    ///
+    /// Note: The "Trusted Office Locations" template uses placeholder values.
+    /// These should be configured during deployment via:
+    /// - Environment variable: CTL365_TRUSTED_IP_RANGES (comma-separated CIDR ranges)
+    /// - Interactive prompt during `ctl365 ca deploy --baseline 2025`
+    /// - Manual editing of exported JSON before import
     fn generate_named_locations() -> Vec<NamedLocationTemplate> {
+        // Check for environment variable override for trusted IP ranges
+        let trusted_ip_ranges = std::env::var("CTL365_TRUSTED_IP_RANGES")
+            .ok()
+            .map(|s| {
+                s.split(',')
+                    .map(|ip| ip.trim().to_string())
+                    .collect::<Vec<_>>()
+            })
+            .filter(|v| !v.is_empty() && v.iter().all(|ip| is_valid_cidr(ip)));
+
         vec![
             NamedLocationTemplate {
                 display_name: "Trusted Countries - US and Canada".to_string(),
@@ -310,11 +326,46 @@ impl CABaseline2025 {
                 display_name: "Trusted Office Locations".to_string(),
                 location_type: "ip".to_string(),
                 countries: None,
-                ip_ranges: Some(vec!["0.0.0.0/32".to_string()]), // Placeholder
+                // Use env var if set, otherwise use RFC5737 documentation range
+                // 192.0.2.0/24 is TEST-NET-1 (safe placeholder that won't match real IPs)
+                ip_ranges: Some(trusted_ip_ranges.unwrap_or_else(|| {
+                    vec![
+                        "192.0.2.0/24".to_string(), // TEST-NET-1 (RFC5737) - REPLACE WITH YOUR OFFICE IPs
+                    ]
+                })),
             },
         ]
     }
+}
 
+/// Validate CIDR notation
+fn is_valid_cidr(cidr: &str) -> bool {
+    let parts: Vec<&str> = cidr.split('/').collect();
+    if parts.len() != 2 {
+        return false;
+    }
+
+    // Validate IP address part
+    let ip_parts: Vec<&str> = parts[0].split('.').collect();
+    if ip_parts.len() != 4 {
+        return false;
+    }
+
+    for part in &ip_parts {
+        if part.parse::<u8>().is_err() {
+            return false;
+        }
+    }
+
+    // Validate prefix length
+    if let Ok(prefix) = parts[1].parse::<u8>() {
+        prefix <= 32
+    } else {
+        false
+    }
+}
+
+impl CABaseline2025 {
     // CAD001: macOS - Grant O365 access when compliant
     fn cad001_macos_compliant() -> CAPolicyTemplate {
         CAPolicyTemplate {

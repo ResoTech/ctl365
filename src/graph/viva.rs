@@ -340,10 +340,47 @@ impl<'a> VivaLearningClient<'a> {
     }
 }
 
-/// Viva Insights integration (requires additional licensing)
+/// Viva Insights integration
+///
+/// # Licensing Requirements
+/// Viva Insights APIs require one of the following licenses:
+/// - Microsoft Viva Insights (standalone)
+/// - Microsoft Viva Suite
+/// - Microsoft 365 E5/A5/G5
+/// - Microsoft 365 E3/A3/G3 with Viva Insights add-on
+///
+/// # Required Permissions
+/// - Analytics.Read (delegated) - Read user analytics
+/// - Organization.Read.All (application) - Read organization-level insights
+/// - User.Read.All (application) - Read user data for insights
+///
+/// # API Availability
+/// Most Viva Insights APIs are in beta and may change.
+/// See: https://learn.microsoft.com/en-us/graph/api/resources/viva-insights-api-overview
 pub struct VivaInsightsClient<'a> {
-    #[allow(dead_code)]
     client: &'a GraphClient,
+}
+
+/// Viva Insights user settings
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UserInsightsSettings {
+    #[serde(default)]
+    pub is_opted_in: Option<bool>,
+    #[serde(default)]
+    pub effective_meeting_hours_notification: Option<bool>,
+}
+
+/// Viva Insights meeting info
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MeetingInsights {
+    #[serde(default)]
+    pub meeting_count: Option<i32>,
+    #[serde(default)]
+    pub meeting_hours: Option<f64>,
+    #[serde(default)]
+    pub focus_time_hours: Option<f64>,
 }
 
 impl<'a> VivaInsightsClient<'a> {
@@ -351,6 +388,77 @@ impl<'a> VivaInsightsClient<'a> {
         Self { client }
     }
 
-    // Note: Viva Insights APIs require additional licensing and specific permissions
-    // These are placeholder methods for future implementation
+    /// Get user insights settings
+    ///
+    /// Retrieves the current user's Viva Insights settings including opt-in status.
+    /// Requires Analytics.Read delegated permission.
+    ///
+    /// # Errors
+    /// Returns error if:
+    /// - User doesn't have Viva Insights license
+    /// - Insufficient permissions
+    /// - API unavailable
+    pub async fn get_my_settings(&self) -> Result<UserInsightsSettings> {
+        self.client.get_beta("me/settings/itemInsights").await
+    }
+
+    /// Update user insights settings
+    ///
+    /// Updates the current user's Viva Insights preferences.
+    /// Requires Analytics.Read.All and Analytics.Write delegated permissions.
+    pub async fn update_my_settings(&self, is_opted_in: bool) -> Result<()> {
+        let request = serde_json::json!({
+            "isEnabled": is_opted_in
+        });
+        self.client
+            .patch_beta::<serde_json::Value, serde_json::Value>(
+                "me/settings/itemInsights",
+                &request,
+            )
+            .await?;
+        Ok(())
+    }
+
+    /// Get organization-level insights settings
+    ///
+    /// Retrieves organization-wide Viva Insights configuration.
+    /// Requires Organization.Read.All application permission.
+    ///
+    /// Note: This API requires admin consent and appropriate licensing.
+    pub async fn get_organization_settings(&self) -> Result<serde_json::Value> {
+        self.client
+            .get_beta("organization/settings/itemInsights")
+            .await
+    }
+
+    /// Disable insights for specific users (privacy controls)
+    ///
+    /// Allows admins to disable item insights for specific users for privacy.
+    /// Requires Organization.ReadWrite.All application permission.
+    ///
+    /// # Arguments
+    /// * `user_ids` - List of user IDs to disable insights for
+    pub async fn disable_insights_for_users(&self, user_ids: Vec<String>) -> Result<()> {
+        let request = serde_json::json!({
+            "disabledForGroup": user_ids
+        });
+        self.client
+            .patch_beta::<serde_json::Value, serde_json::Value>(
+                "organization/settings/itemInsights",
+                &request,
+            )
+            .await?;
+        Ok(())
+    }
+
+    /// Check if Viva Insights is available
+    ///
+    /// Performs a lightweight check to determine if Viva Insights APIs are
+    /// accessible with current authentication. Useful for feature detection.
+    pub async fn is_available(&self) -> bool {
+        self.client
+            .get_beta::<serde_json::Value>("me/settings/itemInsights")
+            .await
+            .is_ok()
+    }
 }

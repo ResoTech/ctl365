@@ -5,6 +5,290 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 
+// ============================================================================
+// Client Configuration (Individual TOML files per client)
+// ============================================================================
+
+/// Client configuration stored in ~/.ctl365/clients/{abbrev}.toml
+///
+/// Example file structure:
+/// ```toml
+/// [client]
+/// name = "Resolve Technology"
+/// abbreviation = "RESO"
+/// contact_email = "admin@resolvetech.com"
+/// notes = "Primary MSP tenant"
+///
+/// [azure]
+/// tenant_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+/// app_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+/// client_secret = "your-secret-here"  # Optional
+///
+/// [branding]
+/// logo_path = ""
+/// primary_color = "#0078D4"
+/// ```
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ClientConfig {
+    pub client: ClientInfo,
+    pub azure: AzureCredentials,
+    #[serde(default)]
+    pub branding: ClientBranding,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ClientInfo {
+    pub name: String,
+    pub abbreviation: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub contact_email: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub notes: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub added_date: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AzureCredentials {
+    pub tenant_id: String,
+    pub app_id: String,
+    /// Optional - if set, enables Client Credentials flow (no sign-in needed)
+    /// If empty/missing, uses Device Code flow (interactive)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_secret: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ClientBranding {
+    #[serde(default)]
+    pub logo_path: String,
+    #[serde(default = "default_primary_color")]
+    pub primary_color: String,
+}
+
+fn default_primary_color() -> String {
+    "#0078D4".to_string()
+}
+
+impl ClientConfig {
+    /// Get the base config directory (~/.ctl365)
+    pub fn base_dir() -> Result<PathBuf> {
+        let home = dirs_next::home_dir()
+            .ok_or_else(|| Ctl365Error::ConfigError("Could not determine home directory".into()))?;
+        Ok(home.join(".ctl365"))
+    }
+
+    /// Get the clients directory (~/.ctl365/clients)
+    pub fn clients_dir() -> Result<PathBuf> {
+        Ok(Self::base_dir()?.join("clients"))
+    }
+
+    /// Get the reports directory (~/.ctl365/reports)
+    pub fn reports_dir() -> Result<PathBuf> {
+        Ok(Self::base_dir()?.join("reports"))
+    }
+
+    /// Get the client-specific reports directory (~/.ctl365/reports/{abbrev})
+    pub fn client_reports_dir(abbreviation: &str) -> Result<PathBuf> {
+        let abbrev = abbreviation.to_lowercase();
+        Ok(Self::reports_dir()?.join(abbrev))
+    }
+
+    /// Get path for a specific client config file
+    pub fn client_file(abbreviation: &str) -> Result<PathBuf> {
+        let abbrev = abbreviation.to_lowercase();
+        Ok(Self::clients_dir()?.join(format!("{}.toml", abbrev)))
+    }
+
+    /// Load a client config from file
+    pub fn load(abbreviation: &str) -> Result<Self> {
+        let path = Self::client_file(abbreviation)?;
+        if !path.exists() {
+            return Err(Ctl365Error::TenantNotFound(abbreviation.to_string()));
+        }
+        let content = fs::read_to_string(&path)?;
+        let config: ClientConfig = toml::from_str(&content)
+            .map_err(|e| Ctl365Error::ConfigError(format!("Invalid client config: {}", e)))?;
+        Ok(config)
+    }
+
+    /// Save client config to file
+    pub fn save(&self) -> Result<()> {
+        let clients_dir = Self::clients_dir()?;
+        if !clients_dir.exists() {
+            fs::create_dir_all(&clients_dir)?;
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let perms = std::fs::Permissions::from_mode(0o700);
+                std::fs::set_permissions(&clients_dir, perms)?;
+            }
+        }
+
+        let path = Self::client_file(&self.client.abbreviation)?;
+        let content = toml::to_string_pretty(self)
+            .map_err(|e| Ctl365Error::ConfigError(format!("Failed to serialize config: {}", e)))?;
+        fs::write(&path, &content)?;
+
+        // Set restrictive permissions on the file (contains secrets)
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let perms = std::fs::Permissions::from_mode(0o600);
+            std::fs::set_permissions(&path, perms)?;
+        }
+
+        Ok(())
+    }
+
+    /// Delete a client config file
+    pub fn delete(abbreviation: &str) -> Result<()> {
+        let path = Self::client_file(abbreviation)?;
+        if path.exists() {
+            fs::remove_file(&path)?;
+        }
+        Ok(())
+    }
+
+    /// List all client abbreviations
+    pub fn list_clients() -> Result<Vec<String>> {
+        let clients_dir = Self::clients_dir()?;
+        if !clients_dir.exists() {
+            return Ok(Vec::new());
+        }
+
+        let mut clients = Vec::new();
+        for entry in fs::read_dir(&clients_dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.extension().is_some_and(|ext| ext == "toml") {
+                if let Some(stem) = path.file_stem() {
+                    clients.push(stem.to_string_lossy().to_uppercase());
+                }
+            }
+        }
+        clients.sort();
+        Ok(clients)
+    }
+
+    /// Load all client configs
+    pub fn load_all() -> Result<Vec<ClientConfig>> {
+        let abbreviations = Self::list_clients()?;
+        let mut configs = Vec::new();
+        for abbrev in abbreviations {
+            match Self::load(&abbrev) {
+                Ok(config) => configs.push(config),
+                Err(e) => {
+                    eprintln!("Warning: Failed to load client {}: {}", abbrev, e);
+                }
+            }
+        }
+        Ok(configs)
+    }
+
+    /// Check if client secret is configured (enables unattended auth)
+    pub fn has_client_secret(&self) -> bool {
+        self.azure
+            .client_secret
+            .as_ref()
+            .is_some_and(|s| !s.is_empty())
+    }
+
+    /// Get the auth type based on whether client_secret is set
+    pub fn auth_type(&self) -> AuthType {
+        if self.has_client_secret() {
+            AuthType::ClientCredentials
+        } else {
+            AuthType::DeviceCode
+        }
+    }
+
+    /// Convert to TenantConfig for authentication
+    pub fn to_tenant_config(&self) -> TenantConfig {
+        TenantConfig {
+            name: self.client.abbreviation.clone(),
+            tenant_id: self.azure.tenant_id.clone(),
+            client_id: self.azure.app_id.clone(),
+            client_secret: self.azure.client_secret.clone(),
+            auth_type: self.auth_type(),
+            description: Some(self.client.name.clone()),
+        }
+    }
+
+    /// Create from existing TenantConfig (migration helper)
+    pub fn from_tenant_config(tenant: &TenantConfig) -> Self {
+        ClientConfig {
+            client: ClientInfo {
+                name: tenant
+                    .description
+                    .clone()
+                    .unwrap_or_else(|| tenant.name.clone()),
+                abbreviation: tenant.name.clone(),
+                contact_email: None,
+                notes: None,
+                added_date: Some(chrono::Utc::now().to_rfc3339()),
+            },
+            azure: AzureCredentials {
+                tenant_id: tenant.tenant_id.clone(),
+                app_id: tenant.client_id.clone(),
+                client_secret: tenant.client_secret.clone(),
+            },
+            branding: ClientBranding::default(),
+        }
+    }
+
+    /// Ensure base directories exist
+    pub fn ensure_directories() -> Result<()> {
+        let base = Self::base_dir()?;
+        let clients = Self::clients_dir()?;
+        let reports = Self::reports_dir()?;
+
+        for dir in [&base, &clients, &reports] {
+            if !dir.exists() {
+                fs::create_dir_all(dir)?;
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+                    let perms = std::fs::Permissions::from_mode(0o700);
+                    std::fs::set_permissions(dir, perms)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Generate a sample/template config file
+    pub fn generate_template(abbreviation: &str) -> String {
+        format!(
+            r##"# Client Configuration for {abbrev}
+# This file contains Azure credentials - keep it secure!
+
+[client]
+name = "Client Full Name"
+abbreviation = "{abbrev}"
+contact_email = "admin@example.com"
+notes = "Optional notes about this client"
+
+[azure]
+tenant_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+app_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+# Optional: Set client_secret for unattended authentication
+# If omitted, Device Code flow (interactive sign-in) will be used
+# client_secret = "your-secret-here"
+
+[branding]
+logo_path = ""
+primary_color = "#0078D4"
+"##,
+            abbrev = abbreviation.to_uppercase()
+        )
+    }
+}
+
+// ============================================================================
+// Legacy Configuration (kept for backward compatibility)
+// ============================================================================
+
 /// Sanitize a tenant name for use in filenames and identifiers
 ///
 /// Rules:

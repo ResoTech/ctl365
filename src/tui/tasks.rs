@@ -40,6 +40,11 @@ impl TaskEnvelope {
             TaskRequest::DeployConditionalAccess { .. } => "deploy_ca",
             TaskRequest::ApplySettings { .. } => "apply_settings",
             TaskRequest::TestAuth { .. } => "test_auth",
+            TaskRequest::FetchSignInLogs { .. } => "fetch_signin_logs",
+            TaskRequest::FetchRiskyUsers { .. } => "fetch_risky_users",
+            TaskRequest::FetchRiskySignIns { .. } => "fetch_risky_signins",
+            TaskRequest::FetchDirectoryAudit { .. } => "fetch_directory_audit",
+            TaskRequest::FetchSecuritySummary { .. } => "fetch_security_summary",
             TaskRequest::Shutdown => "shutdown",
         };
         let id = format!("{}_{}", prefix, chrono::Utc::now().timestamp_millis());
@@ -76,6 +81,19 @@ pub enum TaskRequest {
     },
     /// Test authentication
     TestAuth { tenant_name: String },
+    // =========================================================================
+    // Security Monitoring Tasks
+    // =========================================================================
+    /// Fetch sign-in logs
+    FetchSignInLogs { tenant_name: String, limit: u32 },
+    /// Fetch risky users
+    FetchRiskyUsers { tenant_name: String },
+    /// Fetch risky sign-ins
+    FetchRiskySignIns { tenant_name: String, limit: u32 },
+    /// Fetch directory audit logs
+    FetchDirectoryAudit { tenant_name: String, limit: u32 },
+    /// Fetch security summary
+    FetchSecuritySummary { tenant_name: String },
     /// Shutdown the worker
     Shutdown,
 }
@@ -123,8 +141,85 @@ pub enum TaskResult {
     SettingsApplied { message: String },
     /// Auth test result
     AuthResult { success: bool, message: String },
+    // =========================================================================
+    // Security Monitoring Results
+    // =========================================================================
+    /// Sign-in logs loaded
+    SignInLogsLoaded { logs: Vec<SignInLogData> },
+    /// Risky users loaded
+    RiskyUsersLoaded { users: Vec<RiskyUserData> },
+    /// Risky sign-ins loaded
+    RiskySignInsLoaded { sign_ins: Vec<RiskySignInData> },
+    /// Directory audit logs loaded
+    DirectoryAuditLoaded { audits: Vec<DirectoryAuditData> },
+    /// Security summary loaded
+    SecuritySummaryLoaded { summary: SecuritySummaryData },
     /// Task failed
     Error { message: String },
+}
+
+// ============================================================================
+// Security Monitoring Data Types
+// ============================================================================
+
+/// Sign-in log entry for TUI display
+#[derive(Debug, Clone)]
+pub struct SignInLogData {
+    pub user: String,
+    pub app: String,
+    pub status: String,
+    pub location: String,
+    pub ip_address: String,
+    pub device: String,
+    pub timestamp: String,
+    pub risk_level: String,
+}
+
+/// Risky user entry for TUI display
+#[derive(Debug, Clone)]
+pub struct RiskyUserData {
+    pub display_name: String,
+    pub user_principal_name: String,
+    pub risk_level: String,
+    pub risk_state: String,
+    pub risk_detail: String,
+    pub last_updated: String,
+}
+
+/// Risky sign-in entry for TUI display
+#[derive(Debug, Clone)]
+pub struct RiskySignInData {
+    pub user: String,
+    pub app: String,
+    pub risk_level: String,
+    pub risk_state: String,
+    pub risk_detail: String,
+    pub location: String,
+    pub ip_address: String,
+    pub timestamp: String,
+}
+
+/// Directory audit entry for TUI display
+#[derive(Debug, Clone)]
+pub struct DirectoryAuditData {
+    pub activity: String,
+    pub category: String,
+    pub initiated_by: String,
+    pub target: String,
+    pub result: String,
+    pub timestamp: String,
+}
+
+/// Security summary for dashboard
+#[derive(Debug, Clone)]
+pub struct SecuritySummaryData {
+    pub total_risky_users: usize,
+    pub high_risk_users: usize,
+    pub medium_risk_users: usize,
+    pub low_risk_users: usize,
+    pub recent_risky_sign_ins: usize,
+    pub failed_sign_ins_24h: usize,
+    pub recent_admin_actions: usize,
 }
 
 /// Policy data returned from Graph
@@ -355,6 +450,88 @@ pub fn spawn_task_worker(config: ConfigManager) -> (TaskSender, TaskReceiver) {
                         let result = test_auth_async(&config, &tenant_name).await;
                         let _ = response_tx.send(TaskResponse::Completed { task_id, result });
                     }
+                    // =========================================================
+                    // Security Monitoring Tasks
+                    // =========================================================
+                    TaskRequest::FetchSignInLogs { tenant_name, limit } => {
+                        let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
+                            task_id: task_id.clone(),
+                            percent: 0,
+                            message: "Fetching sign-in logs...".into(),
+                            phase: "init".into(),
+                        }));
+                        let result = fetch_signin_logs_async(
+                            &config,
+                            &tenant_name,
+                            limit,
+                            &response_tx,
+                            &task_id,
+                        )
+                        .await;
+                        let _ = response_tx.send(TaskResponse::Completed { task_id, result });
+                    }
+                    TaskRequest::FetchRiskyUsers { tenant_name } => {
+                        let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
+                            task_id: task_id.clone(),
+                            percent: 0,
+                            message: "Fetching risky users...".into(),
+                            phase: "init".into(),
+                        }));
+                        let result =
+                            fetch_risky_users_async(&config, &tenant_name, &response_tx, &task_id)
+                                .await;
+                        let _ = response_tx.send(TaskResponse::Completed { task_id, result });
+                    }
+                    TaskRequest::FetchRiskySignIns { tenant_name, limit } => {
+                        let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
+                            task_id: task_id.clone(),
+                            percent: 0,
+                            message: "Fetching risky sign-ins...".into(),
+                            phase: "init".into(),
+                        }));
+                        let result = fetch_risky_signins_async(
+                            &config,
+                            &tenant_name,
+                            limit,
+                            &response_tx,
+                            &task_id,
+                        )
+                        .await;
+                        let _ = response_tx.send(TaskResponse::Completed { task_id, result });
+                    }
+                    TaskRequest::FetchDirectoryAudit { tenant_name, limit } => {
+                        let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
+                            task_id: task_id.clone(),
+                            percent: 0,
+                            message: "Fetching directory audit logs...".into(),
+                            phase: "init".into(),
+                        }));
+                        let result = fetch_directory_audit_async(
+                            &config,
+                            &tenant_name,
+                            limit,
+                            &response_tx,
+                            &task_id,
+                        )
+                        .await;
+                        let _ = response_tx.send(TaskResponse::Completed { task_id, result });
+                    }
+                    TaskRequest::FetchSecuritySummary { tenant_name } => {
+                        let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
+                            task_id: task_id.clone(),
+                            percent: 0,
+                            message: "Fetching security summary...".into(),
+                            phase: "init".into(),
+                        }));
+                        let result = fetch_security_summary_async(
+                            &config,
+                            &tenant_name,
+                            &response_tx,
+                            &task_id,
+                        )
+                        .await;
+                        let _ = response_tx.send(TaskResponse::Completed { task_id, result });
+                    }
                 }
             }
         });
@@ -438,6 +615,7 @@ async fn fetch_ca_policies(client: &crate::graph::GraphClient) -> Result<Vec<Pol
     #[derive(serde::Deserialize)]
     #[serde(rename_all = "camelCase")]
     struct CaPolicy {
+        #[allow(dead_code)]
         id: String,
         display_name: String,
         state: String,
@@ -445,7 +623,22 @@ async fn fetch_ca_policies(client: &crate::graph::GraphClient) -> Result<Vec<Pol
         modified_date_time: Option<String>,
     }
 
-    let response: CaResponse = client.get("identity/conditionalAccess/policies").await?;
+    let response: CaResponse = client.get("identity/conditionalAccess/policies").await
+        .map_err(|e| {
+            // Enhance error message for permission issues
+            let err_str = e.to_string();
+            if err_str.contains("403") || err_str.contains("Authorization") {
+                crate::error::Ctl365Error::GraphApiError(
+                    "Access denied. Ensure the app has 'Policy.Read.All' or 'Policy.ReadWrite.ConditionalAccess' permission.".into()
+                )
+            } else if err_str.contains("404") {
+                crate::error::Ctl365Error::GraphApiError(
+                    "Conditional Access API not available. Requires Entra ID P1/P2 license.".into()
+                )
+            } else {
+                e
+            }
+        })?;
 
     Ok(response
         .value
@@ -943,4 +1136,476 @@ async fn test_auth_async(config: &ConfigManager, tenant_name: &str) -> TaskResul
             }
         }
     }
+}
+
+// ============================================================================
+// Security Monitoring Async Functions
+// ============================================================================
+
+async fn fetch_signin_logs_async(
+    config: &ConfigManager,
+    tenant_name: &str,
+    limit: u32,
+    response_tx: &Sender<TaskResponse>,
+    task_id: &str,
+) -> TaskResult {
+    use crate::graph::GraphClient;
+    use crate::graph::identity_protection;
+
+    let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
+        task_id: task_id.to_string(),
+        percent: 10,
+        message: "Authenticating...".into(),
+        phase: "auth".into(),
+    }));
+
+    let client = match GraphClient::from_config(config, tenant_name).await {
+        Ok(c) => c,
+        Err(e) => {
+            return TaskResult::Error {
+                message: format!("Authentication failed: {}", e),
+            };
+        }
+    };
+
+    let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
+        task_id: task_id.to_string(),
+        percent: 50,
+        message: "Fetching sign-in logs...".into(),
+        phase: "fetch".into(),
+    }));
+
+    match identity_protection::get_recent_sign_ins(&client, limit).await {
+        Ok(logs) => {
+            let data: Vec<SignInLogData> = logs
+                .into_iter()
+                .map(|log| SignInLogData {
+                    user: log
+                        .user_display_name
+                        .unwrap_or_else(|| log.user_principal_name.clone().unwrap_or_default()),
+                    app: log.app_display_name.unwrap_or_default(),
+                    status: log
+                        .status
+                        .map(|s| {
+                            if s.error_code == Some(0) {
+                                "Success".to_string()
+                            } else {
+                                s.failure_reason.unwrap_or_else(|| "Failed".to_string())
+                            }
+                        })
+                        .unwrap_or_else(|| "Unknown".to_string()),
+                    location: log
+                        .location
+                        .map(|l| {
+                            format!(
+                                "{}, {}",
+                                l.city.unwrap_or_default(),
+                                l.country_or_region.unwrap_or_default()
+                            )
+                        })
+                        .unwrap_or_default(),
+                    ip_address: log.ip_address.unwrap_or_default(),
+                    device: log
+                        .device_detail
+                        .map(|d| d.display_name.or(d.operating_system).unwrap_or_default())
+                        .unwrap_or_default(),
+                    timestamp: log.created_date_time.to_rfc3339(),
+                    risk_level: log
+                        .risk_level_during_sign_in
+                        .unwrap_or_else(|| "None".to_string()),
+                })
+                .collect();
+
+            let count = data.len();
+            let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
+                task_id: task_id.to_string(),
+                percent: 100,
+                message: format!("Loaded {} sign-in logs", count),
+                phase: "done".into(),
+            }));
+
+            TaskResult::SignInLogsLoaded { logs: data }
+        }
+        Err(e) => {
+            let err_str = e.to_string();
+            let message = if err_str.contains("403") || err_str.contains("Authorization") {
+                "Access denied. Ensure the app has 'AuditLog.Read.All' permission.".to_string()
+            } else {
+                format!("Failed to fetch sign-in logs: {}", e)
+            };
+            TaskResult::Error { message }
+        }
+    }
+}
+
+async fn fetch_risky_users_async(
+    config: &ConfigManager,
+    tenant_name: &str,
+    response_tx: &Sender<TaskResponse>,
+    task_id: &str,
+) -> TaskResult {
+    use crate::graph::GraphClient;
+    use crate::graph::identity_protection;
+
+    let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
+        task_id: task_id.to_string(),
+        percent: 10,
+        message: "Authenticating...".into(),
+        phase: "auth".into(),
+    }));
+
+    let client = match GraphClient::from_config(config, tenant_name).await {
+        Ok(c) => c,
+        Err(e) => {
+            return TaskResult::Error {
+                message: format!("Authentication failed: {}", e),
+            };
+        }
+    };
+
+    let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
+        task_id: task_id.to_string(),
+        percent: 50,
+        message: "Fetching risky users...".into(),
+        phase: "fetch".into(),
+    }));
+
+    match identity_protection::get_risky_users(&client, None).await {
+        Ok(users) => {
+            let data: Vec<RiskyUserData> = users
+                .into_iter()
+                .map(|user| RiskyUserData {
+                    display_name: user.user_display_name.unwrap_or_default(),
+                    user_principal_name: user.user_principal_name.unwrap_or_default(),
+                    risk_level: user
+                        .risk_level
+                        .map(|r| r.as_str().to_string())
+                        .unwrap_or_else(|| "None".to_string()),
+                    risk_state: user
+                        .risk_state
+                        .map(|r| format!("{:?}", r))
+                        .unwrap_or_else(|| "Unknown".to_string()),
+                    risk_detail: user.risk_detail.unwrap_or_default(),
+                    last_updated: user
+                        .risk_last_updated_date_time
+                        .map(|dt| dt.to_rfc3339())
+                        .unwrap_or_default(),
+                })
+                .collect();
+
+            let count = data.len();
+            let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
+                task_id: task_id.to_string(),
+                percent: 100,
+                message: format!("Loaded {} risky users", count),
+                phase: "done".into(),
+            }));
+
+            TaskResult::RiskyUsersLoaded { users: data }
+        }
+        Err(e) => {
+            let err_str = e.to_string();
+            let message = if err_str.contains("403") || err_str.contains("Authorization") {
+                "Access denied. Ensure the app has 'IdentityRiskyUser.Read.All' permission (requires Entra ID P1/P2).".to_string()
+            } else if err_str.contains("404") {
+                "Identity Protection not available. Requires Entra ID P1/P2 license.".to_string()
+            } else {
+                format!("Failed to fetch risky users: {}", e)
+            };
+            TaskResult::Error { message }
+        }
+    }
+}
+
+async fn fetch_risky_signins_async(
+    config: &ConfigManager,
+    tenant_name: &str,
+    limit: u32,
+    response_tx: &Sender<TaskResponse>,
+    task_id: &str,
+) -> TaskResult {
+    use crate::graph::GraphClient;
+    use crate::graph::identity_protection;
+
+    let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
+        task_id: task_id.to_string(),
+        percent: 10,
+        message: "Authenticating...".into(),
+        phase: "auth".into(),
+    }));
+
+    let client = match GraphClient::from_config(config, tenant_name).await {
+        Ok(c) => c,
+        Err(e) => {
+            return TaskResult::Error {
+                message: format!("Authentication failed: {}", e),
+            };
+        }
+    };
+
+    let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
+        task_id: task_id.to_string(),
+        percent: 50,
+        message: "Fetching risky sign-ins...".into(),
+        phase: "fetch".into(),
+    }));
+
+    match identity_protection::get_risky_sign_ins(&client, Some(limit)).await {
+        Ok(sign_ins) => {
+            let data: Vec<RiskySignInData> = sign_ins
+                .into_iter()
+                .map(|si| RiskySignInData {
+                    user: si
+                        .user_display_name
+                        .unwrap_or_else(|| si.user_principal_name.clone().unwrap_or_default()),
+                    app: "N/A".to_string(), // RiskySignIn doesn't have app_display_name
+                    risk_level: si
+                        .risk_level
+                        .map(|r| r.as_str().to_string())
+                        .unwrap_or_else(|| "None".to_string()),
+                    risk_state: si
+                        .risk_state
+                        .map(|r| format!("{:?}", r))
+                        .unwrap_or_else(|| "Unknown".to_string()),
+                    risk_detail: si.risk_detail.unwrap_or_default(),
+                    location: si
+                        .location
+                        .map(|l| {
+                            format!(
+                                "{}, {}",
+                                l.city.unwrap_or_default(),
+                                l.country_or_region.unwrap_or_default()
+                            )
+                        })
+                        .unwrap_or_default(),
+                    ip_address: si.ip_address.unwrap_or_default(),
+                    timestamp: si
+                        .created_date_time
+                        .map(|dt| dt.to_rfc3339())
+                        .unwrap_or_default(),
+                })
+                .collect();
+
+            let count = data.len();
+            let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
+                task_id: task_id.to_string(),
+                percent: 100,
+                message: format!("Loaded {} risky sign-ins", count),
+                phase: "done".into(),
+            }));
+
+            TaskResult::RiskySignInsLoaded { sign_ins: data }
+        }
+        Err(e) => {
+            let err_str = e.to_string();
+            let message = if err_str.contains("403") || err_str.contains("Authorization") {
+                "Access denied. Ensure the app has 'IdentityRiskEvent.Read.All' permission (requires Entra ID P2).".to_string()
+            } else if err_str.contains("404") {
+                "Risky sign-ins not available. Requires Entra ID P2 license.".to_string()
+            } else {
+                format!("Failed to fetch risky sign-ins: {}", e)
+            };
+            TaskResult::Error { message }
+        }
+    }
+}
+
+async fn fetch_directory_audit_async(
+    config: &ConfigManager,
+    tenant_name: &str,
+    limit: u32,
+    response_tx: &Sender<TaskResponse>,
+    task_id: &str,
+) -> TaskResult {
+    use crate::graph::GraphClient;
+    use crate::graph::identity_protection;
+
+    let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
+        task_id: task_id.to_string(),
+        percent: 10,
+        message: "Authenticating...".into(),
+        phase: "auth".into(),
+    }));
+
+    let client = match GraphClient::from_config(config, tenant_name).await {
+        Ok(c) => c,
+        Err(e) => {
+            return TaskResult::Error {
+                message: format!("Authentication failed: {}", e),
+            };
+        }
+    };
+
+    let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
+        task_id: task_id.to_string(),
+        percent: 50,
+        message: "Fetching directory audit logs...".into(),
+        phase: "fetch".into(),
+    }));
+
+    match identity_protection::get_recent_directory_audits(&client, limit).await {
+        Ok(audits) => {
+            let data: Vec<DirectoryAuditData> = audits
+                .into_iter()
+                .map(|audit| DirectoryAuditData {
+                    activity: audit.activity_display_name,
+                    category: audit.category,
+                    initiated_by: audit
+                        .initiated_by
+                        .map(|i| {
+                            i.user.and_then(|u| u.display_name).unwrap_or_else(|| {
+                                i.app.and_then(|a| a.display_name).unwrap_or_default()
+                            })
+                        })
+                        .unwrap_or_default(),
+                    target: audit
+                        .target_resources
+                        .first()
+                        .and_then(|t| t.display_name.clone())
+                        .unwrap_or_default(),
+                    result: audit
+                        .result
+                        .map(|r| format!("{:?}", r))
+                        .unwrap_or_else(|| "Unknown".to_string()),
+                    timestamp: audit.activity_date_time.to_rfc3339(),
+                })
+                .collect();
+
+            let count = data.len();
+            let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
+                task_id: task_id.to_string(),
+                percent: 100,
+                message: format!("Loaded {} audit entries", count),
+                phase: "done".into(),
+            }));
+
+            TaskResult::DirectoryAuditLoaded { audits: data }
+        }
+        Err(e) => {
+            let err_str = e.to_string();
+            let message = if err_str.contains("403") || err_str.contains("Authorization") {
+                "Access denied. Ensure the app has 'AuditLog.Read.All' permission.".to_string()
+            } else {
+                format!("Failed to fetch directory audit logs: {}", e)
+            };
+            TaskResult::Error { message }
+        }
+    }
+}
+
+async fn fetch_security_summary_async(
+    config: &ConfigManager,
+    tenant_name: &str,
+    response_tx: &Sender<TaskResponse>,
+    task_id: &str,
+) -> TaskResult {
+    use crate::graph::GraphClient;
+    use crate::graph::identity_protection;
+
+    let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
+        task_id: task_id.to_string(),
+        percent: 10,
+        message: "Authenticating...".into(),
+        phase: "auth".into(),
+    }));
+
+    let client = match GraphClient::from_config(config, tenant_name).await {
+        Ok(c) => c,
+        Err(e) => {
+            return TaskResult::Error {
+                message: format!("Authentication failed: {}", e),
+            };
+        }
+    };
+
+    let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
+        task_id: task_id.to_string(),
+        percent: 30,
+        message: "Fetching security data...".into(),
+        phase: "fetch".into(),
+    }));
+
+    // Fetch various security metrics - allow partial failures
+    let risky_users = identity_protection::get_risky_users(&client, None)
+        .await
+        .unwrap_or_default();
+
+    let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
+        task_id: task_id.to_string(),
+        percent: 50,
+        message: "Processing risky users...".into(),
+        phase: "process".into(),
+    }));
+
+    let high_risk = risky_users
+        .iter()
+        .filter(|u| {
+            matches!(
+                u.risk_level,
+                Some(crate::graph::identity_protection::RiskLevel::High)
+            )
+        })
+        .count();
+    let medium_risk = risky_users
+        .iter()
+        .filter(|u| {
+            matches!(
+                u.risk_level,
+                Some(crate::graph::identity_protection::RiskLevel::Medium)
+            )
+        })
+        .count();
+    let low_risk = risky_users
+        .iter()
+        .filter(|u| {
+            matches!(
+                u.risk_level,
+                Some(crate::graph::identity_protection::RiskLevel::Low)
+            )
+        })
+        .count();
+
+    let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
+        task_id: task_id.to_string(),
+        percent: 70,
+        message: "Fetching sign-in data...".into(),
+        phase: "fetch".into(),
+    }));
+
+    let risky_sign_ins = identity_protection::get_risky_sign_ins(&client, Some(100))
+        .await
+        .unwrap_or_default();
+    let failed_sign_ins = identity_protection::get_failed_sign_ins(&client, 100)
+        .await
+        .unwrap_or_default();
+
+    let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
+        task_id: task_id.to_string(),
+        percent: 90,
+        message: "Fetching audit data...".into(),
+        phase: "fetch".into(),
+    }));
+
+    let recent_audits = identity_protection::get_recent_directory_audits(&client, 50)
+        .await
+        .unwrap_or_default();
+
+    let summary = SecuritySummaryData {
+        total_risky_users: risky_users.len(),
+        high_risk_users: high_risk,
+        medium_risk_users: medium_risk,
+        low_risk_users: low_risk,
+        recent_risky_sign_ins: risky_sign_ins.len(),
+        failed_sign_ins_24h: failed_sign_ins.len(),
+        recent_admin_actions: recent_audits.len(),
+    };
+
+    let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
+        task_id: task_id.to_string(),
+        percent: 100,
+        message: "Security summary loaded".into(),
+        phase: "done".into(),
+    }));
+
+    TaskResult::SecuritySummaryLoaded { summary }
 }

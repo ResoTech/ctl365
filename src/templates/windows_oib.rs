@@ -64,7 +64,9 @@ pub fn generate_oib_baseline(args: &NewArgs) -> Result<Value> {
     policies.push(generate_device_security_local_security_policies(args));
     policies.push(generate_device_security_hardening(args));
 
-    // TODO Phase 3: Implement additional Device Security policies (User Rights, etc.)
+    // Phase 3: User Rights Assignment policies
+    policies.push(generate_user_rights_assignment(args));
+    policies.push(generate_audit_policies(args));
 
     Ok(json!({
         "version": "3.6",
@@ -1020,6 +1022,337 @@ fn generate_device_security_power_and_device_lock(args: &NewArgs) -> Value {
             integer_setting(
                 "device_vendor_msft_policy_config_power_unattendedsleeptimeoutpluggedin",
                 900,
+            ),
+        ],
+    };
+
+    policy.to_json()
+}
+
+/// OIB Settings Catalog: User Rights Assignment
+/// Controls which users/groups can perform privileged operations
+fn generate_user_rights_assignment(args: &NewArgs) -> Value {
+    let policy = SettingsCatalogPolicy {
+        name: format!(
+            "{} - SC - Device Security - D - User Rights Assignment - v3.6",
+            args.name
+        ),
+        description:
+            "User rights assignment - Controls privileged operations like shutdown, debug, backup"
+                .to_string(),
+        platform: Platform::Windows10,
+        technologies: Technologies::Mdm,
+        template_reference: None,
+        settings: vec![
+            // Access Credential Manager as a trusted caller - No one (empty)
+            string_setting(
+                "device_vendor_msft_policy_config_userrights_accesscredentialmanagerastrustedcaller",
+                "",
+            ),
+            // Act as part of the operating system - No one (empty)
+            string_setting(
+                "device_vendor_msft_policy_config_userrights_actaspartoftheoperatingsystem",
+                "",
+            ),
+            // Allow log on locally - Administrators, Users
+            string_setting(
+                "device_vendor_msft_policy_config_userrights_allowlocallogon",
+                "*S-1-5-32-544,*S-1-5-32-545",
+            ),
+            // Allow log on through Remote Desktop Services - Administrators, Remote Desktop Users
+            string_setting(
+                "device_vendor_msft_policy_config_userrights_allowlogonthroughremotedesktop",
+                "*S-1-5-32-544,*S-1-5-32-555",
+            ),
+            // Back up files and directories - Administrators
+            string_setting(
+                "device_vendor_msft_policy_config_userrights_backupfilesanddirectories",
+                "*S-1-5-32-544",
+            ),
+            // Change the system time - Administrators, LOCAL SERVICE
+            string_setting(
+                "device_vendor_msft_policy_config_userrights_changethesystemtime",
+                "*S-1-5-32-544,*S-1-5-19",
+            ),
+            // Create a pagefile - Administrators
+            string_setting(
+                "device_vendor_msft_policy_config_userrights_createpagefile",
+                "*S-1-5-32-544",
+            ),
+            // Create a token object - No one (empty)
+            string_setting(
+                "device_vendor_msft_policy_config_userrights_createtoken",
+                "",
+            ),
+            // Create global objects - Administrators, LOCAL SERVICE, NETWORK SERVICE, SERVICE
+            string_setting(
+                "device_vendor_msft_policy_config_userrights_createglobalobjects",
+                "*S-1-5-32-544,*S-1-5-19,*S-1-5-20,*S-1-5-6",
+            ),
+            // Create permanent shared objects - No one (empty)
+            string_setting(
+                "device_vendor_msft_policy_config_userrights_createpermanentsharedobjects",
+                "",
+            ),
+            // Create symbolic links - Administrators
+            string_setting(
+                "device_vendor_msft_policy_config_userrights_createsymboliclinks",
+                "*S-1-5-32-544",
+            ),
+            // Debug programs - Administrators
+            string_setting(
+                "device_vendor_msft_policy_config_userrights_debugprograms",
+                "*S-1-5-32-544",
+            ),
+            // Deny access to this computer from the network - Guests
+            string_setting(
+                "device_vendor_msft_policy_config_userrights_denyaccessfromnetwork",
+                "*S-1-5-32-546",
+            ),
+            // Deny log on as a batch job - Guests
+            string_setting(
+                "device_vendor_msft_policy_config_userrights_denylogonasabatchjob",
+                "*S-1-5-32-546",
+            ),
+            // Deny log on as a service - Guests
+            string_setting(
+                "device_vendor_msft_policy_config_userrights_denylogonasservice",
+                "*S-1-5-32-546",
+            ),
+            // Deny log on locally - Guests
+            string_setting(
+                "device_vendor_msft_policy_config_userrights_denylogonlocally",
+                "*S-1-5-32-546",
+            ),
+            // Deny log on through Remote Desktop Services - Guests
+            string_setting(
+                "device_vendor_msft_policy_config_userrights_denyremotedesktopserviceslogon",
+                "*S-1-5-32-546",
+            ),
+            // Force shutdown from a remote system - Administrators
+            string_setting(
+                "device_vendor_msft_policy_config_userrights_forceshutdownfromremotesystem",
+                "*S-1-5-32-544",
+            ),
+            // Generate security audits - LOCAL SERVICE, NETWORK SERVICE
+            string_setting(
+                "device_vendor_msft_policy_config_userrights_generatesecurityaudits",
+                "*S-1-5-19,*S-1-5-20",
+            ),
+            // Impersonate a client after authentication - Administrators, LOCAL SERVICE, NETWORK SERVICE, SERVICE
+            string_setting(
+                "device_vendor_msft_policy_config_userrights_impersonateclient",
+                "*S-1-5-32-544,*S-1-5-19,*S-1-5-20,*S-1-5-6",
+            ),
+            // Increase scheduling priority - Administrators, Window Manager\Window Manager Group
+            string_setting(
+                "device_vendor_msft_policy_config_userrights_increaseschedulingpriority",
+                "*S-1-5-32-544,*S-1-5-90-0",
+            ),
+            // Load and unload device drivers - Administrators
+            string_setting(
+                "device_vendor_msft_policy_config_userrights_loadunloaddevicedrivers",
+                "*S-1-5-32-544",
+            ),
+            // Lock pages in memory - No one (empty)
+            string_setting("device_vendor_msft_policy_config_userrights_lockmemory", ""),
+            // Manage auditing and security log - Administrators
+            string_setting(
+                "device_vendor_msft_policy_config_userrights_manageauditsecuritylog",
+                "*S-1-5-32-544",
+            ),
+            // Modify firmware environment values - Administrators
+            string_setting(
+                "device_vendor_msft_policy_config_userrights_modifyfirmwareenvironment",
+                "*S-1-5-32-544",
+            ),
+            // Modify an object label - No one (empty)
+            string_setting(
+                "device_vendor_msft_policy_config_userrights_modifyobjectlabel",
+                "",
+            ),
+            // Profile single process - Administrators
+            string_setting(
+                "device_vendor_msft_policy_config_userrights_profilesingleprocess",
+                "*S-1-5-32-544",
+            ),
+            // Profile system performance - Administrators, NT SERVICE\WdiServiceHost
+            string_setting(
+                "device_vendor_msft_policy_config_userrights_profilesystemperformance",
+                "*S-1-5-32-544,*S-1-5-80-3139157870-2983391045-3678747466-658725712-1809340420",
+            ),
+            // Replace a process level token - LOCAL SERVICE, NETWORK SERVICE
+            string_setting(
+                "device_vendor_msft_policy_config_userrights_replaceprocesstoken",
+                "*S-1-5-19,*S-1-5-20",
+            ),
+            // Restore files and directories - Administrators
+            string_setting(
+                "device_vendor_msft_policy_config_userrights_restorefilesanddirectories",
+                "*S-1-5-32-544",
+            ),
+            // Shut down the system - Administrators, Users
+            string_setting(
+                "device_vendor_msft_policy_config_userrights_shutdown",
+                "*S-1-5-32-544,*S-1-5-32-545",
+            ),
+            // Take ownership of files or other objects - Administrators
+            string_setting(
+                "device_vendor_msft_policy_config_userrights_takeownership",
+                "*S-1-5-32-544",
+            ),
+        ],
+    };
+
+    policy.to_json()
+}
+
+/// OIB Settings Catalog: Advanced Audit Policies
+/// Comprehensive audit configuration for security monitoring
+fn generate_audit_policies(args: &NewArgs) -> Value {
+    let policy = SettingsCatalogPolicy {
+        name: format!(
+            "{} - SC - Device Security - D - Audit Policies - v3.6",
+            args.name
+        ),
+        description: "Advanced audit policy configuration for comprehensive security logging"
+            .to_string(),
+        platform: Platform::Windows10,
+        technologies: Technologies::Mdm,
+        template_reference: None,
+        settings: vec![
+            // Account Logon
+            // Audit Credential Validation: Success and Failure
+            choice_setting(
+                "device_vendor_msft_policy_config_audit_accountlogon_auditcredentialvalidation",
+                "device_vendor_msft_policy_config_audit_accountlogon_auditcredentialvalidation_3",
+            ),
+            // Account Management
+            // Audit Application Group Management: Success and Failure
+            choice_setting(
+                "device_vendor_msft_policy_config_audit_accountmanagement_auditapplicationgroupmanagement",
+                "device_vendor_msft_policy_config_audit_accountmanagement_auditapplicationgroupmanagement_3",
+            ),
+            // Audit Security Group Management: Success and Failure
+            choice_setting(
+                "device_vendor_msft_policy_config_audit_accountmanagement_auditsecuritygroupmanagement",
+                "device_vendor_msft_policy_config_audit_accountmanagement_auditsecuritygroupmanagement_3",
+            ),
+            // Audit User Account Management: Success and Failure
+            choice_setting(
+                "device_vendor_msft_policy_config_audit_accountmanagement_audituseraccountmanagement",
+                "device_vendor_msft_policy_config_audit_accountmanagement_audituseraccountmanagement_3",
+            ),
+            // Detailed Tracking
+            // Audit PNP Activity: Success
+            choice_setting(
+                "device_vendor_msft_policy_config_audit_detailedtracking_auditpnpactivity",
+                "device_vendor_msft_policy_config_audit_detailedtracking_auditpnpactivity_1",
+            ),
+            // Audit Process Creation: Success
+            choice_setting(
+                "device_vendor_msft_policy_config_audit_detailedtracking_auditprocesscreation",
+                "device_vendor_msft_policy_config_audit_detailedtracking_auditprocesscreation_1",
+            ),
+            // Logon/Logoff
+            // Audit Account Lockout: Success and Failure
+            choice_setting(
+                "device_vendor_msft_policy_config_audit_logonlogoff_auditaccountlockout",
+                "device_vendor_msft_policy_config_audit_logonlogoff_auditaccountlockout_3",
+            ),
+            // Audit Group Membership: Success
+            choice_setting(
+                "device_vendor_msft_policy_config_audit_logonlogoff_auditgroupmembership",
+                "device_vendor_msft_policy_config_audit_logonlogoff_auditgroupmembership_1",
+            ),
+            // Audit Logoff: Success
+            choice_setting(
+                "device_vendor_msft_policy_config_audit_logonlogoff_auditlogoff",
+                "device_vendor_msft_policy_config_audit_logonlogoff_auditlogoff_1",
+            ),
+            // Audit Logon: Success and Failure
+            choice_setting(
+                "device_vendor_msft_policy_config_audit_logonlogoff_auditlogon",
+                "device_vendor_msft_policy_config_audit_logonlogoff_auditlogon_3",
+            ),
+            // Audit Other Logon/Logoff Events: Success and Failure
+            choice_setting(
+                "device_vendor_msft_policy_config_audit_logonlogoff_auditotherlogonlogoffevents",
+                "device_vendor_msft_policy_config_audit_logonlogoff_auditotherlogonlogoffevents_3",
+            ),
+            // Audit Special Logon: Success
+            choice_setting(
+                "device_vendor_msft_policy_config_audit_logonlogoff_auditspeciallogon",
+                "device_vendor_msft_policy_config_audit_logonlogoff_auditspeciallogon_1",
+            ),
+            // Object Access
+            // Audit Detailed File Share: Failure
+            choice_setting(
+                "device_vendor_msft_policy_config_audit_objectaccess_auditdetailedfileshare",
+                "device_vendor_msft_policy_config_audit_objectaccess_auditdetailedfileshare_2",
+            ),
+            // Audit File Share: Success and Failure
+            choice_setting(
+                "device_vendor_msft_policy_config_audit_objectaccess_auditfileshare",
+                "device_vendor_msft_policy_config_audit_objectaccess_auditfileshare_3",
+            ),
+            // Audit Other Object Access Events: Success and Failure
+            choice_setting(
+                "device_vendor_msft_policy_config_audit_objectaccess_auditotherobjectaccessevents",
+                "device_vendor_msft_policy_config_audit_objectaccess_auditotherobjectaccessevents_3",
+            ),
+            // Audit Removable Storage: Success and Failure
+            choice_setting(
+                "device_vendor_msft_policy_config_audit_objectaccess_auditremovablestorage",
+                "device_vendor_msft_policy_config_audit_objectaccess_auditremovablestorage_3",
+            ),
+            // Policy Change
+            // Audit Audit Policy Change: Success and Failure
+            choice_setting(
+                "device_vendor_msft_policy_config_audit_policychange_auditauditpolicychange",
+                "device_vendor_msft_policy_config_audit_policychange_auditauditpolicychange_3",
+            ),
+            // Audit Authentication Policy Change: Success
+            choice_setting(
+                "device_vendor_msft_policy_config_audit_policychange_auditauthenticationpolicychange",
+                "device_vendor_msft_policy_config_audit_policychange_auditauthenticationpolicychange_1",
+            ),
+            // Audit MPSSVC Rule-Level Policy Change: Success and Failure
+            choice_setting(
+                "device_vendor_msft_policy_config_audit_policychange_auditmpssvcrulelevelpolicychange",
+                "device_vendor_msft_policy_config_audit_policychange_auditmpssvcrulelevelpolicychange_3",
+            ),
+            // Audit Other Policy Change Events: Failure
+            choice_setting(
+                "device_vendor_msft_policy_config_audit_policychange_auditotherpolicychangeevents",
+                "device_vendor_msft_policy_config_audit_policychange_auditotherpolicychangeevents_2",
+            ),
+            // Privilege Use
+            // Audit Sensitive Privilege Use: Success and Failure
+            choice_setting(
+                "device_vendor_msft_policy_config_audit_privilegeuse_auditsensitiveprivilegeuse",
+                "device_vendor_msft_policy_config_audit_privilegeuse_auditsensitiveprivilegeuse_3",
+            ),
+            // System
+            // Audit Other System Events: Success and Failure
+            choice_setting(
+                "device_vendor_msft_policy_config_audit_system_auditothersystemevents",
+                "device_vendor_msft_policy_config_audit_system_auditothersystemevents_3",
+            ),
+            // Audit Security State Change: Success
+            choice_setting(
+                "device_vendor_msft_policy_config_audit_system_auditsecuritystatechange",
+                "device_vendor_msft_policy_config_audit_system_auditsecuritystatechange_1",
+            ),
+            // Audit Security System Extension: Success and Failure
+            choice_setting(
+                "device_vendor_msft_policy_config_audit_system_auditsecuritysystemextension",
+                "device_vendor_msft_policy_config_audit_system_auditsecuritysystemextension_3",
+            ),
+            // Audit System Integrity: Success and Failure
+            choice_setting(
+                "device_vendor_msft_policy_config_audit_system_auditsystemintegrity",
+                "device_vendor_msft_policy_config_audit_system_auditsystemintegrity_3",
             ),
         ],
     };

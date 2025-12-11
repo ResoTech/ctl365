@@ -160,6 +160,19 @@ pub struct App {
     pub last_worker_response: Instant,
     /// Number of consecutive channel-full errors (for backoff)
     pub channel_retry_count: u32,
+    // ========================================================================
+    // Security Monitoring fields
+    // ========================================================================
+    /// Sign-in logs from Identity Protection
+    pub signin_logs: Vec<crate::tui::tasks::SignInLogData>,
+    /// Risky users from Identity Protection
+    pub risky_users: Vec<crate::tui::tasks::RiskyUserData>,
+    /// Risky sign-ins from Identity Protection
+    pub risky_signins: Vec<crate::tui::tasks::RiskySignInData>,
+    /// Directory audit logs
+    pub directory_audits: Vec<crate::tui::tasks::DirectoryAuditData>,
+    /// Security summary
+    pub security_summary: Option<crate::tui::tasks::SecuritySummaryData>,
 }
 
 /// State for tracking async operations
@@ -338,6 +351,7 @@ pub enum Screen {
     Dashboard,
     ClientList,
     ClientAdd,
+    ClientDelete,
     ClientConfig(String), // client abbreviation
     Settings(SettingsCategory),
     Reports,
@@ -346,6 +360,12 @@ pub enum Screen {
     BaselineSelect,
     AuditHistory,
     SecurityMonitoring,
+    // Security Monitoring data views
+    SignInLogs,
+    RiskyUsers,
+    RiskySignIns,
+    DirectoryAudit,
+    SecuritySummary,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -434,6 +454,12 @@ impl App {
             // Phase 2: Worker health
             last_worker_response: Instant::now(),
             channel_retry_count: 0,
+            // Security Monitoring
+            signin_logs: Vec::new(),
+            risky_users: Vec::new(),
+            risky_signins: Vec::new(),
+            directory_audits: Vec::new(),
+            security_summary: None,
         };
 
         // Spawn background task worker
@@ -1298,6 +1324,7 @@ impl App {
             Screen::Dashboard => self.dashboard_menu(),
             Screen::ClientList => self.client_list_menu(),
             Screen::ClientAdd => vec![], // Form-based, no menu
+            Screen::ClientDelete => self.client_delete_menu(),
             Screen::ClientConfig(_) => self.client_config_menu(),
             Screen::Settings(cat) => self.settings_menu(cat),
             Screen::Reports => self.reports_menu(),
@@ -1306,6 +1333,12 @@ impl App {
             Screen::BaselineSelect => self.baseline_select_menu(),
             Screen::AuditHistory => self.audit_history_menu(),
             Screen::SecurityMonitoring => self.security_monitoring_menu(),
+            // Security data views use back-only menu
+            Screen::SignInLogs
+            | Screen::RiskyUsers
+            | Screen::RiskySignIns
+            | Screen::DirectoryAudit
+            | Screen::SecuritySummary => self.security_data_menu(),
         };
 
         // Load policies after match to avoid borrow conflict (non-blocking)
@@ -1430,6 +1463,33 @@ impl App {
                 id: "back".into(),
                 label: "← Back".into(),
                 description: "Return to dashboard".into(),
+                shortcut: Some('b'),
+                enabled: true,
+            },
+        ]
+    }
+
+    /// Security data view menu (back only + refresh + export)
+    fn security_data_menu(&self) -> Vec<MenuItem> {
+        vec![
+            MenuItem {
+                id: "refresh".into(),
+                label: "Refresh".into(),
+                description: "Reload data from tenant".into(),
+                shortcut: Some('r'),
+                enabled: true,
+            },
+            MenuItem {
+                id: "export".into(),
+                label: "Export".into(),
+                description: "Export data to JSON file".into(),
+                shortcut: Some('e'),
+                enabled: true,
+            },
+            MenuItem {
+                id: "back".into(),
+                label: "← Back".into(),
+                description: "Return to Security Monitoring".into(),
                 shortcut: Some('b'),
                 enabled: true,
             },
@@ -1630,9 +1690,54 @@ impl App {
         });
 
         items.push(MenuItem {
+            id: "delete_client".into(),
+            label: "- Delete Client".into(),
+            description: "Remove a client from configuration".into(),
+            shortcut: Some('d'),
+            enabled: !self.msp_config.clients.is_empty(),
+        });
+
+        items.push(MenuItem {
+            id: "import_config".into(),
+            label: "Import from Config File".into(),
+            description: "Load client from ~/.ctl365/clients/*.toml".into(),
+            shortcut: Some('i'),
+            enabled: true,
+        });
+
+        items.push(MenuItem {
             id: "back".into(),
             label: "← Back".into(),
             description: "Return to dashboard".into(),
+            shortcut: Some('b'),
+            enabled: true,
+        });
+
+        items
+    }
+
+    fn client_delete_menu(&self) -> Vec<MenuItem> {
+        let mut items: Vec<MenuItem> = self
+            .msp_config
+            .clients
+            .iter()
+            .map(|c| MenuItem {
+                id: format!("delete:{}", c.abbreviation),
+                label: format!("{} - {}", c.abbreviation, c.full_name),
+                description: format!(
+                    "Tenant: {} | Added: {}",
+                    c.tenant_id.chars().take(8).collect::<String>(),
+                    c.added_date.chars().take(10).collect::<String>()
+                ),
+                shortcut: None,
+                enabled: true,
+            })
+            .collect();
+
+        items.push(MenuItem {
+            id: "back".into(),
+            label: "← Cancel".into(),
+            description: "Return without deleting".into(),
             shortcut: Some('b'),
             enabled: true,
         });
@@ -2007,6 +2112,12 @@ impl App {
                 self.navigate_to(Screen::ClientAdd);
                 self.init_add_client_form();
             }
+            "delete_client" => {
+                self.navigate_to(Screen::ClientDelete);
+            }
+            "import_config" => {
+                self.import_clients_from_config();
+            }
             "defender" => {
                 self.init_defender_toggles();
                 self.navigate_to(Screen::Settings(SettingsCategory::Defender));
@@ -2029,6 +2140,23 @@ impl App {
             "audit" => self.navigate_to(Screen::PolicyList(PolicyListType::All)),
             "audit_history" => self.navigate_to(Screen::AuditHistory),
             "security_monitoring" => self.navigate_to(Screen::SecurityMonitoring),
+
+            // Security Monitoring actions
+            "sec_signin_logs" => {
+                self.fetch_signin_logs();
+            }
+            "sec_risky_users" => {
+                self.fetch_risky_users();
+            }
+            "sec_risky_signins" => {
+                self.fetch_risky_signins();
+            }
+            "sec_directory_audit" => {
+                self.fetch_directory_audit();
+            }
+            "sec_summary" => {
+                self.fetch_security_summary();
+            }
 
             // Audit history actions
             "audit_7d" => {
@@ -2081,6 +2209,54 @@ impl App {
                 self.show_confirmation_with_impact(
                     "Deploy Windows Baseline",
                     ConfirmAction::DeployBaseline("windows_basic".into()),
+                    impact,
+                );
+            }
+            "macos_oib" => {
+                let tenant = self
+                    .active_tenant
+                    .clone()
+                    .unwrap_or_else(|| "Unknown".into());
+                let impact = crate::tui::context::ImpactSummary::baseline_deploy(
+                    "macOS OIB",
+                    8, // Approximately 8 policies
+                    &tenant,
+                );
+                self.show_confirmation_with_impact(
+                    "Deploy macOS Baseline",
+                    ConfirmAction::DeployBaseline("macos_oib".into()),
+                    impact,
+                );
+            }
+            "ios_oib" => {
+                let tenant = self
+                    .active_tenant
+                    .clone()
+                    .unwrap_or_else(|| "Unknown".into());
+                let impact = crate::tui::context::ImpactSummary::baseline_deploy(
+                    "iOS/iPadOS OIB",
+                    6, // Approximately 6 policies
+                    &tenant,
+                );
+                self.show_confirmation_with_impact(
+                    "Deploy iOS Baseline",
+                    ConfirmAction::DeployBaseline("ios_oib".into()),
+                    impact,
+                );
+            }
+            "android_oib" => {
+                let tenant = self
+                    .active_tenant
+                    .clone()
+                    .unwrap_or_else(|| "Unknown".into());
+                let impact = crate::tui::context::ImpactSummary::baseline_deploy(
+                    "Android OIB",
+                    6, // Approximately 6 policies
+                    &tenant,
+                );
+                self.show_confirmation_with_impact(
+                    "Deploy Android Baseline",
+                    ConfirmAction::DeployBaseline("android_oib".into()),
                     impact,
                 );
             }
@@ -2185,17 +2361,6 @@ impl App {
                 ));
             }
 
-            // Client operations
-            "delete_client" => {
-                if let Some(ref tenant) = self.active_tenant {
-                    self.show_confirmation(
-                        "Delete Client",
-                        &format!("Are you sure you want to delete client {}?\n\nThis will remove the client configuration. Tenant data will not be affected.", tenant),
-                        ConfirmAction::DeleteClient(tenant.clone())
-                    );
-                }
-            }
-
             id if id.starts_with("client:") => {
                 let abbrev = id.strip_prefix("client:").unwrap_or(id);
                 let old_tenant = self.active_tenant.clone();
@@ -2211,6 +2376,11 @@ impl App {
                         Some((format!("Switched to {}", abbrev), StatusLevel::Success));
                     self.navigate_to(Screen::ClientConfig(abbrev.to_string()));
                 }
+            }
+
+            id if id.starts_with("delete:") => {
+                let abbrev = id.strip_prefix("delete:").unwrap_or(id);
+                self.delete_client(abbrev);
             }
             _ => {
                 self.status_message = Some((
@@ -3297,6 +3467,258 @@ impl App {
         }
     }
 
+    // =========================================================================
+    // Security Monitoring Functions
+    // =========================================================================
+
+    /// Fetch sign-in logs from Microsoft Graph
+    fn fetch_signin_logs(&mut self) {
+        let tenant = match self.active_tenant.clone() {
+            Some(t) => t,
+            None => {
+                self.status_message = Some((
+                    "No tenant selected. Please select a client first.".into(),
+                    StatusLevel::Warning,
+                ));
+                return;
+            }
+        };
+
+        if let Err(reason) = self.begin_task("Fetching sign-in logs...") {
+            self.status_message = Some((reason, StatusLevel::Warning));
+            return;
+        }
+
+        let request = crate::tui::tasks::TaskRequest::FetchSignInLogs {
+            tenant_name: tenant,
+            limit: 50, // Get last 50 sign-ins
+        };
+
+        if self.send_task(request).is_none() {
+            self.clear_async_task();
+        }
+    }
+
+    /// Fetch risky users from Identity Protection
+    fn fetch_risky_users(&mut self) {
+        let tenant = match self.active_tenant.clone() {
+            Some(t) => t,
+            None => {
+                self.status_message = Some((
+                    "No tenant selected. Please select a client first.".into(),
+                    StatusLevel::Warning,
+                ));
+                return;
+            }
+        };
+
+        if let Err(reason) = self.begin_task("Fetching risky users...") {
+            self.status_message = Some((reason, StatusLevel::Warning));
+            return;
+        }
+
+        let request = crate::tui::tasks::TaskRequest::FetchRiskyUsers {
+            tenant_name: tenant,
+        };
+
+        if self.send_task(request).is_none() {
+            self.clear_async_task();
+        }
+    }
+
+    /// Fetch risky sign-ins from Identity Protection
+    fn fetch_risky_signins(&mut self) {
+        let tenant = match self.active_tenant.clone() {
+            Some(t) => t,
+            None => {
+                self.status_message = Some((
+                    "No tenant selected. Please select a client first.".into(),
+                    StatusLevel::Warning,
+                ));
+                return;
+            }
+        };
+
+        if let Err(reason) = self.begin_task("Fetching risky sign-ins...") {
+            self.status_message = Some((reason, StatusLevel::Warning));
+            return;
+        }
+
+        let request = crate::tui::tasks::TaskRequest::FetchRiskySignIns {
+            tenant_name: tenant,
+            limit: 50, // Get last 50 risky sign-ins
+        };
+
+        if self.send_task(request).is_none() {
+            self.clear_async_task();
+        }
+    }
+
+    /// Fetch directory audit logs
+    fn fetch_directory_audit(&mut self) {
+        let tenant = match self.active_tenant.clone() {
+            Some(t) => t,
+            None => {
+                self.status_message = Some((
+                    "No tenant selected. Please select a client first.".into(),
+                    StatusLevel::Warning,
+                ));
+                return;
+            }
+        };
+
+        if let Err(reason) = self.begin_task("Fetching directory audit logs...") {
+            self.status_message = Some((reason, StatusLevel::Warning));
+            return;
+        }
+
+        let request = crate::tui::tasks::TaskRequest::FetchDirectoryAudit {
+            tenant_name: tenant,
+            limit: 50, // Get last 50 audit entries
+        };
+
+        if self.send_task(request).is_none() {
+            self.clear_async_task();
+        }
+    }
+
+    /// Fetch security summary dashboard data
+    fn fetch_security_summary(&mut self) {
+        let tenant = match self.active_tenant.clone() {
+            Some(t) => t,
+            None => {
+                self.status_message = Some((
+                    "No tenant selected. Please select a client first.".into(),
+                    StatusLevel::Warning,
+                ));
+                return;
+            }
+        };
+
+        if let Err(reason) = self.begin_task("Fetching security summary...") {
+            self.status_message = Some((reason, StatusLevel::Warning));
+            return;
+        }
+
+        let request = crate::tui::tasks::TaskRequest::FetchSecuritySummary {
+            tenant_name: tenant,
+        };
+
+        if self.send_task(request).is_none() {
+            self.clear_async_task();
+        }
+    }
+
+    // =========================================================================
+    // Client Management Functions
+    // =========================================================================
+
+    /// Delete a client from MSP config and tenants config
+    fn delete_client(&mut self, abbreviation: &str) {
+        // Show confirmation dialog
+        self.confirmation = Some(ConfirmationDialog {
+            title: format!("Delete Client: {}", abbreviation),
+            message: format!(
+                "Are you sure you want to delete client '{}'?\n\nThis will remove the client configuration but will NOT delete any data in the tenant.",
+                abbreviation
+            ),
+            confirm_label: "Delete".to_string(),
+            cancel_label: "Cancel".to_string(),
+            action: ConfirmAction::DeleteClient(abbreviation.to_string()),
+            selected: false, // Start on Cancel for safety
+            impact: None,
+        });
+    }
+
+    /// Import clients from ~/.ctl365/clients/*.toml config files
+    fn import_clients_from_config(&mut self) {
+        use crate::config::ClientConfig;
+
+        match ClientConfig::list_clients() {
+            Ok(client_abbrevs) => {
+                if client_abbrevs.is_empty() {
+                    self.status_message = Some((
+                        "No client config files found. Create files in ~/.ctl365/clients/\nExample: ~/.ctl365/clients/reso.toml".to_string(),
+                        StatusLevel::Warning,
+                    ));
+                    return;
+                }
+
+                let mut imported = 0;
+                let mut errors = Vec::new();
+
+                for abbrev in &client_abbrevs {
+                    match ClientConfig::load(abbrev) {
+                        Ok(client_config) => {
+                            // Convert to TenantConfig and add
+                            let tenant_config = client_config.to_tenant_config();
+                            if let Err(e) = self.config.add_tenant(tenant_config) {
+                                errors.push(format!("{}: {}", abbrev, e));
+                            } else {
+                                // Also add to MSP config for display
+                                let msp_client = crate::tui::msp::MspClient {
+                                    abbreviation: client_config.client.abbreviation.clone(),
+                                    full_name: client_config.client.name.clone(),
+                                    tenant_id: client_config.azure.tenant_id.clone(),
+                                    client_id: client_config.azure.app_id.clone(),
+                                    client_secret: client_config.azure.client_secret.clone(),
+                                    contact_email: client_config.client.contact_email.clone(),
+                                    notes: client_config.client.notes.clone(),
+                                    added_date: client_config
+                                        .client
+                                        .added_date
+                                        .clone()
+                                        .unwrap_or_else(|| chrono::Utc::now().to_rfc3339()),
+                                    auth_type: if client_config.has_client_secret() {
+                                        "ClientCredentials".to_string()
+                                    } else {
+                                        "DeviceCode".to_string()
+                                    },
+                                };
+                                self.msp_config.add_client(msp_client);
+                                imported += 1;
+                            }
+                        }
+                        Err(e) => {
+                            errors.push(format!("{}: {}", abbrev, e));
+                        }
+                    }
+                }
+
+                // Save MSP config
+                if imported > 0 {
+                    let _ = self.msp_config.save();
+                }
+
+                if errors.is_empty() {
+                    self.status_message = Some((
+                        format!("Imported {} client(s) from config files", imported),
+                        StatusLevel::Success,
+                    ));
+                } else {
+                    self.status_message = Some((
+                        format!(
+                            "Imported {} client(s), {} error(s): {}",
+                            imported,
+                            errors.len(),
+                            errors.first().unwrap_or(&"".to_string())
+                        ),
+                        StatusLevel::Warning,
+                    ));
+                }
+
+                // Refresh menu
+                self.refresh_menu();
+            }
+            Err(e) => {
+                self.status_message = Some((
+                    format!("Failed to list client configs: {}", e),
+                    StatusLevel::Error,
+                ));
+            }
+        }
+    }
+
     /// Handle confirmation dialog result
     pub fn handle_confirmation(&mut self, confirmed: bool) {
         if let Some(dialog) = self.confirmation.take() {
@@ -3508,7 +3930,43 @@ impl App {
                 "oib" | "openintune" => crate::templates::windows_oib::generate_oib_baseline(&args),
                 _ => {
                     self.status_message = Some((
-                        format!("Unknown template: {}", template),
+                        format!("Unknown Windows template: {}", template),
+                        StatusLevel::Error,
+                    ));
+                    return;
+                }
+            },
+            "macos" => match template {
+                "oib" | "openintune" | "basic" => {
+                    crate::templates::macos::generate_macos_baseline(&args)
+                }
+                _ => {
+                    self.status_message = Some((
+                        format!("Unknown macOS template: {}", template),
+                        StatusLevel::Error,
+                    ));
+                    return;
+                }
+            },
+            "ios" => match template {
+                "oib" | "openintune" | "basic" => {
+                    crate::templates::ios::generate_ios_baseline(&args)
+                }
+                _ => {
+                    self.status_message = Some((
+                        format!("Unknown iOS template: {}", template),
+                        StatusLevel::Error,
+                    ));
+                    return;
+                }
+            },
+            "android" => match template {
+                "oib" | "openintune" | "basic" => {
+                    crate::templates::android::generate_android_baseline(&args)
+                }
+                _ => {
+                    self.status_message = Some((
+                        format!("Unknown Android template: {}", template),
                         StatusLevel::Error,
                     ));
                     return;
@@ -3842,8 +4300,14 @@ impl App {
                                     })
                                     .collect();
                                 self.reset_table_pagination();
-                                let msg = format!("Loaded {} policies", self.table_data.len());
-                                self.finish_task(true, msg);
+                                let count = self.table_data.len();
+                                let msg = if count == 0 {
+                                    "No policies found. Check permissions or create policies first."
+                                        .to_string()
+                                } else {
+                                    format!("Loaded {} policies", count)
+                                };
+                                self.finish_task(count > 0, msg);
                             }
                             TaskResult::BaselineDeployed { count, message: _ } => {
                                 self.finish_task(true, format!("Deployed {} policies", count));
@@ -3856,6 +4320,58 @@ impl App {
                             }
                             TaskResult::AuthResult { success, message } => {
                                 self.finish_task(success, message);
+                            }
+                            // Security Monitoring Results
+                            TaskResult::SignInLogsLoaded { logs } => {
+                                self.signin_logs = logs;
+                                let count = self.signin_logs.len();
+                                let msg = if count == 0 {
+                                    "No sign-in logs found. Check permissions.".to_string()
+                                } else {
+                                    format!("Loaded {} sign-in logs", count)
+                                };
+                                self.finish_task(count > 0, msg.clone());
+                                // Navigate to data view
+                                self.navigate_to(Screen::SignInLogs);
+                            }
+                            TaskResult::RiskyUsersLoaded { users } => {
+                                self.risky_users = users;
+                                let count = self.risky_users.len();
+                                let msg = if count == 0 {
+                                    "No risky users found. Good news!".to_string()
+                                } else {
+                                    format!("Found {} risky users", count)
+                                };
+                                // Even 0 risky users is success (good news)
+                                self.finish_task(true, msg.clone());
+                                self.navigate_to(Screen::RiskyUsers);
+                            }
+                            TaskResult::RiskySignInsLoaded { sign_ins } => {
+                                self.risky_signins = sign_ins;
+                                let count = self.risky_signins.len();
+                                let msg = if count == 0 {
+                                    "No risky sign-ins found. Good news!".to_string()
+                                } else {
+                                    format!("Found {} risky sign-ins", count)
+                                };
+                                self.finish_task(true, msg.clone());
+                                self.navigate_to(Screen::RiskySignIns);
+                            }
+                            TaskResult::DirectoryAuditLoaded { audits } => {
+                                self.directory_audits = audits;
+                                let count = self.directory_audits.len();
+                                let msg = if count == 0 {
+                                    "No audit entries found. Check permissions.".to_string()
+                                } else {
+                                    format!("Loaded {} audit entries", count)
+                                };
+                                self.finish_task(count > 0, msg.clone());
+                                self.navigate_to(Screen::DirectoryAudit);
+                            }
+                            TaskResult::SecuritySummaryLoaded { summary } => {
+                                self.security_summary = Some(summary);
+                                self.finish_task(true, "Security summary loaded".to_string());
+                                self.navigate_to(Screen::SecuritySummary);
                             }
                             TaskResult::Error { message } => {
                                 self.finish_task(false, message);
@@ -4490,6 +5006,7 @@ fn render_header(f: &mut Frame, app: &App, area: Rect) {
         Screen::Dashboard => "Home".into(),
         Screen::ClientList => "Home > MSP Clients".into(),
         Screen::ClientAdd => "Home > MSP Clients > Add Client".into(),
+        Screen::ClientDelete => "Home > MSP Clients > Delete Client".into(),
         Screen::ClientConfig(name) => format!("Home > {} > Configure", name),
         Screen::Settings(cat) => {
             let cat_name = match cat {
@@ -4519,6 +5036,11 @@ fn render_header(f: &mut Frame, app: &App, area: Rect) {
         Screen::BaselineSelect => "Home > Deploy Baseline".into(),
         Screen::AuditHistory => "Home > Audit History".into(),
         Screen::SecurityMonitoring => "Home > Security Monitoring".into(),
+        Screen::SignInLogs => "Home > Security Monitoring > Sign-in Logs".into(),
+        Screen::RiskyUsers => "Home > Security Monitoring > Risky Users".into(),
+        Screen::RiskySignIns => "Home > Security Monitoring > Risky Sign-ins".into(),
+        Screen::DirectoryAudit => "Home > Security Monitoring > Directory Audit".into(),
+        Screen::SecuritySummary => "Home > Security Monitoring > Security Summary".into(),
     };
 
     // Microsoft 365-inspired header with Fluent Design blue accent
@@ -4591,6 +5113,25 @@ fn render_main(f: &mut Frame, app: &App, area: Rect) {
 
         render_menu(f, app, chunks[0]);
         render_audit_table(f, app, chunks[1]);
+    } else if matches!(
+        app.screen,
+        Screen::SignInLogs
+            | Screen::RiskyUsers
+            | Screen::RiskySignIns
+            | Screen::DirectoryAudit
+            | Screen::SecuritySummary
+    ) {
+        // Security data screens with table and menu
+        let chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Percentage(20), // Menu
+                Constraint::Percentage(80), // Data table
+            ])
+            .split(area);
+
+        render_menu(f, app, chunks[0]);
+        render_security_data(f, app, chunks[1]);
     } else {
         let chunks = Layout::default()
             .direction(Direction::Horizontal)
@@ -5172,6 +5713,563 @@ fn truncate_string(s: &str, max_len: usize) -> String {
         let truncated: String = s.chars().take(max_len.saturating_sub(3)).collect();
         format!("{}...", truncated)
     }
+}
+
+/// Render security monitoring data tables based on current screen
+fn render_security_data(f: &mut Frame, app: &App, area: Rect) {
+    // M365 color palette
+    let m365_blue = Color::Rgb(0, 120, 212);
+    let m365_green = Color::Rgb(16, 124, 16);
+    let m365_gold = Color::Rgb(255, 185, 0);
+    let m365_red = Color::Rgb(209, 52, 56);
+
+    match app.screen {
+        Screen::SignInLogs => {
+            render_signin_logs_table(f, app, area, m365_blue, m365_green, m365_gold, m365_red)
+        }
+        Screen::RiskyUsers => {
+            render_risky_users_table(f, app, area, m365_blue, m365_green, m365_gold, m365_red)
+        }
+        Screen::RiskySignIns => {
+            render_risky_signins_table(f, app, area, m365_blue, m365_green, m365_gold, m365_red)
+        }
+        Screen::DirectoryAudit => {
+            render_directory_audit_table(f, app, area, m365_blue, m365_green, m365_gold, m365_red)
+        }
+        Screen::SecuritySummary => {
+            render_security_summary_panel(f, app, area, m365_blue, m365_green, m365_gold, m365_red)
+        }
+        _ => {}
+    }
+}
+
+/// Render sign-in logs table
+fn render_signin_logs_table(
+    f: &mut Frame,
+    app: &App,
+    area: Rect,
+    m365_blue: Color,
+    m365_green: Color,
+    m365_gold: Color,
+    m365_red: Color,
+) {
+    let header_cells = ["Time", "User", "App", "Location", "IP", "Status", "Risk"]
+        .iter()
+        .map(|h| {
+            ratatui::widgets::Cell::from(*h)
+                .style(Style::default().fg(m365_blue).add_modifier(Modifier::BOLD))
+        });
+    let header = Row::new(header_cells).height(1).bottom_margin(1);
+
+    let rows = app.signin_logs.iter().map(|log| {
+        let status_color = if log.status == "Success" {
+            m365_green
+        } else {
+            m365_red
+        };
+
+        let risk_color = match log.risk_level.as_str() {
+            "high" => m365_red,
+            "medium" => m365_gold,
+            "low" => m365_green,
+            _ => Color::Rgb(150, 150, 150),
+        };
+
+        let cells = vec![
+            ratatui::widgets::Cell::from(log.timestamp.clone()),
+            ratatui::widgets::Cell::from(truncate_string(&log.user, 25)),
+            ratatui::widgets::Cell::from(truncate_string(&log.app, 20)),
+            ratatui::widgets::Cell::from(truncate_string(&log.location, 15)),
+            ratatui::widgets::Cell::from(log.ip_address.clone()),
+            ratatui::widgets::Cell::from(log.status.clone())
+                .style(Style::default().fg(status_color)),
+            ratatui::widgets::Cell::from(log.risk_level.clone())
+                .style(Style::default().fg(risk_color)),
+        ];
+        Row::new(cells).height(1)
+    });
+
+    let title = format!(" Sign-in Logs ({} entries) ", app.signin_logs.len());
+
+    let table = Table::new(
+        rows,
+        [
+            Constraint::Length(19),     // Time
+            Constraint::Percentage(20), // User
+            Constraint::Percentage(15), // App
+            Constraint::Length(15),     // Location
+            Constraint::Length(15),     // IP
+            Constraint::Length(10),     // Status
+            Constraint::Length(8),      // Risk
+        ],
+    )
+    .header(header)
+    .block(
+        Block::default()
+            .title(title)
+            .title_style(
+                Style::default()
+                    .fg(Color::White)
+                    .add_modifier(Modifier::BOLD),
+            )
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(m365_blue)),
+    )
+    .row_highlight_style(
+        Style::default()
+            .bg(m365_blue)
+            .fg(Color::White)
+            .add_modifier(Modifier::BOLD),
+    )
+    .highlight_symbol("> ");
+
+    f.render_stateful_widget(table, area, &mut app.table_state.clone());
+
+    if app.signin_logs.is_empty() {
+        render_empty_state(
+            f,
+            area,
+            "No sign-in logs found. Requires AuditLog.Read.All permission.",
+        );
+    }
+}
+
+/// Render risky users table
+fn render_risky_users_table(
+    f: &mut Frame,
+    app: &App,
+    area: Rect,
+    m365_blue: Color,
+    m365_green: Color,
+    m365_gold: Color,
+    m365_red: Color,
+) {
+    let header_cells = [
+        "User",
+        "Risk Level",
+        "Risk State",
+        "Last Updated",
+        "Risk Detail",
+    ]
+    .iter()
+    .map(|h| {
+        ratatui::widgets::Cell::from(*h)
+            .style(Style::default().fg(m365_blue).add_modifier(Modifier::BOLD))
+    });
+    let header = Row::new(header_cells).height(1).bottom_margin(1);
+
+    let rows = app.risky_users.iter().map(|user| {
+        let risk_color = match user.risk_level.as_str() {
+            "high" => m365_red,
+            "medium" => m365_gold,
+            "low" => m365_green,
+            _ => Color::Rgb(150, 150, 150),
+        };
+
+        let state_color = match user.risk_state.as_str() {
+            "atRisk" => m365_red,
+            "confirmedCompromised" => m365_red,
+            "remediated" => m365_green,
+            "dismissed" => Color::Rgb(150, 150, 150),
+            _ => m365_gold,
+        };
+
+        let cells = vec![
+            ratatui::widgets::Cell::from(truncate_string(&user.user_principal_name, 30)),
+            ratatui::widgets::Cell::from(user.risk_level.clone())
+                .style(Style::default().fg(risk_color)),
+            ratatui::widgets::Cell::from(user.risk_state.clone())
+                .style(Style::default().fg(state_color)),
+            ratatui::widgets::Cell::from(user.last_updated.clone()),
+            ratatui::widgets::Cell::from(truncate_string(&user.risk_detail, 30)),
+        ];
+        Row::new(cells).height(1)
+    });
+
+    let title = format!(" Risky Users ({} users) ", app.risky_users.len());
+
+    let table = Table::new(
+        rows,
+        [
+            Constraint::Percentage(30), // User
+            Constraint::Length(12),     // Risk Level
+            Constraint::Length(18),     // Risk State
+            Constraint::Length(19),     // Last Updated
+            Constraint::Percentage(25), // Risk Detail
+        ],
+    )
+    .header(header)
+    .block(
+        Block::default()
+            .title(title)
+            .title_style(
+                Style::default()
+                    .fg(Color::White)
+                    .add_modifier(Modifier::BOLD),
+            )
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(m365_blue)),
+    )
+    .row_highlight_style(
+        Style::default()
+            .bg(m365_blue)
+            .fg(Color::White)
+            .add_modifier(Modifier::BOLD),
+    )
+    .highlight_symbol("> ");
+
+    f.render_stateful_widget(table, area, &mut app.table_state.clone());
+
+    if app.risky_users.is_empty() {
+        render_empty_state(
+            f,
+            area,
+            "No risky users found. Good news! (Requires Entra ID P1/P2)",
+        );
+    }
+}
+
+/// Render risky sign-ins table
+fn render_risky_signins_table(
+    f: &mut Frame,
+    app: &App,
+    area: Rect,
+    m365_blue: Color,
+    m365_green: Color,
+    m365_gold: Color,
+    m365_red: Color,
+) {
+    let header_cells = [
+        "Time",
+        "User",
+        "App",
+        "IP",
+        "Risk Level",
+        "Risk State",
+        "Risk Detail",
+    ]
+    .iter()
+    .map(|h| {
+        ratatui::widgets::Cell::from(*h)
+            .style(Style::default().fg(m365_blue).add_modifier(Modifier::BOLD))
+    });
+    let header = Row::new(header_cells).height(1).bottom_margin(1);
+
+    let rows = app.risky_signins.iter().map(|signin| {
+        let risk_color = match signin.risk_level.as_str() {
+            "high" => m365_red,
+            "medium" => m365_gold,
+            "low" => m365_green,
+            _ => Color::Rgb(150, 150, 150),
+        };
+
+        let state_color = match signin.risk_state.as_str() {
+            "atRisk" => m365_red,
+            "confirmedCompromised" => m365_red,
+            "remediated" => m365_green,
+            "dismissed" => Color::Rgb(150, 150, 150),
+            _ => m365_gold,
+        };
+
+        let cells = vec![
+            ratatui::widgets::Cell::from(signin.timestamp.clone()),
+            ratatui::widgets::Cell::from(truncate_string(&signin.user, 20)),
+            ratatui::widgets::Cell::from(truncate_string(&signin.app, 15)),
+            ratatui::widgets::Cell::from(signin.ip_address.clone()),
+            ratatui::widgets::Cell::from(signin.risk_level.clone())
+                .style(Style::default().fg(risk_color)),
+            ratatui::widgets::Cell::from(signin.risk_state.clone())
+                .style(Style::default().fg(state_color)),
+            ratatui::widgets::Cell::from(truncate_string(&signin.risk_detail, 20)),
+        ];
+        Row::new(cells).height(1)
+    });
+
+    let title = format!(" Risky Sign-ins ({} entries) ", app.risky_signins.len());
+
+    let table = Table::new(
+        rows,
+        [
+            Constraint::Length(19),     // Time
+            Constraint::Percentage(18), // User
+            Constraint::Length(15),     // App
+            Constraint::Length(15),     // IP
+            Constraint::Length(10),     // Risk Level
+            Constraint::Length(15),     // Risk State
+            Constraint::Percentage(18), // Risk Detail
+        ],
+    )
+    .header(header)
+    .block(
+        Block::default()
+            .title(title)
+            .title_style(
+                Style::default()
+                    .fg(Color::White)
+                    .add_modifier(Modifier::BOLD),
+            )
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(m365_blue)),
+    )
+    .row_highlight_style(
+        Style::default()
+            .bg(m365_blue)
+            .fg(Color::White)
+            .add_modifier(Modifier::BOLD),
+    )
+    .highlight_symbol("> ");
+
+    f.render_stateful_widget(table, area, &mut app.table_state.clone());
+
+    if app.risky_signins.is_empty() {
+        render_empty_state(
+            f,
+            area,
+            "No risky sign-ins found. Good news! (Requires Entra ID P1/P2)",
+        );
+    }
+}
+
+/// Render directory audit table
+fn render_directory_audit_table(
+    f: &mut Frame,
+    app: &App,
+    area: Rect,
+    m365_blue: Color,
+    _m365_green: Color,
+    m365_gold: Color,
+    m365_red: Color,
+) {
+    let header_cells = [
+        "Time",
+        "Activity",
+        "Category",
+        "Initiated By",
+        "Target",
+        "Result",
+    ]
+    .iter()
+    .map(|h| {
+        ratatui::widgets::Cell::from(*h)
+            .style(Style::default().fg(m365_blue).add_modifier(Modifier::BOLD))
+    });
+    let header = Row::new(header_cells).height(1).bottom_margin(1);
+
+    let rows = app.directory_audits.iter().map(|audit| {
+        let result_color = match audit.result.as_str() {
+            "success" => Color::Rgb(16, 124, 16), // m365_green
+            "failure" => m365_red,
+            _ => m365_gold,
+        };
+
+        let cells = vec![
+            ratatui::widgets::Cell::from(audit.timestamp.clone()),
+            ratatui::widgets::Cell::from(truncate_string(&audit.activity, 25)),
+            ratatui::widgets::Cell::from(truncate_string(&audit.category, 15)),
+            ratatui::widgets::Cell::from(truncate_string(&audit.initiated_by, 20)),
+            ratatui::widgets::Cell::from(truncate_string(&audit.target, 25)),
+            ratatui::widgets::Cell::from(audit.result.clone())
+                .style(Style::default().fg(result_color)),
+        ];
+        Row::new(cells).height(1)
+    });
+
+    let title = format!(" Directory Audit ({} entries) ", app.directory_audits.len());
+
+    let table = Table::new(
+        rows,
+        [
+            Constraint::Length(19),     // Time
+            Constraint::Percentage(22), // Activity
+            Constraint::Length(15),     // Category
+            Constraint::Percentage(18), // Initiated By
+            Constraint::Percentage(22), // Target
+            Constraint::Length(10),     // Result
+        ],
+    )
+    .header(header)
+    .block(
+        Block::default()
+            .title(title)
+            .title_style(
+                Style::default()
+                    .fg(Color::White)
+                    .add_modifier(Modifier::BOLD),
+            )
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(m365_blue)),
+    )
+    .row_highlight_style(
+        Style::default()
+            .bg(m365_blue)
+            .fg(Color::White)
+            .add_modifier(Modifier::BOLD),
+    )
+    .highlight_symbol("> ");
+
+    f.render_stateful_widget(table, area, &mut app.table_state.clone());
+
+    if app.directory_audits.is_empty() {
+        render_empty_state(
+            f,
+            area,
+            "No directory audit entries found. Requires AuditLog.Read.All permission.",
+        );
+    }
+}
+
+/// Render security summary panel
+fn render_security_summary_panel(
+    f: &mut Frame,
+    app: &App,
+    area: Rect,
+    m365_blue: Color,
+    m365_green: Color,
+    m365_gold: Color,
+    m365_red: Color,
+) {
+    let summary = match &app.security_summary {
+        Some(s) => s,
+        None => {
+            render_empty_state(f, area, "No security summary data. Click refresh to load.");
+            return;
+        }
+    };
+
+    // Build summary content
+    let mut lines = vec![
+        Line::from(vec![Span::styled(
+            "  Identity Protection Summary",
+            Style::default().fg(m365_blue).add_modifier(Modifier::BOLD),
+        )]),
+        Line::from(""),
+        Line::from(vec![
+            Span::raw("  Total Users at Risk:      "),
+            Span::styled(
+                format!("{}", summary.total_risky_users),
+                Style::default().fg(if summary.total_risky_users > 0 {
+                    m365_red
+                } else {
+                    m365_green
+                }),
+            ),
+        ]),
+        Line::from(vec![
+            Span::raw("  High Risk Users:          "),
+            Span::styled(
+                format!("{}", summary.high_risk_users),
+                Style::default().fg(if summary.high_risk_users > 0 {
+                    m365_red
+                } else {
+                    m365_green
+                }),
+            ),
+        ]),
+        Line::from(vec![
+            Span::raw("  Medium Risk Users:        "),
+            Span::styled(
+                format!("{}", summary.medium_risk_users),
+                Style::default().fg(if summary.medium_risk_users > 0 {
+                    m365_gold
+                } else {
+                    m365_green
+                }),
+            ),
+        ]),
+        Line::from(vec![
+            Span::raw("  Low Risk Users:           "),
+            Span::styled(
+                format!("{}", summary.low_risk_users),
+                Style::default().fg(m365_green),
+            ),
+        ]),
+        Line::from(""),
+        Line::from(vec![Span::styled(
+            "  Sign-in Activity (24h)",
+            Style::default().fg(m365_blue).add_modifier(Modifier::BOLD),
+        )]),
+        Line::from(""),
+        Line::from(vec![
+            Span::raw("  Risky Sign-ins:           "),
+            Span::styled(
+                format!("{}", summary.recent_risky_sign_ins),
+                Style::default().fg(if summary.recent_risky_sign_ins > 0 {
+                    m365_red
+                } else {
+                    m365_green
+                }),
+            ),
+        ]),
+        Line::from(vec![
+            Span::raw("  Failed Sign-ins (24h):    "),
+            Span::styled(
+                format!("{}", summary.failed_sign_ins_24h),
+                Style::default().fg(if summary.failed_sign_ins_24h > 5 {
+                    m365_gold
+                } else {
+                    m365_green
+                }),
+            ),
+        ]),
+        Line::from(vec![
+            Span::raw("  Recent Admin Actions:     "),
+            Span::styled(
+                format!("{}", summary.recent_admin_actions),
+                Style::default().fg(Color::White),
+            ),
+        ]),
+    ];
+
+    // Add risk assessment
+    lines.push(Line::from(""));
+    lines.push(Line::from(vec![Span::styled(
+        "  Risk Assessment: ",
+        Style::default().fg(m365_blue).add_modifier(Modifier::BOLD),
+    )]));
+
+    let (risk_level, risk_color) = if summary.high_risk_users > 0 {
+        ("HIGH - Immediate action required", m365_red)
+    } else if summary.medium_risk_users > 0 || summary.recent_risky_sign_ins > 5 {
+        ("MEDIUM - Review recommended", m365_gold)
+    } else {
+        ("LOW - Environment appears healthy", m365_green)
+    };
+
+    lines.push(Line::from(vec![
+        Span::raw("  "),
+        Span::styled(
+            risk_level,
+            Style::default().fg(risk_color).add_modifier(Modifier::BOLD),
+        ),
+    ]));
+
+    let para = Paragraph::new(lines).block(
+        Block::default()
+            .title(" Security Summary ")
+            .title_style(
+                Style::default()
+                    .fg(Color::White)
+                    .add_modifier(Modifier::BOLD),
+            )
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(m365_blue)),
+    );
+
+    f.render_widget(para, area);
+}
+
+/// Helper to render empty state message
+fn render_empty_state(f: &mut Frame, area: Rect, message: &str) {
+    let empty_area = Rect {
+        x: area.x + 2,
+        y: area.y + 3,
+        width: area.width.saturating_sub(4),
+        height: 3,
+    };
+    let empty_msg = Paragraph::new(message)
+        .style(Style::default().fg(Color::Rgb(100, 100, 100)))
+        .alignment(Alignment::Center);
+    f.render_widget(empty_msg, empty_area);
 }
 
 /// Render confirmation dialog with M365 Fluent Design styling
@@ -5889,6 +6987,12 @@ mod tests {
             // Phase 2: Worker health
             last_worker_response: Instant::now(),
             channel_retry_count: 0,
+            // Security Monitoring
+            signin_logs: Vec::new(),
+            risky_users: Vec::new(),
+            risky_signins: Vec::new(),
+            directory_audits: Vec::new(),
+            security_summary: None,
         };
 
         app.refresh_menu();
