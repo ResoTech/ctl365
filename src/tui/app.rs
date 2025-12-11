@@ -26,6 +26,7 @@ use crate::tui::msp::MspConfig;
 use crossterm::{
     event::{
         self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind, KeyModifiers,
+        MouseButton, MouseEventKind,
     },
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
@@ -43,6 +44,7 @@ use ratatui::{
 };
 use std::io;
 use std::time::{Duration, Instant};
+use tui_input::{Input, backend::crossterm::EventHandler};
 
 // ============================================================================
 // Performance Constants (Phase 1)
@@ -54,6 +56,9 @@ const TARGET_FPS: u64 = 30;
 const FRAME_DURATION: Duration = Duration::from_millis(1000 / TARGET_FPS);
 /// Event poll timeout - shorter than frame duration to stay responsive
 const EVENT_POLL_TIMEOUT: Duration = Duration::from_millis(16);
+/// Minimum time between renders (10ms) - prevents excessive CPU usage
+/// This is inspired by yazi's render throttling pattern
+const MIN_RENDER_INTERVAL: Duration = Duration::from_millis(10);
 /// Threshold for "large" policy lists that trigger virtual scrolling
 const VIRTUAL_SCROLL_THRESHOLD: usize = 100;
 /// Number of rows to render above/below visible area for smooth scrolling
@@ -114,6 +119,8 @@ pub struct App {
     pub input_field: Option<String>,
     /// Form state for multi-field forms
     pub form_state: Option<FormState>,
+    /// Form input fields using tui-input for proper cursor handling
+    pub form_inputs: Vec<Input>,
     /// Toggle states for settings (setting_id -> enabled)
     pub setting_toggles: std::collections::HashMap<String, bool>,
     /// Async task state
@@ -410,6 +417,7 @@ impl App {
             input_buffer: String::new(),
             input_field: None,
             form_state: None,
+            form_inputs: Vec::new(),
             setting_toggles: std::collections::HashMap::new(),
             async_task: None,
             audit_entries: Vec::new(),
@@ -1012,6 +1020,15 @@ impl App {
             submit_label: "Add Client".to_string(),
             on_submit: FormAction::AddClient,
         });
+        // Initialize tui-input fields for each form field
+        self.form_inputs = vec![
+            Input::default(), // abbreviation
+            Input::default(), // full_name
+            Input::default(), // tenant_id
+            Input::default(), // client_id
+            Input::default(), // client_secret
+            Input::default(), // contact_email
+        ];
         self.input_mode = InputMode::Input;
     }
 
@@ -1129,6 +1146,7 @@ impl App {
     /// Cancel form and return to previous screen
     pub fn form_cancel(&mut self) {
         self.form_state = None;
+        self.form_inputs.clear();
         self.input_mode = InputMode::Normal;
         self.go_back();
     }
@@ -4152,6 +4170,9 @@ fn run_app<B: ratatui::backend::Backend>(
     let mut last_resize: Option<Instant> = None;
     const RESIZE_DEBOUNCE: Duration = Duration::from_millis(50);
 
+    // Render throttling - track last render time (inspired by yazi)
+    let mut last_render = Instant::now();
+
     loop {
         let frame_start = Instant::now();
 
@@ -4170,7 +4191,11 @@ fn run_app<B: ratatui::backend::Backend>(
             || app.is_async_task_running() // Always redraw during async tasks (progress updates)
             || last_resize.is_some(); // Redraw after resize
 
-        if should_redraw {
+        // Render throttling: ensure minimum interval between renders (10ms)
+        // This prevents excessive CPU usage when many events arrive quickly
+        let render_allowed = last_render.elapsed() >= MIN_RENDER_INTERVAL;
+
+        if should_redraw && render_allowed {
             // Handle resize debouncing (Phase 3)
             if let Some(resize_time) = last_resize {
                 if resize_time.elapsed() >= RESIZE_DEBOUNCE {
@@ -4180,6 +4205,7 @@ fn run_app<B: ratatui::backend::Backend>(
 
             terminal.draw(|f| ui(f, app))?;
             app.needs_redraw = false;
+            last_render = Instant::now();
         }
 
         // Poll for events with timeout based on frame budget
@@ -4205,8 +4231,38 @@ fn run_app<B: ratatui::backend::Backend>(
                     );
                     continue;
                 }
-                // Ignore focus and mouse events
-                Event::FocusGained | Event::FocusLost | Event::Mouse(_) | Event::Paste(_) => {
+                // Ignore focus events, handle mouse scroll
+                Event::FocusGained | Event::FocusLost | Event::Paste(_) => {
+                    continue;
+                }
+                // Handle mouse scroll wheel for list/table navigation
+                Event::Mouse(mouse) => {
+                    match mouse.kind {
+                        MouseEventKind::ScrollUp => {
+                            app.needs_redraw = true;
+                            // Check if we're on a policy list screen
+                            if matches!(app.screen, Screen::PolicyList(_)) {
+                                app.table_previous();
+                            } else {
+                                // For menu screens, use select_previous
+                                app.select_previous();
+                            }
+                        }
+                        MouseEventKind::ScrollDown => {
+                            app.needs_redraw = true;
+                            if matches!(app.screen, Screen::PolicyList(_)) {
+                                app.table_next();
+                            } else {
+                                // For menu screens, use select_next
+                                app.select_next();
+                            }
+                        }
+                        MouseEventKind::Down(MouseButton::Left) => {
+                            // Left click could be used for selection in future
+                            app.needs_redraw = true;
+                        }
+                        _ => {}
+                    }
                     continue;
                 }
                 Event::Key(key) if key.kind != KeyEventKind::Press => {
@@ -4288,8 +4344,28 @@ fn run_app<B: ratatui::backend::Backend>(
                         continue;
                     }
 
-                    // Handle form input mode
+                    // Handle form input mode - uses tui-input for cursor handling
                     if app.input_mode == InputMode::Input && app.form_state.is_some() {
+                        // Get current field index
+                        let current_idx = app
+                            .form_state
+                            .as_ref()
+                            .map(|f| f.current_field)
+                            .unwrap_or(0);
+
+                        // Pass event to tui-input for cursor handling if we have an input
+                        if current_idx < app.form_inputs.len() {
+                            // Let tui-input handle the event for proper cursor movement
+                            app.form_inputs[current_idx].handle_event(&Event::Key(key));
+                            // Sync back to FormField.value
+                            if let Some(ref mut form) = app.form_state {
+                                if current_idx < form.fields.len() {
+                                    form.fields[current_idx].value =
+                                        app.form_inputs[current_idx].value().to_string();
+                                }
+                            }
+                        }
+
                         match key.code {
                             KeyCode::Esc => {
                                 app.form_cancel();
@@ -4307,22 +4383,17 @@ fn run_app<B: ratatui::backend::Backend>(
                                     app.form_next_field();
                                 }
                             }
-                            KeyCode::Tab | KeyCode::Down => {
+                            KeyCode::Tab => {
                                 app.form_next_field();
                             }
-                            KeyCode::BackTab | KeyCode::Up => {
+                            KeyCode::BackTab => {
                                 app.form_prev_field();
-                            }
-                            KeyCode::Backspace => {
-                                app.form_backspace();
-                            }
-                            KeyCode::Char(c) => {
-                                app.form_input_char(c);
                             }
                             KeyCode::F(1) => {
                                 // F1 to force submit from any field
                                 app.form_submit();
                             }
+                            // Left/Right, Backspace, Char handled by tui-input above
                             _ => {}
                         }
                         continue;
@@ -5829,6 +5900,7 @@ mod tests {
             input_buffer: String::new(),
             input_field: None,
             form_state: None,
+            form_inputs: Vec::new(),
             setting_toggles: std::collections::HashMap::new(),
             async_task: None,
             audit_entries: Vec::new(),

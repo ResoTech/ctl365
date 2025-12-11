@@ -24,15 +24,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Help text with keyboard shortcuts
   - Requires Entra ID P1/P2 for risk-based features
 
+- **Mouse Scroll Wheel Support**
+  - Scroll wheel now navigates menu items and policy tables
+  - Works on all screens - menus use select_previous/next, tables use table_previous/next
+  - Left click events captured (foundation for future click-to-select)
+
+- **Enhanced Form Input with `tui-input`**
+  - Arrow keys (Left/Right) now move cursor within text input
+  - Proper unicode character handling
+  - Backspace, Home, End, Ctrl+A/E all work correctly
+  - Visual cursor position tracking
+
+- **Render Throttling (10ms minimum)**
+  - Prevents excessive CPU usage when many events arrive quickly
+  - Inspired by yazi's event batching pattern
+  - `last_render` tracking ensures minimum interval between frames
+
 ### Improved
 - **TUI Status Bar** - Now shows timestamps on status messages (`[HH:MM:SS] message`)
 - **PDF Export Hint** - Report success message now includes "Ctrl+P to save as PDF" tip
+- **Form Input Visibility** - Fixed Windows PowerShell form input using real terminal cursor
+  - Uses `frame.set_cursor_position()` instead of fake "_" character
+  - Simplified styling following ratatui official patterns
 - **Documentation** - Added Identity Protection permissions to `docs/PERMISSIONS.md`:
   - `AuditLog.Read.All` - Sign-in logs, directory audit
   - `IdentityRiskyUser.Read.All` - Risky users (read-only)
   - `IdentityRiskyUser.ReadWrite.All` - Dismiss/confirm risky users
   - `IdentityRiskEvent.Read.All` - Risky sign-ins
   - Added permission GUIDs to reference table
+
+### Dependencies
+- Added `tui-scrollview = "0.5"` for future scrollable content support
+- Using `tui-input = "0.11"` for enhanced form input handling
 
 ### Technical
 - Windows PowerShell compatible (basic ANSI colors only)
