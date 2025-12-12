@@ -2,7 +2,7 @@
 use crate::config::ConfigManager;
 use crate::error::Result;
 use crate::graph::{GraphClient, conditional_access};
-use crate::templates::ca_baseline_2025::{CABaseline2025, CAPolicyTemplate, BlastRadius};
+use crate::templates::ca_baseline_2025::{BlastRadius, CABaseline2025, CAPolicyTemplate};
 use crate::tui::change_tracker;
 use clap::Args;
 use colored::Colorize;
@@ -410,7 +410,7 @@ async fn deploy_baseline(
 
     // Generate baseline
     let baseline = CABaseline2025::generate();
-    
+
     // Filter policies based on args
     let policies_to_deploy: Vec<&CAPolicyTemplate> = if let Some(policy_id) = &args.policy {
         // Deploy single policy by ID
@@ -445,7 +445,10 @@ async fn deploy_baseline(
                 "✗".red(),
                 category
             );
-            println!("\n{} Available categories: CAD, CAL, CAP, CAR, CAS, CAU", "ℹ".yellow());
+            println!(
+                "\n{} Available categories: CAD, CAL, CAP, CAR, CAS, CAU",
+                "ℹ".yellow()
+            );
         }
         return Ok(());
     }
@@ -466,7 +469,7 @@ async fn deploy_baseline(
         "→".cyan(),
         policies_to_deploy.len()
     );
-    
+
     // Group by category for display
     let categories = ["CAD", "CAL", "CAP", "CAR", "CAS", "CAU"];
     for cat in &categories {
@@ -497,18 +500,14 @@ async fn deploy_baseline(
         );
     }
     if high_count > 0 {
-        println!(
-            "   {} {} HIGH impact policies",
-            "⚠".yellow(),
-            high_count
-        );
+        println!("   {} {} HIGH impact policies", "⚠".yellow(), high_count);
     }
 
     // Dry run mode
     if args.dry_run {
         println!("\n{}", "DRY RUN - No changes will be made".yellow().bold());
         println!("\n{} Policies that would be deployed:\n", "→".cyan());
-        
+
         for policy in &policies_to_deploy {
             let blast_display = match policy.blast_radius {
                 BlastRadius::Critical => "CRITICAL".red().bold().to_string(),
@@ -552,10 +551,7 @@ async fn deploy_baseline(
             tenant_name
         );
         if args.disable_security_defaults {
-            println!(
-                "{} Security defaults will be DISABLED",
-                "⚠".yellow().bold()
-            );
+            println!("{} Security defaults will be DISABLED", "⚠".yellow().bold());
         }
         println!(
             "\n{} All policies will be created in {} mode",
@@ -590,8 +586,9 @@ async fn deploy_baseline(
 
     // Create named locations first (some policies depend on them)
     println!("\n{} Creating named locations...", "→".cyan().bold());
-    let mut location_ids: std::collections::HashMap<String, String> = std::collections::HashMap::new();
-    
+    let mut location_ids: std::collections::HashMap<String, String> =
+        std::collections::HashMap::new();
+
     for loc in &baseline.named_locations {
         let location_json = if loc.location_type == "country" {
             serde_json::json!({
@@ -625,7 +622,12 @@ async fn deploy_baseline(
         match conditional_access::create_named_location(&graph, &location_json).await {
             Ok(result) => {
                 let loc_id = result["id"].as_str().unwrap_or("").to_string();
-                println!("  {} {} (ID: {})", "✓".green(), loc.display_name, loc_id.dimmed());
+                println!(
+                    "  {} {} (ID: {})",
+                    "✓".green(),
+                    loc.display_name,
+                    loc_id.dimmed()
+                );
                 location_ids.insert(loc.display_name.clone(), loc_id);
             }
             Err(e) => {
@@ -670,7 +672,12 @@ async fn deploy_baseline(
                     BlastRadius::High => "⚠".yellow().to_string(),
                     _ => "✓".green().to_string(),
                 };
-                println!("  {} {} - {}", blast_icon, policy.id.cyan(), policy.display_name);
+                println!(
+                    "  {} {} - {}",
+                    blast_icon,
+                    policy.id.cyan(),
+                    policy.display_name
+                );
                 change_tracker::record_policy_created(
                     "Conditional Access",
                     &policy.display_name,
@@ -732,10 +739,7 @@ async fn deploy_baseline(
         println!("   Review sign-in logs in Azure Portal before enabling");
         println!("   Enable with: ctl365 ca enable --policy <id>");
     } else {
-        println!(
-            "\n{} Policies are ENABLED and ENFORCING",
-            "⚠".red().bold()
-        );
+        println!("\n{} Policies are ENABLED and ENFORCING", "⚠".red().bold());
         println!("   Monitor sign-in logs for any access issues");
     }
 
@@ -825,12 +829,18 @@ pub async fn list(args: ListArgs) -> Result<()> {
                     println!("  {}:", "Possible reasons".white().bold());
                     println!("    • No CA policies have been created in this tenant");
                     println!("    • The App Registration may be missing the required permission:");
-                    println!("      {}", "Policy.Read.All or Policy.ReadWrite.ConditionalAccess".yellow());
+                    println!(
+                        "      {}",
+                        "Policy.Read.All or Policy.ReadWrite.ConditionalAccess".yellow()
+                    );
                     println!("    • Admin consent may not have been granted");
                     println!();
                     println!("  {}:", "To verify permissions".white().bold());
                     println!("    1. Go to Azure Portal → App registrations → Your app");
-                    println!("    2. Check API permissions for: {}", "Policy.Read.All".cyan());
+                    println!(
+                        "    2. Check API permissions for: {}",
+                        "Policy.Read.All".cyan()
+                    );
                     println!("    3. Ensure admin consent has been granted (green checkmark)");
                     return Ok(());
                 }
@@ -910,7 +920,9 @@ pub async fn list(args: ListArgs) -> Result<()> {
 
                         let state_display = match state {
                             "enabled" => state.green().to_string(),
-                            "enabledForReportingButNotEnforced" => "report-only".yellow().to_string(),
+                            "enabledForReportingButNotEnforced" => {
+                                "report-only".yellow().to_string()
+                            }
                             "disabled" => state.red().to_string(),
                             _ => state.to_string(),
                         };
@@ -935,7 +947,7 @@ pub async fn list(args: ListArgs) -> Result<()> {
                                 .unwrap_or("");
                             println!("   ID: {}", id.dimmed());
                             println!("   Modified: {}", modified.dimmed());
-                            
+
                             // Show quick summary of conditions
                             if let Some(conditions) = policy.get("conditions") {
                                 print_conditions_summary(conditions);
@@ -977,8 +989,18 @@ fn print_policy_details(policy: &serde_json::Value) {
     let name = policy["displayName"].as_str().unwrap_or("Unknown");
     let state = policy["state"].as_str().unwrap_or("unknown");
     let id = policy["id"].as_str().unwrap_or("");
-    let created = policy["createdDateTime"].as_str().unwrap_or("").split('T').next().unwrap_or("");
-    let modified = policy["modifiedDateTime"].as_str().unwrap_or("").split('T').next().unwrap_or("");
+    let created = policy["createdDateTime"]
+        .as_str()
+        .unwrap_or("")
+        .split('T')
+        .next()
+        .unwrap_or("");
+    let modified = policy["modifiedDateTime"]
+        .as_str()
+        .unwrap_or("")
+        .split('T')
+        .next()
+        .unwrap_or("");
 
     let state_display = match state {
         "enabled" => "ENABLED".green().bold().to_string(),
@@ -991,24 +1013,33 @@ fn print_policy_details(policy: &serde_json::Value) {
     println!("  {} {}", "Policy:".white().bold(), name.cyan().bold());
     println!("  {} {}", "State:".white().bold(), state_display);
     println!("  {} {}", "ID:".dimmed(), id.dimmed());
-    println!("  {} {} | {} {}", "Created:".dimmed(), created.dimmed(), "Modified:".dimmed(), modified.dimmed());
-    
+    println!(
+        "  {} {} | {} {}",
+        "Created:".dimmed(),
+        created.dimmed(),
+        "Modified:".dimmed(),
+        modified.dimmed()
+    );
+
     // Conditions
     if let Some(conditions) = policy.get("conditions") {
         println!();
         println!("  {}:", "Conditions".white().bold());
-        
+
         // Users
         if let Some(users) = conditions.get("users") {
             print!("    {} ", "Users:".cyan());
             let include_users = users.get("includeUsers").and_then(|v| v.as_array());
             let include_groups = users.get("includeGroups").and_then(|v| v.as_array());
             let include_roles = users.get("includeRoles").and_then(|v| v.as_array());
-            
+
             if let Some(inc) = include_users {
                 if inc.iter().any(|u| u.as_str() == Some("All")) {
                     print!("{}", "All users".green());
-                } else if inc.iter().any(|u| u.as_str() == Some("GuestsOrExternalUsers")) {
+                } else if inc
+                    .iter()
+                    .any(|u| u.as_str() == Some("GuestsOrExternalUsers"))
+                {
                     print!("{}", "Guests/External".yellow());
                 } else if !inc.is_empty() {
                     print!("{} specific users", inc.len());
@@ -1024,7 +1055,7 @@ fn print_policy_details(policy: &serde_json::Value) {
                     print!(", {} admin roles", roles.len().to_string().yellow());
                 }
             }
-            
+
             // Exclusions
             let exclude_users = users.get("excludeUsers").and_then(|v| v.as_array());
             let exclude_groups = users.get("excludeGroups").and_then(|v| v.as_array());
@@ -1040,7 +1071,7 @@ fn print_policy_details(policy: &serde_json::Value) {
             }
             println!();
         }
-        
+
         // Applications
         if let Some(apps) = conditions.get("applications") {
             print!("    {} ", "Apps:".cyan());
@@ -1050,7 +1081,10 @@ fn print_policy_details(policy: &serde_json::Value) {
                     print!("{}", "All apps".green());
                 } else if inc.iter().any(|a| a.as_str() == Some("Office365")) {
                     print!("{}", "Office 365".blue());
-                } else if inc.iter().any(|a| a.as_str() == Some("MicrosoftAdminPortals")) {
+                } else if inc
+                    .iter()
+                    .any(|a| a.as_str() == Some("MicrosoftAdminPortals"))
+                {
                     print!("{}", "Admin Portals".yellow());
                 } else if !inc.is_empty() {
                     print!("{} specific apps", inc.len());
@@ -1058,19 +1092,17 @@ fn print_policy_details(policy: &serde_json::Value) {
             }
             println!();
         }
-        
+
         // Platforms
         if let Some(platforms) = conditions.get("platforms") {
             if let Some(inc) = platforms.get("includePlatforms").and_then(|v| v.as_array()) {
                 if !inc.is_empty() {
-                    let platform_list: Vec<&str> = inc.iter()
-                        .filter_map(|p| p.as_str())
-                        .collect();
+                    let platform_list: Vec<&str> = inc.iter().filter_map(|p| p.as_str()).collect();
                     println!("    {} {}", "Platforms:".cyan(), platform_list.join(", "));
                 }
             }
         }
-        
+
         // Locations
         if let Some(locations) = conditions.get("locations") {
             let include_locs = locations.get("includeLocations").and_then(|v| v.as_array());
@@ -1092,22 +1124,27 @@ fn print_policy_details(policy: &serde_json::Value) {
                 println!();
             }
         }
-        
+
         // Client app types
         if let Some(client_types) = conditions.get("clientAppTypes").and_then(|v| v.as_array()) {
             if !client_types.is_empty() && !client_types.iter().any(|t| t.as_str() == Some("all")) {
-                let types: Vec<&str> = client_types.iter()
-                    .filter_map(|t| t.as_str())
-                    .collect();
+                let types: Vec<&str> = client_types.iter().filter_map(|t| t.as_str()).collect();
                 println!("    {} {}", "Client types:".cyan(), types.join(", "));
             }
         }
-        
+
         // Risk levels
-        if let Some(sign_in_risk) = conditions.get("signInRiskLevels").and_then(|v| v.as_array()) {
+        if let Some(sign_in_risk) = conditions
+            .get("signInRiskLevels")
+            .and_then(|v| v.as_array())
+        {
             if !sign_in_risk.is_empty() {
                 let levels: Vec<&str> = sign_in_risk.iter().filter_map(|l| l.as_str()).collect();
-                println!("    {} {}", "Sign-in risk:".cyan(), levels.join(", ").yellow());
+                println!(
+                    "    {} {}",
+                    "Sign-in risk:".cyan(),
+                    levels.join(", ").yellow()
+                );
             }
         }
         if let Some(user_risk) = conditions.get("userRiskLevels").and_then(|v| v.as_array()) {
@@ -1117,14 +1154,20 @@ fn print_policy_details(policy: &serde_json::Value) {
             }
         }
     }
-    
+
     // Grant controls
     if let Some(grant_controls) = policy.get("grantControls") {
         println!();
         println!("  {}:", "Grant Controls".white().bold());
-        
-        if let Some(controls) = grant_controls.get("builtInControls").and_then(|v| v.as_array()) {
-            let operator = grant_controls.get("operator").and_then(|v| v.as_str()).unwrap_or("OR");
+
+        if let Some(controls) = grant_controls
+            .get("builtInControls")
+            .and_then(|v| v.as_array())
+        {
+            let operator = grant_controls
+                .get("operator")
+                .and_then(|v| v.as_str())
+                .unwrap_or("OR");
             for control in controls {
                 let control_str = control.as_str().unwrap_or("");
                 let display = match control_str {
@@ -1140,32 +1183,48 @@ fn print_policy_details(policy: &serde_json::Value) {
                 println!("    • {}", display);
             }
             if controls.len() > 1 {
-                println!("    {} {}", "Operator:".dimmed(), operator.to_uppercase().cyan());
+                println!(
+                    "    {} {}",
+                    "Operator:".dimmed(),
+                    operator.to_uppercase().cyan()
+                );
             }
         }
     }
-    
+
     // Session controls
     if let Some(session) = policy.get("sessionControls") {
         if !session.is_null() {
-            let has_session_controls = session.get("signInFrequency").is_some() 
+            let has_session_controls = session.get("signInFrequency").is_some()
                 || session.get("persistentBrowser").is_some()
                 || session.get("cloudAppSecurity").is_some();
-            
+
             if has_session_controls {
                 println!();
                 println!("  {}:", "Session Controls".white().bold());
-                
+
                 if let Some(freq) = session.get("signInFrequency") {
-                    if freq.get("isEnabled").and_then(|v| v.as_bool()).unwrap_or(false) {
+                    if freq
+                        .get("isEnabled")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false)
+                    {
                         let value = freq.get("value").and_then(|v| v.as_i64()).unwrap_or(0);
-                        let freq_type = freq.get("type").and_then(|v| v.as_str()).unwrap_or("hours");
+                        let freq_type =
+                            freq.get("type").and_then(|v| v.as_str()).unwrap_or("hours");
                         println!("    • Sign-in frequency: {} {}", value, freq_type);
                     }
                 }
                 if let Some(persist) = session.get("persistentBrowser") {
-                    if persist.get("isEnabled").and_then(|v| v.as_bool()).unwrap_or(false) {
-                        let mode = persist.get("mode").and_then(|v| v.as_str()).unwrap_or("always");
+                    if persist
+                        .get("isEnabled")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false)
+                    {
+                        let mode = persist
+                            .get("mode")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("always");
                         println!("    • Persistent browser: {}", mode);
                     }
                 }
@@ -1177,7 +1236,7 @@ fn print_policy_details(policy: &serde_json::Value) {
 /// Print conditions summary (for verbose mode)
 fn print_conditions_summary(conditions: &serde_json::Value) {
     let mut parts = Vec::new();
-    
+
     if let Some(users) = conditions.get("users") {
         if let Some(inc) = users.get("includeUsers").and_then(|v| v.as_array()) {
             if inc.iter().any(|u| u.as_str() == Some("All")) {
@@ -1190,7 +1249,7 @@ fn print_conditions_summary(conditions: &serde_json::Value) {
             }
         }
     }
-    
+
     if let Some(apps) = conditions.get("applications") {
         if let Some(inc) = apps.get("includeApplications").and_then(|v| v.as_array()) {
             if inc.iter().any(|a| a.as_str() == Some("All")) {
@@ -1200,7 +1259,7 @@ fn print_conditions_summary(conditions: &serde_json::Value) {
             }
         }
     }
-    
+
     if !parts.is_empty() {
         println!("   Conditions: {}", parts.join(", ").dimmed());
     }
@@ -1208,8 +1267,12 @@ fn print_conditions_summary(conditions: &serde_json::Value) {
 
 /// Print grant controls summary (for verbose mode)
 fn print_grant_controls_summary(grant_controls: &serde_json::Value) {
-    if let Some(controls) = grant_controls.get("builtInControls").and_then(|v| v.as_array()) {
-        let control_names: Vec<&str> = controls.iter()
+    if let Some(controls) = grant_controls
+        .get("builtInControls")
+        .and_then(|v| v.as_array())
+    {
+        let control_names: Vec<&str> = controls
+            .iter()
             .filter_map(|c| c.as_str())
             .map(|c| match c {
                 "mfa" => "MFA",
@@ -1273,10 +1336,7 @@ pub struct DisableArgs {
 
 /// Enable one or more CA policies (move from report-only to enforced)
 pub async fn enable(args: EnableArgs) -> Result<()> {
-    println!(
-        "{} CA policies...",
-        "Enabling".cyan().bold()
-    );
+    println!("{} CA policies...", "Enabling".cyan().bold());
 
     let config = ConfigManager::load()?;
     let active_tenant = config
@@ -1322,24 +1382,29 @@ pub async fn enable(args: EnableArgs) -> Result<()> {
             return Ok(());
         }
 
-        println!("\n{} Report-only policies that can be enabled:\n", "→".cyan());
+        println!(
+            "\n{} Report-only policies that can be enabled:\n",
+            "→".cyan()
+        );
         for (i, p) in report_only.iter().enumerate() {
-            println!(
-                "  {}. {} [{}]",
-                i + 1,
-                p.display_name.cyan(),
-                p.id.dimmed()
-            );
+            println!("  {}. {} [{}]", i + 1, p.display_name.cyan(), p.id.dimmed());
         }
 
-        println!("\n{} Use --policy <ID> or --name <NAME> to enable specific policies", "ℹ".yellow());
+        println!(
+            "\n{} Use --policy <ID> or --name <NAME> to enable specific policies",
+            "ℹ".yellow()
+        );
         println!("   Use --all-report-only to enable all report-only policies");
         return Ok(());
     };
 
     if policies_to_enable.is_empty() {
         if let Some(name_pattern) = &args.name {
-            println!("\n{} No policies found matching '{}'", "✗".red(), name_pattern);
+            println!(
+                "\n{} No policies found matching '{}'",
+                "✗".red(),
+                name_pattern
+            );
         } else if let Some(policy_id) = &args.policy {
             println!("\n{} No policy found with ID '{}'", "✗".red(), policy_id);
         }
@@ -1347,7 +1412,11 @@ pub async fn enable(args: EnableArgs) -> Result<()> {
     }
 
     // Display what will be enabled
-    println!("\n{} {} policies to enable:\n", "→".cyan(), policies_to_enable.len());
+    println!(
+        "\n{} {} policies to enable:\n",
+        "→".cyan(),
+        policies_to_enable.len()
+    );
     for p in &policies_to_enable {
         let current_state = match p.state.as_str() {
             "enabled" => "already enabled".green(),
@@ -1363,9 +1432,12 @@ pub async fn enable(args: EnableArgs) -> Result<()> {
         .iter()
         .filter(|p| p.state == "enabled")
         .count();
-    
+
     if already_enabled == policies_to_enable.len() {
-        println!("\n{} All selected policies are already enabled", "ℹ".yellow());
+        println!(
+            "\n{} All selected policies are already enabled",
+            "ℹ".yellow()
+        );
         return Ok(());
     }
 
@@ -1404,7 +1476,11 @@ pub async fn enable(args: EnableArgs) -> Result<()> {
 
     for policy in &policies_to_enable {
         if policy.state == "enabled" {
-            println!("  {} {} (already enabled)", "ℹ".yellow(), policy.display_name);
+            println!(
+                "  {} {} (already enabled)",
+                "ℹ".yellow(),
+                policy.display_name
+            );
             continue;
         }
 
@@ -1437,7 +1513,7 @@ pub async fn enable(args: EnableArgs) -> Result<()> {
         "✓".green().bold(),
         enabled_count
     );
-    
+
     if enabled_count > 0 {
         println!(
             "\n{} Monitor sign-in logs in Azure Portal for any access issues",
@@ -1450,10 +1526,7 @@ pub async fn enable(args: EnableArgs) -> Result<()> {
 
 /// Disable one or more CA policies
 pub async fn disable(args: DisableArgs) -> Result<()> {
-    println!(
-        "{} CA policies...",
-        "Disabling".cyan().bold()
-    );
+    println!("{} CA policies...", "Disabling".cyan().bold());
 
     let config = ConfigManager::load()?;
     let active_tenant = config
@@ -1509,13 +1582,20 @@ pub async fn disable(args: DisableArgs) -> Result<()> {
             );
         }
 
-        println!("\n{} Use --policy <ID> or --name <NAME> to disable specific policies", "ℹ".yellow());
+        println!(
+            "\n{} Use --policy <ID> or --name <NAME> to disable specific policies",
+            "ℹ".yellow()
+        );
         return Ok(());
     };
 
     if policies_to_disable.is_empty() {
         if let Some(name_pattern) = &args.name {
-            println!("\n{} No policies found matching '{}'", "✗".red(), name_pattern);
+            println!(
+                "\n{} No policies found matching '{}'",
+                "✗".red(),
+                name_pattern
+            );
         } else if let Some(policy_id) = &args.policy {
             println!("\n{} No policy found with ID '{}'", "✗".red(), policy_id);
         }
@@ -1523,7 +1603,11 @@ pub async fn disable(args: DisableArgs) -> Result<()> {
     }
 
     // Display what will be disabled
-    println!("\n{} {} policies to disable:\n", "→".cyan(), policies_to_disable.len());
+    println!(
+        "\n{} {} policies to disable:\n",
+        "→".cyan(),
+        policies_to_disable.len()
+    );
     for p in &policies_to_disable {
         println!("  • {}", p.display_name);
     }
@@ -1533,9 +1617,12 @@ pub async fn disable(args: DisableArgs) -> Result<()> {
         .iter()
         .filter(|p| p.state == "disabled")
         .count();
-    
+
     if already_disabled == policies_to_disable.len() {
-        println!("\n{} All selected policies are already disabled", "ℹ".yellow());
+        println!(
+            "\n{} All selected policies are already disabled",
+            "ℹ".yellow()
+        );
         return Ok(());
     }
 
@@ -1570,7 +1657,11 @@ pub async fn disable(args: DisableArgs) -> Result<()> {
 
     for policy in &policies_to_disable {
         if policy.state == "disabled" {
-            println!("  {} {} (already disabled)", "ℹ".yellow(), policy.display_name);
+            println!(
+                "  {} {} (already disabled)",
+                "ℹ".yellow(),
+                policy.display_name
+            );
             continue;
         }
 

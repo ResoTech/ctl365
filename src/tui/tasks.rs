@@ -284,33 +284,33 @@ pub struct TenantSecurityReport {
     pub tenant_name: String,
     pub tenant_id: String,
     pub report_generated_at: String,
-    
+
     /// Overall security grade (A-F)
     pub security_grade: String,
     /// Numeric compliance score (0-100)
     pub compliance_score: u8,
-    
+
     /// Security Defaults status
     pub security_defaults_enabled: bool,
-    
+
     /// MFA Status
     pub mfa_status: MfaStatus,
-    
+
     /// Conditional Access summary
     pub ca_summary: CaPolicySummary,
-    
+
     /// Named Locations (for country blocking)
     pub named_locations: Vec<NamedLocationInfo>,
-    
+
     /// Intune summary
     pub intune_summary: IntuneSummary,
-    
+
     /// Security findings and recommendations
     pub findings: Vec<SecurityFinding>,
-    
+
     /// SCuBA alignment score (if available)
     pub scuba_alignment: Option<ScubaAlignment>,
-    
+
     /// Recent changes from audit trail
     pub recent_changes: Vec<AuditChange>,
 }
@@ -439,7 +439,10 @@ pub enum TaskResponse {
     /// Progress update
     Progress(TaskProgress),
     /// Task completed
-    Completed { task_id: String, result: Box<TaskResult> },
+    Completed {
+        task_id: String,
+        result: Box<TaskResult>,
+    },
     /// Worker is ready
     Ready,
 }
@@ -586,7 +589,10 @@ pub fn spawn_task_worker(config: ConfigManager) -> (TaskSender, TaskReceiver) {
                             &task_id,
                         )
                         .await;
-                        let _ = response_tx.send(TaskResponse::Completed { task_id, result: Box::new(result) });
+                        let _ = response_tx.send(TaskResponse::Completed {
+                            task_id,
+                            result: Box::new(result),
+                        });
                     }
                     TaskRequest::DeployBaseline {
                         tenant_name,
@@ -609,7 +615,10 @@ pub fn spawn_task_worker(config: ConfigManager) -> (TaskSender, TaskReceiver) {
                             &task_id,
                         )
                         .await;
-                        let _ = response_tx.send(TaskResponse::Completed { task_id, result: Box::new(result) });
+                        let _ = response_tx.send(TaskResponse::Completed {
+                            task_id,
+                            result: Box::new(result),
+                        });
                     }
                     TaskRequest::DeployConditionalAccess { tenant_name } => {
                         let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
@@ -621,7 +630,10 @@ pub fn spawn_task_worker(config: ConfigManager) -> (TaskSender, TaskReceiver) {
 
                         let result =
                             deploy_ca_async(&config, &tenant_name, &response_tx, &task_id).await;
-                        let _ = response_tx.send(TaskResponse::Completed { task_id, result: Box::new(result) });
+                        let _ = response_tx.send(TaskResponse::Completed {
+                            task_id,
+                            result: Box::new(result),
+                        });
                     }
                     TaskRequest::ApplySettings {
                         tenant_name,
@@ -644,11 +656,17 @@ pub fn spawn_task_worker(config: ConfigManager) -> (TaskSender, TaskReceiver) {
                             &task_id,
                         )
                         .await;
-                        let _ = response_tx.send(TaskResponse::Completed { task_id, result: Box::new(result) });
+                        let _ = response_tx.send(TaskResponse::Completed {
+                            task_id,
+                            result: Box::new(result),
+                        });
                     }
                     TaskRequest::TestAuth { tenant_name } => {
                         let result = test_auth_async(&config, &tenant_name).await;
-                        let _ = response_tx.send(TaskResponse::Completed { task_id, result: Box::new(result) });
+                        let _ = response_tx.send(TaskResponse::Completed {
+                            task_id,
+                            result: Box::new(result),
+                        });
                     }
                     TaskRequest::TestConnection { tenant_name } => {
                         let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
@@ -660,7 +678,10 @@ pub fn spawn_task_worker(config: ConfigManager) -> (TaskSender, TaskReceiver) {
                         let result =
                             test_connection_async(&config, &tenant_name, &response_tx, &task_id)
                                 .await;
-                        let _ = response_tx.send(TaskResponse::Completed { task_id, result: Box::new(result) });
+                        let _ = response_tx.send(TaskResponse::Completed {
+                            task_id,
+                            result: Box::new(result),
+                        });
                     }
                     // =========================================================
                     // Security Monitoring Tasks
@@ -680,7 +701,10 @@ pub fn spawn_task_worker(config: ConfigManager) -> (TaskSender, TaskReceiver) {
                             &task_id,
                         )
                         .await;
-                        let _ = response_tx.send(TaskResponse::Completed { task_id, result: Box::new(result) });
+                        let _ = response_tx.send(TaskResponse::Completed {
+                            task_id,
+                            result: Box::new(result),
+                        });
                     }
                     TaskRequest::FetchRiskyUsers { tenant_name } => {
                         let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
@@ -692,7 +716,10 @@ pub fn spawn_task_worker(config: ConfigManager) -> (TaskSender, TaskReceiver) {
                         let result =
                             fetch_risky_users_async(&config, &tenant_name, &response_tx, &task_id)
                                 .await;
-                        let _ = response_tx.send(TaskResponse::Completed { task_id, result: Box::new(result) });
+                        let _ = response_tx.send(TaskResponse::Completed {
+                            task_id,
+                            result: Box::new(result),
+                        });
                     }
                     TaskRequest::FetchRiskySignIns { tenant_name, limit } => {
                         let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
@@ -709,7 +736,10 @@ pub fn spawn_task_worker(config: ConfigManager) -> (TaskSender, TaskReceiver) {
                             &task_id,
                         )
                         .await;
-                        let _ = response_tx.send(TaskResponse::Completed { task_id, result: Box::new(result) });
+                        let _ = response_tx.send(TaskResponse::Completed {
+                            task_id,
+                            result: Box::new(result),
+                        });
                     }
                     TaskRequest::FetchDirectoryAudit { tenant_name, limit } => {
                         let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
@@ -726,7 +756,10 @@ pub fn spawn_task_worker(config: ConfigManager) -> (TaskSender, TaskReceiver) {
                             &task_id,
                         )
                         .await;
-                        let _ = response_tx.send(TaskResponse::Completed { task_id, result: Box::new(result) });
+                        let _ = response_tx.send(TaskResponse::Completed {
+                            task_id,
+                            result: Box::new(result),
+                        });
                     }
                     TaskRequest::FetchSecuritySummary { tenant_name } => {
                         let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
@@ -742,7 +775,10 @@ pub fn spawn_task_worker(config: ConfigManager) -> (TaskSender, TaskReceiver) {
                             &task_id,
                         )
                         .await;
-                        let _ = response_tx.send(TaskResponse::Completed { task_id, result: Box::new(result) });
+                        let _ = response_tx.send(TaskResponse::Completed {
+                            task_id,
+                            result: Box::new(result),
+                        });
                     }
                     TaskRequest::GenerateTenantReport { tenant_name } => {
                         let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
@@ -758,7 +794,10 @@ pub fn spawn_task_worker(config: ConfigManager) -> (TaskSender, TaskReceiver) {
                             &task_id,
                         )
                         .await;
-                        let _ = response_tx.send(TaskResponse::Completed { task_id, result: Box::new(result) });
+                        let _ = response_tx.send(TaskResponse::Completed {
+                            task_id,
+                            result: Box::new(result),
+                        });
                     }
                     TaskRequest::LoadAutopilotDevices { tenant_name } => {
                         let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
@@ -774,7 +813,10 @@ pub fn spawn_task_worker(config: ConfigManager) -> (TaskSender, TaskReceiver) {
                             &task_id,
                         )
                         .await;
-                        let _ = response_tx.send(TaskResponse::Completed { task_id, result: Box::new(result) });
+                        let _ = response_tx.send(TaskResponse::Completed {
+                            task_id,
+                            result: Box::new(result),
+                        });
                     }
                     TaskRequest::LoadAutopilotProfiles { tenant_name } => {
                         let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
@@ -790,7 +832,10 @@ pub fn spawn_task_worker(config: ConfigManager) -> (TaskSender, TaskReceiver) {
                             &task_id,
                         )
                         .await;
-                        let _ = response_tx.send(TaskResponse::Completed { task_id, result: Box::new(result) });
+                        let _ = response_tx.send(TaskResponse::Completed {
+                            task_id,
+                            result: Box::new(result),
+                        });
                     }
                     TaskRequest::SyncAutopilot { tenant_name } => {
                         let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
@@ -799,14 +844,13 @@ pub fn spawn_task_worker(config: ConfigManager) -> (TaskSender, TaskReceiver) {
                             message: "Syncing Autopilot devices...".into(),
                             phase: "init".into(),
                         }));
-                        let result = sync_autopilot_async(
-                            &config,
-                            &tenant_name,
-                            &response_tx,
-                            &task_id,
-                        )
-                        .await;
-                        let _ = response_tx.send(TaskResponse::Completed { task_id, result: Box::new(result) });
+                        let result =
+                            sync_autopilot_async(&config, &tenant_name, &response_tx, &task_id)
+                                .await;
+                        let _ = response_tx.send(TaskResponse::Completed {
+                            task_id,
+                            result: Box::new(result),
+                        });
                     }
                 }
             }
@@ -2093,7 +2137,9 @@ async fn generate_tenant_report_async(
     let now = chrono::Local::now();
 
     // Get tenant ID
-    let tenant_id = get_tenant_id(&client).await.unwrap_or_else(|_| "Unknown".to_string());
+    let tenant_id = get_tenant_id(&client)
+        .await
+        .unwrap_or_else(|_| "Unknown".to_string());
 
     // =========================================================================
     // Step 1: Security Defaults
@@ -2135,12 +2181,16 @@ async fn generate_tenant_report_async(
         .unwrap_or_default();
 
     let enabled_ca = ca_policies.iter().filter(|p| p.state == "enabled").count();
-    let report_only_ca = ca_policies.iter().filter(|p| p.state == "enabledForReportingButNotEnforced").count();
+    let report_only_ca = ca_policies
+        .iter()
+        .filter(|p| p.state == "enabledForReportingButNotEnforced")
+        .count();
     let disabled_ca = ca_policies.iter().filter(|p| p.state == "disabled").count();
 
     // Check for key policies
     let has_mfa_policy = ca_policies.iter().any(|p| {
-        p.grant_controls.as_ref()
+        p.grant_controls
+            .as_ref()
             .and_then(|gc| gc.built_in_controls.as_ref())
             .map(|c| c.iter().any(|ctrl| ctrl == "mfa"))
             .unwrap_or(false)
@@ -2149,27 +2199,31 @@ async fn generate_tenant_report_async(
     let has_legacy_auth_block = ca_policies.iter().any(|p| {
         let name_lower = p.display_name.to_lowercase();
         (name_lower.contains("legacy") || name_lower.contains("block"))
-            && p.grant_controls.as_ref()
+            && p.grant_controls
+                .as_ref()
                 .and_then(|gc| gc.built_in_controls.as_ref())
                 .map(|c| c.iter().any(|ctrl| ctrl == "block"))
                 .unwrap_or(false)
     });
 
     let has_location_policy = ca_policies.iter().any(|p| {
-        p.conditions.as_ref()
+        p.conditions
+            .as_ref()
             .and_then(|c| c.locations.as_ref())
             .is_some()
     });
 
     let has_device_compliance = ca_policies.iter().any(|p| {
-        p.grant_controls.as_ref()
+        p.grant_controls
+            .as_ref()
             .and_then(|gc| gc.built_in_controls.as_ref())
             .map(|c| c.iter().any(|ctrl| ctrl == "compliantDevice"))
             .unwrap_or(false)
     });
 
     let has_admin_protection = ca_policies.iter().any(|p| {
-        p.conditions.as_ref()
+        p.conditions
+            .as_ref()
             .and_then(|c| c.users.as_ref())
             .and_then(|u| u.include_roles.as_ref())
             .map(|r| !r.is_empty())
@@ -2182,8 +2236,11 @@ async fn generate_tenant_report_async(
             severity: "CRITICAL".to_string(),
             category: "Conditional Access".to_string(),
             title: "No Conditional Access Policies".to_string(),
-            description: "No Conditional Access policies are configured and Security Defaults are disabled.".to_string(),
-            recommendation: "Deploy baseline CA policies with: ctl365 ca deploy --baseline 2025".to_string(),
+            description:
+                "No Conditional Access policies are configured and Security Defaults are disabled."
+                    .to_string(),
+            recommendation: "Deploy baseline CA policies with: ctl365 ca deploy --baseline 2025"
+                .to_string(),
         });
     } else {
         if !has_mfa_policy && !security_defaults_enabled {
@@ -2200,7 +2257,8 @@ async fn generate_tenant_report_async(
                 severity: "HIGH".to_string(),
                 category: "Conditional Access".to_string(),
                 title: "Legacy Authentication Not Blocked".to_string(),
-                description: "Legacy authentication protocols (IMAP, POP3, SMTP) are not blocked.".to_string(),
+                description: "Legacy authentication protocols (IMAP, POP3, SMTP) are not blocked."
+                    .to_string(),
                 recommendation: "Create a CA policy to block legacy authentication.".to_string(),
             });
         }
@@ -2209,14 +2267,19 @@ async fn generate_tenant_report_async(
                 severity: "MEDIUM".to_string(),
                 category: "Conditional Access".to_string(),
                 title: "All CA Policies in Report-Only Mode".to_string(),
-                description: format!("{} CA policies are in report-only mode and not enforcing.", report_only_ca),
-                recommendation: "Review sign-in logs and enable policies after validation.".to_string(),
+                description: format!(
+                    "{} CA policies are in report-only mode and not enforcing.",
+                    report_only_ca
+                ),
+                recommendation: "Review sign-in logs and enable policies after validation."
+                    .to_string(),
             });
         }
     }
 
     // Group policies by category for report
-    let mut policies_by_category: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
+    let mut policies_by_category: std::collections::HashMap<String, Vec<String>> =
+        std::collections::HashMap::new();
     for p in &ca_policies {
         let category = if p.display_name.starts_with("CAD") {
             "Device/Platform"
@@ -2279,7 +2342,8 @@ async fn generate_tenant_report_async(
                 location_type: location_type.to_string(),
                 is_trusted: loc.is_trusted.unwrap_or(false),
                 countries: loc.countries_and_regions.unwrap_or_default(),
-                ip_ranges: loc.ip_ranges
+                ip_ranges: loc
+                    .ip_ranges
                     .map(|ranges| ranges.into_iter().map(|r| r.cidr_address).collect())
                     .unwrap_or_default(),
             }
@@ -2291,7 +2355,8 @@ async fn generate_tenant_report_async(
             severity: "MEDIUM".to_string(),
             category: "Conditional Access".to_string(),
             title: "Location Policy Without Named Locations".to_string(),
-            description: "CA policies reference locations but no Named Locations are configured.".to_string(),
+            description: "CA policies reference locations but no Named Locations are configured."
+                .to_string(),
             recommendation: "Create Named Locations for trusted countries/IP ranges.".to_string(),
         });
     }
@@ -2332,7 +2397,8 @@ async fn generate_tenant_report_async(
             category: "Intune".to_string(),
             title: "No Intune Policies Configured".to_string(),
             description: "No compliance or configuration policies found in Intune.".to_string(),
-            recommendation: "Deploy device management baselines with: ctl365 baseline apply".to_string(),
+            recommendation: "Deploy device management baselines with: ctl365 baseline apply"
+                .to_string(),
         });
     }
 
@@ -2363,8 +2429,7 @@ async fn generate_tenant_report_async(
         phase: "audit".into(),
     }));
 
-    let audit_entries = crate::tui::change_tracker::load_all_entries()
-        .unwrap_or_default();
+    let audit_entries = crate::tui::change_tracker::load_all_entries().unwrap_or_default();
 
     let recent_changes: Vec<AuditChange> = audit_entries
         .into_iter()
@@ -2401,15 +2466,26 @@ async fn generate_tenant_report_async(
 
     // Add points for good controls
     let mut bonus_points = 0;
-    if has_mfa_policy || security_defaults_enabled { bonus_points += 15; }
-    if has_legacy_auth_block { bonus_points += 10; }
-    if has_device_compliance { bonus_points += 10; }
-    if has_location_policy { bonus_points += 5; }
-    if compliance_policies > 0 { bonus_points += 10; }
-    if enabled_ca > 0 { bonus_points += 10; }
+    if has_mfa_policy || security_defaults_enabled {
+        bonus_points += 15;
+    }
+    if has_legacy_auth_block {
+        bonus_points += 10;
+    }
+    if has_device_compliance {
+        bonus_points += 10;
+    }
+    if has_location_policy {
+        bonus_points += 5;
+    }
+    if compliance_policies > 0 {
+        bonus_points += 10;
+    }
+    if enabled_ca > 0 {
+        bonus_points += 10;
+    }
 
-    let compliance_score = (100 - score_deductions as i32 + bonus_points)
-        .clamp(0, 100) as u8;
+    let compliance_score = (100 - score_deductions as i32 + bonus_points).clamp(0, 100) as u8;
 
     let security_grade = match compliance_score {
         90..=100 => "A",
@@ -2417,7 +2493,8 @@ async fn generate_tenant_report_async(
         70..=79 => "C",
         60..=69 => "D",
         _ => "F",
-    }.to_string();
+    }
+    .to_string();
 
     // =========================================================================
     // Step 8: Calculate SCuBA Alignment
@@ -2456,7 +2533,9 @@ async fn generate_tenant_report_async(
         recent_changes,
     };
 
-    TaskResult::TenantReportGenerated { report: Box::new(report) }
+    TaskResult::TenantReportGenerated {
+        report: Box::new(report),
+    }
 }
 
 // Helper functions for tenant report
@@ -2472,7 +2551,11 @@ async fn get_tenant_id(client: &crate::graph::GraphClient) -> Result<String> {
     }
 
     let response: OrgResponse = client.get("organization").await?;
-    Ok(response.value.first().map(|o| o.id.clone()).unwrap_or_default())
+    Ok(response
+        .value
+        .first()
+        .map(|o| o.id.clone())
+        .unwrap_or_default())
 }
 
 async fn fetch_compliance_count(client: &crate::graph::GraphClient) -> usize {
@@ -2482,7 +2565,8 @@ async fn fetch_compliance_count(client: &crate::graph::GraphClient) -> usize {
         value: Vec<serde_json::Value>,
     }
 
-    client.get_beta::<CountResponse>("deviceManagement/deviceCompliancePolicies?$top=200")
+    client
+        .get_beta::<CountResponse>("deviceManagement/deviceCompliancePolicies?$top=200")
         .await
         .map(|r| r.value.len())
         .unwrap_or(0)
@@ -2495,7 +2579,8 @@ async fn fetch_config_count(client: &crate::graph::GraphClient) -> usize {
         value: Vec<serde_json::Value>,
     }
 
-    client.get_beta::<CountResponse>("deviceManagement/deviceConfigurations?$top=200")
+    client
+        .get_beta::<CountResponse>("deviceManagement/deviceConfigurations?$top=200")
         .await
         .map(|r| r.value.len())
         .unwrap_or(0)
@@ -2508,7 +2593,8 @@ async fn fetch_settings_catalog_count(client: &crate::graph::GraphClient) -> usi
         value: Vec<serde_json::Value>,
     }
 
-    client.get_beta::<CountResponse>("deviceManagement/configurationPolicies?$top=200")
+    client
+        .get_beta::<CountResponse>("deviceManagement/configurationPolicies?$top=200")
         .await
         .map(|r| r.value.len())
         .unwrap_or(0)
@@ -2521,7 +2607,8 @@ async fn fetch_managed_apps_count(client: &crate::graph::GraphClient) -> usize {
         value: Vec<serde_json::Value>,
     }
 
-    client.get_beta::<CountResponse>("deviceAppManagement/mobileApps?$top=200")
+    client
+        .get_beta::<CountResponse>("deviceAppManagement/mobileApps?$top=200")
         .await
         .map(|r| r.value.len())
         .unwrap_or(0)
@@ -2591,7 +2678,12 @@ fn calculate_scuba_alignment(
     }
 
     let aad_score = ((aad_passed as f32 / aad_total as f32) * 100.0) as u8;
-    categories.push(("Entra ID (MS.AAD)".to_string(), aad_score, aad_passed, aad_total));
+    categories.push((
+        "Entra ID (MS.AAD)".to_string(),
+        aad_score,
+        aad_passed,
+        aad_total,
+    ));
     total_passed += aad_passed;
     total_checks += aad_total;
 
@@ -2621,7 +2713,12 @@ fn calculate_scuba_alignment(
     }
 
     let exo_score = ((exo_passed as f32 / exo_total as f32) * 100.0) as u8;
-    categories.push(("Exchange Online (MS.EXO)".to_string(), exo_score, exo_passed, exo_total));
+    categories.push((
+        "Exchange Online (MS.EXO)".to_string(),
+        exo_score,
+        exo_passed,
+        exo_total,
+    ));
     total_passed += exo_passed;
     total_checks += exo_total;
 
@@ -2651,7 +2748,12 @@ fn calculate_scuba_alignment(
     }
 
     let defender_score = ((defender_passed as f32 / defender_total as f32) * 100.0) as u8;
-    categories.push(("Defender for O365 (MS.DEFENDER)".to_string(), defender_score, defender_passed, defender_total));
+    categories.push((
+        "Defender for O365 (MS.DEFENDER)".to_string(),
+        defender_score,
+        defender_passed,
+        defender_total,
+    ));
     total_passed += defender_passed;
     total_checks += defender_total;
 
@@ -2679,7 +2781,12 @@ fn calculate_scuba_alignment(
     }
 
     let sp_score = ((sp_passed as f32 / sp_total as f32) * 100.0) as u8;
-    categories.push(("SharePoint/OneDrive (MS.SHAREPOINT)".to_string(), sp_score, sp_passed, sp_total));
+    categories.push((
+        "SharePoint/OneDrive (MS.SHAREPOINT)".to_string(),
+        sp_score,
+        sp_passed,
+        sp_total,
+    ));
     total_passed += sp_passed;
     total_checks += sp_total;
 
@@ -2710,7 +2817,12 @@ fn calculate_scuba_alignment(
     }
 
     let teams_score = ((teams_passed as f32 / teams_total as f32) * 100.0) as u8;
-    categories.push(("Microsoft Teams (MS.TEAMS)".to_string(), teams_score, teams_passed, teams_total));
+    categories.push((
+        "Microsoft Teams (MS.TEAMS)".to_string(),
+        teams_score,
+        teams_passed,
+        teams_total,
+    ));
     total_passed += teams_passed;
     total_checks += teams_total;
 
@@ -2732,7 +2844,12 @@ fn calculate_scuba_alignment(
     }
 
     let pp_score = ((pp_passed as f32 / pp_total as f32) * 100.0) as u8;
-    categories.push(("Power Platform (MS.POWERPLATFORM)".to_string(), pp_score, pp_passed, pp_total));
+    categories.push((
+        "Power Platform (MS.POWERPLATFORM)".to_string(),
+        pp_score,
+        pp_passed,
+        pp_total,
+    ));
     total_passed += pp_passed;
     total_checks += pp_total;
 
@@ -2894,7 +3011,8 @@ async fn load_autopilot_profiles_async(
                 .value
                 .into_iter()
                 .map(|p| {
-                    let deployment_mode = p.odata_type
+                    let deployment_mode = p
+                        .odata_type
                         .as_deref()
                         .map(|t| {
                             if t.contains("azureADJoin") {
@@ -2974,7 +3092,9 @@ async fn sync_autopilot_async(
 
     match result {
         Ok(_) => TaskResult::AutopilotSynced {
-            message: "Autopilot sync initiated successfully. Changes may take a few minutes to appear.".into(),
+            message:
+                "Autopilot sync initiated successfully. Changes may take a few minutes to appear."
+                    .into(),
         },
         Err(e) => {
             // 204 No Content is actually a success for this endpoint

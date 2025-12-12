@@ -1076,13 +1076,16 @@ impl App {
     /// Initialize form for editing an existing client
     pub fn init_edit_client_form(&mut self, abbrev: &str) {
         // Find the client to edit
-        let client = match self.msp_config.clients.iter().find(|c| c.abbreviation == abbrev) {
+        let client = match self
+            .msp_config
+            .clients
+            .iter()
+            .find(|c| c.abbreviation == abbrev)
+        {
             Some(c) => c.clone(),
             None => {
-                self.status_message = Some((
-                    format!("Client {} not found", abbrev),
-                    StatusLevel::Error,
-                ));
+                self.status_message =
+                    Some((format!("Client {} not found", abbrev), StatusLevel::Error));
                 self.go_back();
                 return;
             }
@@ -1412,10 +1415,8 @@ impl App {
         {
             Some(idx) => idx,
             None => {
-                self.status_message = Some((
-                    format!("Client {} not found", abbrev),
-                    StatusLevel::Error,
-                ));
+                self.status_message =
+                    Some((format!("Client {} not found", abbrev), StatusLevel::Error));
                 return;
             }
         };
@@ -1428,23 +1429,19 @@ impl App {
         client.full_name = full_name.clone();
         client.tenant_id = tenant_id.clone();
         client.client_id = client_id.clone();
-        
+
         // Only update secret if a new one was provided
         if !client_secret.is_empty() {
             client.client_secret = Some(client_secret.clone());
             client.auth_type = "client_credentials".into();
         }
-        
+
         client.contact_email = if contact_email.is_empty() {
             None
         } else {
             Some(contact_email)
         };
-        client.notes = if notes.is_empty() {
-            None
-        } else {
-            Some(notes)
-        };
+        client.notes = if notes.is_empty() { None } else { Some(notes) };
 
         // Save MSP config
         if let Err(e) = self.msp_config.save() {
@@ -1462,7 +1459,7 @@ impl App {
         } else {
             true
         };
-        
+
         let tenant_config = TenantConfig {
             name: abbrev.to_string(),
             tenant_id: tenant_id.clone(),
@@ -1506,21 +1503,16 @@ impl App {
         if old_client.contact_email != self.msp_config.clients[client_idx].contact_email {
             changes.push("contact_email updated".to_string());
         }
-        
+
         let change_details = if changes.is_empty() {
             "No changes made".to_string()
         } else {
             changes.join(", ")
         };
 
-        let entry = AuditEntry::new(
-            AuditAction::SettingChanged,
-            "Client",
-            abbrev,
-            abbrev,
-        )
-        .with_details(&format!("Client edited: {}", change_details))
-        .success();
+        let entry = AuditEntry::new(AuditAction::SettingChanged, "Client", abbrev, abbrev)
+            .with_details(&format!("Client edited: {}", change_details))
+            .success();
         record(entry);
 
         self.status_message = Some((
@@ -2510,8 +2502,12 @@ impl App {
             "ca" => self.navigate_to(Screen::PolicyList(PolicyListType::ConditionalAccess)),
             "apps" => self.navigate_to(Screen::PolicyList(PolicyListType::Apps)),
             // Policy list navigation from Intune submenu
-            "compliance_policies" => self.navigate_to(Screen::PolicyList(PolicyListType::Compliance)),
-            "configuration_policies" => self.navigate_to(Screen::PolicyList(PolicyListType::Configuration)),
+            "compliance_policies" => {
+                self.navigate_to(Screen::PolicyList(PolicyListType::Compliance))
+            }
+            "configuration_policies" => {
+                self.navigate_to(Screen::PolicyList(PolicyListType::Configuration))
+            }
             "intune" => self.navigate_to(Screen::Settings(SettingsCategory::Intune)),
             "baseline" => self.navigate_to(Screen::BaselineSelect),
             "audit" => self.navigate_to(Screen::PolicyList(PolicyListType::All)),
@@ -2711,28 +2707,26 @@ impl App {
             "filter" => self.toggle_search(),
 
             // Refresh action (non-blocking, context-sensitive)
-            "refresh" => {
-                match &self.screen {
-                    Screen::PolicyList(pt) => {
-                        let policy_type = pt.clone();
-                        self.load_policies_async(&policy_type);
-                        self.status_message =
-                            Some(("Refreshing policies...".into(), StatusLevel::Info));
-                    }
-                    Screen::AutopilotDevices => self.load_autopilot_devices(),
-                    Screen::AutopilotProfiles => self.load_autopilot_profiles(),
-                    Screen::SignInLogs => self.fetch_signin_logs(),
-                    Screen::RiskyUsers => self.fetch_risky_users(),
-                    Screen::RiskySignIns => self.fetch_risky_signins(),
-                    Screen::DirectoryAudit => self.fetch_directory_audit(),
-                    _ => {
-                        self.status_message = Some((
-                            "Refresh not available for this screen".into(),
-                            StatusLevel::Warning,
-                        ));
-                    }
+            "refresh" => match &self.screen {
+                Screen::PolicyList(pt) => {
+                    let policy_type = pt.clone();
+                    self.load_policies_async(&policy_type);
+                    self.status_message =
+                        Some(("Refreshing policies...".into(), StatusLevel::Info));
                 }
-            }
+                Screen::AutopilotDevices => self.load_autopilot_devices(),
+                Screen::AutopilotProfiles => self.load_autopilot_profiles(),
+                Screen::SignInLogs => self.fetch_signin_logs(),
+                Screen::RiskyUsers => self.fetch_risky_users(),
+                Screen::RiskySignIns => self.fetch_risky_signins(),
+                Screen::DirectoryAudit => self.fetch_directory_audit(),
+                _ => {
+                    self.status_message = Some((
+                        "Refresh not available for this screen".into(),
+                        StatusLevel::Warning,
+                    ));
+                }
+            },
 
             // Report generation actions
             "comprehensive" => self.start_tenant_report(),
@@ -3741,7 +3735,10 @@ impl App {
     }
 
     /// Generate comprehensive HTML report from TenantSecurityReport data
-    fn generate_comprehensive_report(&self, report: &crate::tui::tasks::TenantSecurityReport) -> String {
+    fn generate_comprehensive_report(
+        &self,
+        report: &crate::tui::tasks::TenantSecurityReport,
+    ) -> String {
         let grade_color = match report.security_grade.as_str() {
             "A" => "#16a34a",
             "B" => "#22c55e",
@@ -3751,20 +3748,35 @@ impl App {
         };
 
         // Generate CA policies table
-        let ca_rows: String = report.ca_summary.policies_by_category
+        let ca_rows: String = report
+            .ca_summary
+            .policies_by_category
             .iter()
             .map(|(category, policies)| {
-                let policy_list = policies.iter().take(5).cloned().collect::<Vec<_>>().join(", ");
-                let more = if policies.len() > 5 { format!(" (+{} more)", policies.len() - 5) } else { String::new() };
+                let policy_list = policies
+                    .iter()
+                    .take(5)
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                let more = if policies.len() > 5 {
+                    format!(" (+{} more)", policies.len() - 5)
+                } else {
+                    String::new()
+                };
                 format!(
                     "<tr><td>{}</td><td>{}</td><td>{}{}</td></tr>",
-                    category, policies.len(), policy_list, more
+                    category,
+                    policies.len(),
+                    policy_list,
+                    more
                 )
             })
             .collect();
 
         // Generate findings table
-        let findings_rows: String = report.findings
+        let findings_rows: String = report
+            .findings
             .iter()
             .map(|f| {
                 let severity_class = match f.severity.as_str() {
@@ -3785,7 +3797,8 @@ impl App {
             .collect();
 
         // Generate named locations table
-        let locations_rows: String = report.named_locations
+        let locations_rows: String = report
+            .named_locations
             .iter()
             .map(|loc| {
                 let details = if !loc.countries.is_empty() {
@@ -3797,13 +3810,17 @@ impl App {
                 };
                 format!(
                     "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
-                    loc.name, loc.location_type, if loc.is_trusted { "Yes" } else { "No" }, details
+                    loc.name,
+                    loc.location_type,
+                    if loc.is_trusted { "Yes" } else { "No" },
+                    details
                 )
             })
             .collect();
 
         // Generate recent changes table
-        let changes_rows: String = report.recent_changes
+        let changes_rows: String = report
+            .recent_changes
             .iter()
             .take(20)
             .map(|c| {
@@ -3818,7 +3835,10 @@ impl App {
         let mfa_status = if report.mfa_status.enforced_by_ca {
             ("<span class=\"status-deployed\">Enforced</span>", "Low")
         } else {
-            ("<span class=\"status-disabled\">Not Enforced</span>", "High")
+            (
+                "<span class=\"status-disabled\">Not Enforced</span>",
+                "High",
+            )
         };
 
         let legacy_auth = if report.ca_summary.has_legacy_auth_block {
@@ -3830,13 +3850,22 @@ impl App {
         let device_compliance = if report.ca_summary.has_device_compliance {
             ("<span class=\"status-deployed\">Required</span>", "Low")
         } else {
-            ("<span class=\"status-reportonly\">Not Required</span>", "Medium")
+            (
+                "<span class=\"status-reportonly\">Not Required</span>",
+                "Medium",
+            )
         };
 
         let security_defaults = if report.security_defaults_enabled {
-            ("<span class=\"status-reportonly\">Enabled</span>", "Basic protection active")
+            (
+                "<span class=\"status-reportonly\">Enabled</span>",
+                "Basic protection active",
+            )
         } else {
-            ("<span class=\"status-deployed\">Disabled</span>", "Custom CA policies can be used")
+            (
+                "<span class=\"status-deployed\">Disabled</span>",
+                "Custom CA policies can be used",
+            )
         };
 
         format!(
@@ -4076,19 +4105,37 @@ impl App {
             ca_disabled = report.ca_summary.disabled_count,
             ca_total = report.ca_summary.total_policies,
             findings_count = report.findings.len(),
-            intune_policies = report.intune_summary.compliance_policies + report.intune_summary.configuration_policies + report.intune_summary.settings_catalog_policies,
+            intune_policies = report.intune_summary.compliance_policies
+                + report.intune_summary.configuration_policies
+                + report.intune_summary.settings_catalog_policies,
             mfa_status = mfa_status.0,
             mfa_risk = mfa_status.1,
-            mfa_check_class = if report.mfa_status.enforced_by_ca { "check-pass" } else { "check-fail" },
+            mfa_check_class = if report.mfa_status.enforced_by_ca {
+                "check-pass"
+            } else {
+                "check-fail"
+            },
             legacy_status = legacy_auth.0,
             legacy_risk = legacy_auth.1,
-            legacy_check_class = if report.ca_summary.has_legacy_auth_block { "check-pass" } else { "check-fail" },
+            legacy_check_class = if report.ca_summary.has_legacy_auth_block {
+                "check-pass"
+            } else {
+                "check-fail"
+            },
             device_status = device_compliance.0,
             device_risk = device_compliance.1,
-            device_check_class = if report.ca_summary.has_device_compliance { "check-pass" } else { "check-warn" },
+            device_check_class = if report.ca_summary.has_device_compliance {
+                "check-pass"
+            } else {
+                "check-warn"
+            },
             sec_defaults_status = security_defaults.0,
             sec_defaults_note = security_defaults.1,
-            ca_rows = if ca_rows.is_empty() { "<tr><td colspan='3'>No CA policies found</td></tr>".to_string() } else { ca_rows },
+            ca_rows = if ca_rows.is_empty() {
+                "<tr><td colspan='3'>No CA policies found</td></tr>".to_string()
+            } else {
+                ca_rows
+            },
             locations_table = if report.named_locations.is_empty() {
                 "<p>No Named Locations configured</p>".to_string()
             } else {
@@ -4102,7 +4149,8 @@ impl App {
             } else {
                 format!(
                     r#"<div class="card"><h3>Security Findings ({} issues)</h3><table><tr><th>Severity</th><th>Category</th><th>Issue</th><th>Recommendation</th></tr>{}</table></div>"#,
-                    report.findings.len(), findings_rows
+                    report.findings.len(),
+                    findings_rows
                 )
             },
             changes_section = if report.recent_changes.is_empty() {
@@ -4158,10 +4206,8 @@ impl App {
                 ));
             }
             Err(e) => {
-                self.status_message = Some((
-                    format!("Failed to save report: {}", e),
-                    StatusLevel::Error,
-                ));
+                self.status_message =
+                    Some((format!("Failed to save report: {}", e), StatusLevel::Error));
             }
         }
     }
@@ -6788,9 +6834,9 @@ fn render_security_data(f: &mut Frame, app: &App, area: Rect) {
         Screen::AutopilotDevices => {
             render_autopilot_devices_table(f, app, area, m365_blue, m365_green, m365_gold, m365_red)
         }
-        Screen::AutopilotProfiles => {
-            render_autopilot_profiles_table(f, app, area, m365_blue, m365_green, m365_gold, m365_red)
-        }
+        Screen::AutopilotProfiles => render_autopilot_profiles_table(
+            f, app, area, m365_blue, m365_green, m365_gold, m365_red,
+        ),
         _ => {}
     }
 }
@@ -7407,12 +7453,19 @@ fn render_autopilot_devices_table(
     _m365_gold: Color,
     m365_red: Color,
 ) {
-    let header_cells = ["Serial Number", "Model", "Manufacturer", "Group Tag", "State", "Last Contact"]
-        .iter()
-        .map(|h| {
-            ratatui::widgets::Cell::from(*h)
-                .style(Style::default().fg(m365_blue).add_modifier(Modifier::BOLD))
-        });
+    let header_cells = [
+        "Serial Number",
+        "Model",
+        "Manufacturer",
+        "Group Tag",
+        "State",
+        "Last Contact",
+    ]
+    .iter()
+    .map(|h| {
+        ratatui::widgets::Cell::from(*h)
+            .style(Style::default().fg(m365_blue).add_modifier(Modifier::BOLD))
+    });
     let header = Row::new(header_cells).height(1).bottom_margin(1);
 
     let rows = app.autopilot_devices.iter().map(|device| {
@@ -7434,7 +7487,10 @@ fn render_autopilot_devices_table(
         Row::new(cells).height(1)
     });
 
-    let title = format!(" Autopilot Devices ({} devices) ", app.autopilot_devices.len());
+    let title = format!(
+        " Autopilot Devices ({} devices) ",
+        app.autopilot_devices.len()
+    );
 
     let table = Table::new(
         rows,
@@ -7470,7 +7526,11 @@ fn render_autopilot_devices_table(
 
     // Show empty state if no devices
     if app.autopilot_devices.is_empty() {
-        render_empty_state(f, area, "No Autopilot devices found. Use 'autopilot import' CLI to add devices.");
+        render_empty_state(
+            f,
+            area,
+            "No Autopilot devices found. Use 'autopilot import' CLI to add devices.",
+        );
     }
 }
 
@@ -7484,12 +7544,18 @@ fn render_autopilot_profiles_table(
     _m365_gold: Color,
     _m365_red: Color,
 ) {
-    let header_cells = ["Profile Name", "Description", "Device Type", "Deployment Mode", "Assigned"]
-        .iter()
-        .map(|h| {
-            ratatui::widgets::Cell::from(*h)
-                .style(Style::default().fg(m365_blue).add_modifier(Modifier::BOLD))
-        });
+    let header_cells = [
+        "Profile Name",
+        "Description",
+        "Device Type",
+        "Deployment Mode",
+        "Assigned",
+    ]
+    .iter()
+    .map(|h| {
+        ratatui::widgets::Cell::from(*h)
+            .style(Style::default().fg(m365_blue).add_modifier(Modifier::BOLD))
+    });
     let header = Row::new(header_cells).height(1).bottom_margin(1);
 
     let rows = app.autopilot_profiles.iter().map(|profile| {
@@ -7503,7 +7569,10 @@ fn render_autopilot_profiles_table(
         Row::new(cells).height(1)
     });
 
-    let title = format!(" Autopilot Deployment Profiles ({} profiles) ", app.autopilot_profiles.len());
+    let title = format!(
+        " Autopilot Deployment Profiles ({} profiles) ",
+        app.autopilot_profiles.len()
+    );
 
     let table = Table::new(
         rows,
@@ -7538,7 +7607,11 @@ fn render_autopilot_profiles_table(
 
     // Show empty state if no profiles
     if app.autopilot_profiles.is_empty() {
-        render_empty_state(f, area, "No Autopilot deployment profiles found. Create profiles via Intune portal or 'autopilot profile' CLI.");
+        render_empty_state(
+            f,
+            area,
+            "No Autopilot deployment profiles found. Create profiles via Intune portal or 'autopilot profile' CLI.",
+        );
     }
 }
 

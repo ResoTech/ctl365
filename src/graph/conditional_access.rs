@@ -143,7 +143,7 @@ pub async fn list_policies(client: &GraphClient) -> Result<Value> {
     let policies: Vec<ConditionalAccessPolicy> = client
         .get_all_pages("identity/conditionalAccess/policies")
         .await?;
-    
+
     // Convert back to Value format for backward compatibility
     Ok(json!({
         "value": policies,
@@ -176,7 +176,10 @@ pub async fn get_policy(client: &GraphClient, policy_id: &str) -> Result<Value> 
 }
 
 /// Get a specific CA policy by ID (typed)
-pub async fn get_policy_typed(client: &GraphClient, policy_id: &str) -> Result<ConditionalAccessPolicy> {
+pub async fn get_policy_typed(
+    client: &GraphClient,
+    policy_id: &str,
+) -> Result<ConditionalAccessPolicy> {
     client
         .get(&format!(
             "identity/conditionalAccess/policies/{}",
@@ -218,7 +221,7 @@ pub async fn list_named_locations(client: &GraphClient) -> Result<Value> {
     let locations: Vec<NamedLocation> = client
         .get_all_pages("identity/conditionalAccess/namedLocations")
         .await?;
-    
+
     Ok(json!({
         "value": locations,
         "@odata.count": locations.len()
@@ -226,15 +229,25 @@ pub async fn list_named_locations(client: &GraphClient) -> Result<Value> {
 }
 
 /// Check if a named location with the given name already exists
-pub async fn find_named_location_by_name(client: &GraphClient, name: &str) -> Result<Option<NamedLocation>> {
+pub async fn find_named_location_by_name(
+    client: &GraphClient,
+    name: &str,
+) -> Result<Option<NamedLocation>> {
     let locations = list_named_locations_typed(client).await?;
-    Ok(locations.into_iter().find(|loc| loc.display_name.eq_ignore_ascii_case(name)))
+    Ok(locations
+        .into_iter()
+        .find(|loc| loc.display_name.eq_ignore_ascii_case(name)))
 }
 
 /// Check if a CA policy with the given name already exists
-pub async fn find_policy_by_name(client: &GraphClient, name: &str) -> Result<Option<ConditionalAccessPolicy>> {
+pub async fn find_policy_by_name(
+    client: &GraphClient,
+    name: &str,
+) -> Result<Option<ConditionalAccessPolicy>> {
     let policies = list_policies_typed(client).await?;
-    Ok(policies.into_iter().find(|p| p.display_name.eq_ignore_ascii_case(name)))
+    Ok(policies
+        .into_iter()
+        .find(|p| p.display_name.eq_ignore_ascii_case(name)))
 }
 
 /// Get security defaults status
