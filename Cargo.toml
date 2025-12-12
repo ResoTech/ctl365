@@ -1,6 +1,6 @@
 [package]
 name = "ctl365"
-version = "0.1.4"
+version = "0.1.6"
 edition = "2024"
 authors = ["Resolve Technology LLC"]
 description = "Enterprise-grade Microsoft 365 deployment automation CLI"

@@ -1,10 +1,10 @@
-# 🚀 Quick Start Guide - ctl365
+# Quick Start Guide - ctl365
 
-## Phase 1 Complete: Authentication & Multi-Tenant Management ✅
+## Current Features
 
-The foundation is now ready! Here's what's working:
+ctl365 is a full-featured M365 management CLI with TUI dashboard. Here's what's available:
 
-### ✅ Features Available Now
+### Authentication & Multi-Tenant Management
 
 - **Microsoft Graph Authentication**
   - Device code flow (interactive)
@@ -15,6 +15,35 @@ The foundation is now ready! Here's what's working:
   - Add/list/switch/remove tenants
   - Per-tenant authentication
   - Easy tenant switching
+
+### Security Baselines & Conditional Access
+
+- **CA Baseline 2025** - 46 production-ready Conditional Access policies
+  - Deploy all or filter by category (CAD/CAL/CAP/CAR/CAS/CAU)
+  - Blast radius warnings (Critical/High/Medium/Low)
+  - Report-only mode by default for safety
+
+- **Windows/macOS/iOS/Android Baselines** - Intune device configuration templates
+
+- **CA Policy Management**
+  - `ca list` - View all CA policies with state
+  - `ca deploy --baseline 2025` - Deploy CA Baseline 2025 policies
+  - `ca enable` / `ca disable` - Toggle policies with audit trail
+
+### TUI Dashboard (Primary Interface)
+
+- **Interactive Security Monitoring** - Real-time tenant security overview
+- **Generate Full Security Report** - HTML report with grade (A-F), compliance score, MFA status, CA coverage
+- **Multi-tenant switching** - Manage all your tenants from one interface
+
+### Additional Features
+
+- **Audit & Compliance** - Drift detection, compliance reporting
+- **App Deployment** - Intune application management
+- **Autopilot** - Windows Autopilot device management
+- **GPO Migration** - Convert GPOs to Intune policies
+- **SCuBA Assessment** - CISA baseline compliance checking
+- **SharePoint/Viva/Copilot** - M365 workload management
 
 ---
 
@@ -184,15 +213,48 @@ description = "MSP customer - Contoso Corp"
 
 ---
 
-## Next Steps (Coming Soon)
+## TUI Dashboard (Recommended)
 
-Phase 2 will add:
-- ✅ Windows 11 25H2 baseline generation
-- ✅ BitLocker enforcement
-- ✅ Defender ATP onboarding
-- ✅ Baseline apply/export commands
+The TUI is the primary interface for managing tenants:
 
-Stay tuned!
+```bash
+# Launch the interactive dashboard
+ctl365 tui
+```
+
+**Key TUI Features:**
+- Security monitoring with real-time stats
+- Generate comprehensive security reports (HTML)
+- CA policy management
+- Baseline deployment
+- Multi-tenant switching
+
+## Conditional Access Baseline 2025
+
+Deploy production-ready CA policies:
+
+```bash
+# List current CA policies
+ctl365 ca list
+
+# Deploy all 46 CA Baseline 2025 policies (report-only mode)
+ctl365 ca deploy --baseline 2025
+
+# Deploy specific category
+ctl365 ca deploy --baseline 2025 --category CAD  # Device policies
+
+# Enable policies after testing
+ctl365 ca enable --all-report-only  # Enable all report-only policies
+ctl365 ca enable --name "CAD*"       # Enable by name pattern
+```
+
+**Categories:**
+- **CAD** - Device Trust (6 policies)
+- **CAL** - Legacy/Block (5 policies)
+- **CAP** - Platform Protection (8 policies)
+- **CAR** - Risk-Based (8 policies)
+- **CAS** - Session Controls (10 policies)
+- **CAU** - User Protection (9 policies)
 
 ---
 
@@ -236,4 +298,31 @@ ctl365 tenant add --help
 
 ---
 
-**ctl365** — *Control your cloud. Define your baseline.*
+## All Available Commands
+
+```
+ctl365 login       - Authenticate to Microsoft Graph API
+ctl365 logout      - Clear cached credentials
+ctl365 tenant      - Manage tenant configurations
+ctl365 baseline    - Manage baseline configurations
+ctl365 ca          - Conditional Access policy management
+ctl365 export      - Export/Import for MSP operations
+ctl365 audit       - Audit compliance and detect drift
+ctl365 app         - Deploy and manage applications
+ctl365 autopilot   - Windows Autopilot deployment
+ctl365 package     - Package apps for Intune (Win32)
+ctl365 script      - Deploy platform scripts
+ctl365 gpo         - GPO to Intune migration
+ctl365 scuba       - CISA SCuBA baseline assessment
+ctl365 aadconnect  - Azure AD Connect migration
+ctl365 sharepoint  - SharePoint management
+ctl365 viva        - Viva Engage management
+ctl365 copilot     - Copilot agents and search
+ctl365 tui         - Interactive TUI dashboard
+```
+
+Run `ctl365 <command> --help` for detailed options.
+
+---
+
+**ctl365** - Control your cloud. Define your baseline.

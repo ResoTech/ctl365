@@ -6,7 +6,129 @@
 
 use crate::error::Result;
 use crate::graph::GraphClient;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+
+/// Conditional Access Policy structure for typed responses
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConditionalAccessPolicy {
+    pub id: String,
+    pub display_name: String,
+    pub state: String,
+    #[serde(default)]
+    pub created_date_time: Option<String>,
+    #[serde(default)]
+    pub modified_date_time: Option<String>,
+    #[serde(default)]
+    pub conditions: Option<PolicyConditions>,
+    #[serde(default)]
+    pub grant_controls: Option<GrantControls>,
+    #[serde(default)]
+    pub session_controls: Option<Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PolicyConditions {
+    #[serde(default)]
+    pub users: Option<UserCondition>,
+    #[serde(default)]
+    pub applications: Option<ApplicationCondition>,
+    #[serde(default)]
+    pub locations: Option<LocationCondition>,
+    #[serde(default)]
+    pub platforms: Option<PlatformCondition>,
+    #[serde(default)]
+    pub client_app_types: Option<Vec<String>>,
+    #[serde(default)]
+    pub sign_in_risk_levels: Option<Vec<String>>,
+    #[serde(default)]
+    pub user_risk_levels: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UserCondition {
+    #[serde(default)]
+    pub include_users: Option<Vec<String>>,
+    #[serde(default)]
+    pub exclude_users: Option<Vec<String>>,
+    #[serde(default)]
+    pub include_groups: Option<Vec<String>>,
+    #[serde(default)]
+    pub exclude_groups: Option<Vec<String>>,
+    #[serde(default)]
+    pub include_roles: Option<Vec<String>>,
+    #[serde(default)]
+    pub exclude_roles: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ApplicationCondition {
+    #[serde(default)]
+    pub include_applications: Option<Vec<String>>,
+    #[serde(default)]
+    pub exclude_applications: Option<Vec<String>>,
+    #[serde(default)]
+    pub include_user_actions: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocationCondition {
+    #[serde(default)]
+    pub include_locations: Option<Vec<String>>,
+    #[serde(default)]
+    pub exclude_locations: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlatformCondition {
+    #[serde(default)]
+    pub include_platforms: Option<Vec<String>>,
+    #[serde(default)]
+    pub exclude_platforms: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GrantControls {
+    #[serde(default)]
+    pub operator: Option<String>,
+    #[serde(default)]
+    pub built_in_controls: Option<Vec<String>>,
+    #[serde(default)]
+    pub custom_authentication_factors: Option<Vec<String>>,
+    #[serde(default)]
+    pub terms_of_use: Option<Vec<String>>,
+}
+
+/// Named Location structure
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NamedLocation {
+    pub id: String,
+    pub display_name: String,
+    #[serde(rename = "@odata.type")]
+    pub odata_type: String,
+    #[serde(default)]
+    pub is_trusted: Option<bool>,
+    #[serde(default)]
+    pub countries_and_regions: Option<Vec<String>>,
+    #[serde(default)]
+    pub ip_ranges: Option<Vec<IpRange>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IpRange {
+    #[serde(rename = "@odata.type")]
+    pub odata_type: String,
+    pub cidr_address: String,
+}
 
 /// Create a Conditional Access policy
 pub async fn create_policy(client: &GraphClient, policy: &Value) -> Result<Value> {
@@ -15,13 +137,46 @@ pub async fn create_policy(client: &GraphClient, policy: &Value) -> Result<Value
         .await
 }
 
-/// List all Conditional Access policies
+/// List all Conditional Access policies with pagination support
 pub async fn list_policies(client: &GraphClient) -> Result<Value> {
-    client.get("identity/conditionalAccess/policies").await
+    // Use pagination to get ALL policies (not just first page)
+    let policies: Vec<ConditionalAccessPolicy> = client
+        .get_all_pages("identity/conditionalAccess/policies")
+        .await?;
+    
+    // Convert back to Value format for backward compatibility
+    Ok(json!({
+        "value": policies,
+        "@odata.count": policies.len()
+    }))
+}
+
+/// List all CA policies as typed structs (preferred for new code)
+pub async fn list_policies_typed(client: &GraphClient) -> Result<Vec<ConditionalAccessPolicy>> {
+    client
+        .get_all_pages("identity/conditionalAccess/policies")
+        .await
+}
+
+/// List Named Locations with pagination support
+pub async fn list_named_locations_typed(client: &GraphClient) -> Result<Vec<NamedLocation>> {
+    client
+        .get_all_pages("identity/conditionalAccess/namedLocations")
+        .await
 }
 
 /// Get a specific CA policy by ID
 pub async fn get_policy(client: &GraphClient, policy_id: &str) -> Result<Value> {
+    client
+        .get(&format!(
+            "identity/conditionalAccess/policies/{}",
+            policy_id
+        ))
+        .await
+}
+
+/// Get a specific CA policy by ID (typed)
+pub async fn get_policy_typed(client: &GraphClient, policy_id: &str) -> Result<ConditionalAccessPolicy> {
     client
         .get(&format!(
             "identity/conditionalAccess/policies/{}",
@@ -58,11 +213,28 @@ pub async fn create_named_location(client: &GraphClient, location: &Value) -> Re
         .await
 }
 
-/// List Named Locations
+/// List Named Locations with pagination
 pub async fn list_named_locations(client: &GraphClient) -> Result<Value> {
-    client
-        .get("identity/conditionalAccess/namedLocations")
-        .await
+    let locations: Vec<NamedLocation> = client
+        .get_all_pages("identity/conditionalAccess/namedLocations")
+        .await?;
+    
+    Ok(json!({
+        "value": locations,
+        "@odata.count": locations.len()
+    }))
+}
+
+/// Check if a named location with the given name already exists
+pub async fn find_named_location_by_name(client: &GraphClient, name: &str) -> Result<Option<NamedLocation>> {
+    let locations = list_named_locations_typed(client).await?;
+    Ok(locations.into_iter().find(|loc| loc.display_name.eq_ignore_ascii_case(name)))
+}
+
+/// Check if a CA policy with the given name already exists
+pub async fn find_policy_by_name(client: &GraphClient, name: &str) -> Result<Option<ConditionalAccessPolicy>> {
+    let policies = list_policies_typed(client).await?;
+    Ok(policies.into_iter().find(|p| p.display_name.eq_ignore_ascii_case(name)))
 }
 
 /// Get security defaults status
@@ -295,6 +467,15 @@ pub async fn enable_policy(client: &GraphClient, policy_id: &str) -> Result<Valu
 pub async fn set_report_only(client: &GraphClient, policy_id: &str) -> Result<Value> {
     let payload = json!({
         "state": "enabledForReportingButNotEnforced"
+    });
+
+    update_policy(client, policy_id, &payload).await
+}
+
+/// Disable a CA policy
+pub async fn disable_policy(client: &GraphClient, policy_id: &str) -> Result<Value> {
+    let payload = json!({
+        "state": "disabled"
     });
 
     update_policy(client, policy_id, &payload).await

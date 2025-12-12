@@ -491,25 +491,102 @@ ctl365 scuba baselines
 
 ## Interactive TUI
 
-### Dashboard
+The TUI provides a full-screen terminal interface for managing Microsoft 365 tenants.
+
+### Launch Dashboard
 ```bash
-ctl365 tui dashboard           # Full-screen dashboard
+ctl365 tui dashboard           # Full-screen dashboard (recommended)
+ctl365 tui                     # Same as above
 ```
 
-### Configuration Menus
-```bash
-ctl365 tui clients             # MSP client management
-ctl365 tui configure           # Configure active tenant
-ctl365 tui quick               # Quick single-setting changes
+### Dashboard Features (v0.1.6)
+
+| Menu Item | Shortcut | Description |
+|-----------|----------|-------------|
+| Manage Clients | `c` | Add, edit, delete MSP clients |
+| Configure Tenant | `t` | Service-specific settings |
+| Generate Reports | `r` | Security reports with HTML export |
+| Audit & Compliance | `a` | Policy audit and drift detection |
+| Audit History | `h` | View change tracking log |
+| Security Monitoring | `s` | Sign-in logs, risky users (P1/P2) |
+| Deploy Baseline | `b` | Windows, macOS, iOS, Android |
+| Conditional Access | `p` | View/deploy 44 CA policies |
+| Windows Autopilot | `w` | Devices, profiles, sync |
+| Help | `?` | Keyboard shortcuts |
+| Exit | `q` | Return to command line |
+
+### Client Management
+
+```
+Dashboard > Manage Clients
 ```
 
-### Service-Specific Configuration
-```bash
-ctl365 tui defender            # Defender for Office 365
-ctl365 tui exchange            # Exchange Online
-ctl365 tui sharepoint          # SharePoint/OneDrive
-ctl365 tui teams               # Microsoft Teams
+- **Add Client** (`n`) - Register new MSP client with tenant/app IDs
+- **Edit Client** (`e`) - Modify existing client configuration
+- **Delete Client** (`d`) - Remove client from configuration
+- **Import from Config** (`i`) - Load from `~/.ctl365/clients/*.toml`
+- Click any client to switch and configure
+
+### Security Monitoring (Entra ID P1/P2)
+
 ```
+Dashboard > Security Monitoring
+```
+
+- **Sign-in Logs** - View recent authentication events
+- **Risky Users** - Identity Protection risk assessments
+- **Risky Sign-ins** - Flagged authentication attempts
+- **Directory Audit** - Administrative actions log
+- **Security Summary** - Dashboard with risk counts
+
+### Windows Autopilot
+
+```
+Dashboard > Windows Autopilot
+```
+
+- **List Devices** (`l`) - View registered Autopilot devices
+- **View Profiles** (`p`) - Deployment profile configurations
+- **Sync Devices** (`s`) - Trigger Intune sync
+- **Import Devices** - Use CLI: `ctl365 autopilot import -f <csv>`
+
+### Comprehensive Reports
+
+```
+Dashboard > Generate Reports > Generate Full Security Report
+```
+
+Generates HTML report with:
+- Security grade (A-F) and compliance score (0-100)
+- SCuBA alignment assessment (6 categories, 32 checks)
+- Conditional Access policy summary
+- MFA status and Intune configuration
+- Security findings with recommendations
+
+### Keyboard Shortcuts
+
+| Key | Action |
+|-----|--------|
+| `↑`/`↓` or `j`/`k` | Navigate menu/table |
+| `Enter` | Select item |
+| `Backspace` or `b` | Go back |
+| `/` | Search/filter |
+| `Esc` | Cancel/close |
+| `?` | Toggle help overlay |
+| `q` | Quit (with confirmation) |
+| Scroll wheel | Navigate menu items |
+
+### Form Input
+
+| Key | Action |
+|-----|--------|
+| `Tab` | Next field |
+| `Shift+Tab` | Previous field |
+| `Enter` | Submit form |
+| `Esc` | Cancel |
+| `←`/`→` | Move cursor |
+| `Ctrl+A` | Beginning of line |
+| `Ctrl+E` | End of line |
 
 ---
 

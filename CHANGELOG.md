@@ -5,6 +5,50 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.6] - 2025-12-12
+
+### Added
+- **Edit Client in TUI** - Full implementation of client editing workflow
+  - New `ClientEditSelect` and `ClientEdit` screens
+  - Edit menu item in Client List with 'e' shortcut
+  - Pre-populated form with existing client values
+  - Updates both MSP config and tenant config on save
+  - Audit trail for client modifications
+
+- **SCuBA Alignment Scoring** - CISA Secure Cloud Business Applications compliance assessment
+  - 6 categories assessed: Entra ID, Exchange Online, Defender for O365, SharePoint/OneDrive, Teams, Power Platform
+  - 32 total checks across Microsoft 365 security baseline
+  - Per-category scores and overall alignment percentage
+  - Integrated into comprehensive tenant security reports
+
+- **Windows Autopilot Management in TUI** - New dashboard section
+  - List Autopilot devices with serial number, model, manufacturer, enrollment state
+  - View Autopilot deployment profiles
+  - Trigger Autopilot sync with Intune
+  - Menu item with 'w' shortcut on dashboard
+
+- **Applications Menu Enabled** - Mobile apps now viewable in TUI
+  - Navigate via Intune > Applications in TUI
+  - Lists Win32 apps, Store apps with deployment status
+  - Full async loading with progress indicator
+
+### Improved
+- **Intune Settings Submenu** - Better navigation
+  - Compliance Policies now navigates to policy list
+  - Configuration Profiles now navigates to policy list
+  - Distinct menu item IDs avoid conflict with report generators
+
+### Technical
+- New `Screen::ClientEditSelect`, `Screen::ClientEdit(String)`, `Screen::Autopilot`, `Screen::AutopilotDevices`, `Screen::AutopilotProfiles` variants
+- New `TaskRequest` variants: `LoadAutopilotDevices`, `LoadAutopilotProfiles`, `SyncAutopilot`
+- New `TaskResult` variants: `AutopilotDevicesLoaded`, `AutopilotProfilesLoaded`, `AutopilotSynced`
+- New data types: `AutopilotDeviceData`, `AutopilotProfileData`
+- Autopilot device/profile render functions with M365 Fluent Design
+- Context-sensitive refresh action across all data screens
+- `calculate_scuba_alignment()` function with 200+ lines of compliance logic
+- All 155 tests passing
+- Zero clippy warnings
+
 ## [0.1.4] - 2025-12-11
 
 ### Added

@@ -919,10 +919,40 @@ impl ConfigManager {
         Ok(count)
     }
 
-    /// Get tenant by name, checking env files first
+    /// Get tenant by name, checking all config sources
+    ///
+    /// Search order:
+    /// 1. tenants.toml (legacy format)
+    /// 2. ~/.ctl365/clients/{name}.toml (new TUI format)
+    /// 3. tenants.env (multi-tenant env file)
+    /// 4. {name}.env (individual env file)
     pub fn get_tenant_or_env(&self, name: &str) -> Result<TenantConfig> {
-        // First check tenants.toml
-        if let Ok(tenant) = self.get_tenant(name) {
+        // First check tenants.toml (case-insensitive)
+        if let Ok(tenants) = self.load_tenants() {
+            if let Some(tenant) = tenants
+                .into_iter()
+                .find(|t| t.name.eq_ignore_ascii_case(name))
+            {
+                return Ok(tenant);
+            }
+        }
+
+        // Check new client config format (~/.ctl365/clients/{name}.toml)
+        if let Ok(client_config) = ClientConfig::load(name) {
+            // Convert ClientConfig to TenantConfig
+            let auth_type = if client_config.has_client_secret() {
+                AuthType::ClientCredentials
+            } else {
+                AuthType::DeviceCode
+            };
+            let tenant = TenantConfig {
+                name: client_config.client.abbreviation.clone(),
+                tenant_id: client_config.azure.tenant_id,
+                client_id: client_config.azure.app_id,
+                client_secret: client_config.azure.client_secret,
+                description: Some(client_config.client.name),
+                auth_type,
+            };
             return Ok(tenant);
         }
 

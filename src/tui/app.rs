@@ -173,6 +173,17 @@ pub struct App {
     pub directory_audits: Vec<crate::tui::tasks::DirectoryAuditData>,
     /// Security summary
     pub security_summary: Option<crate::tui::tasks::SecuritySummaryData>,
+    /// Connection test results
+    pub connection_test_results: Vec<crate::tui::tasks::PermissionCheckResult>,
+    /// Comprehensive tenant security report (for HTML export)
+    pub tenant_report: Option<crate::tui::tasks::TenantSecurityReport>,
+    // ========================================================================
+    // Autopilot fields
+    // ========================================================================
+    /// Autopilot devices
+    pub autopilot_devices: Vec<crate::tui::tasks::AutopilotDeviceData>,
+    /// Autopilot deployment profiles
+    pub autopilot_profiles: Vec<crate::tui::tasks::AutopilotProfileData>,
 }
 
 /// State for tracking async operations
@@ -352,6 +363,8 @@ pub enum Screen {
     ClientList,
     ClientAdd,
     ClientDelete,
+    ClientEditSelect,     // select which client to edit
+    ClientEdit(String),   // client abbreviation for editing (form screen)
     ClientConfig(String), // client abbreviation
     Settings(SettingsCategory),
     Reports,
@@ -366,6 +379,12 @@ pub enum Screen {
     RiskySignIns,
     DirectoryAudit,
     SecuritySummary,
+    // Connection testing
+    TestConnection,
+    // Autopilot management
+    Autopilot,
+    AutopilotDevices,
+    AutopilotProfiles,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -460,6 +479,13 @@ impl App {
             risky_signins: Vec::new(),
             directory_audits: Vec::new(),
             security_summary: None,
+            // Connection testing
+            connection_test_results: Vec::new(),
+            // Tenant security report
+            tenant_report: None,
+            // Autopilot
+            autopilot_devices: Vec::new(),
+            autopilot_profiles: Vec::new(),
         };
 
         // Spawn background task worker
@@ -708,10 +734,12 @@ impl App {
     }
 
     /// Check worker health based on last response time (Phase 2)
-    /// If worker hasn't responded within WORKER_HEARTBEAT_TIMEOUT, mark as unhealthy
+    /// Only marks worker unhealthy if a task is actively running and hasn't responded.
+    /// Idle workers are assumed healthy since they have nothing to respond to.
     pub fn check_worker_health(&mut self) {
-        // Only check if we think worker is ready
-        if self.worker_ready {
+        // Only check if we think worker is ready AND a task is actively running
+        // If no task is running, we can't expect responses - worker is assumed healthy
+        if self.worker_ready && self.is_async_task_running() {
             let elapsed = self.last_worker_response.elapsed();
             if elapsed >= WORKER_HEARTBEAT_TIMEOUT {
                 tracing::warn!("Worker heartbeat timeout: no response for {:?}", elapsed);
@@ -1045,6 +1073,88 @@ impl App {
         self.input_mode = InputMode::Input;
     }
 
+    /// Initialize form for editing an existing client
+    pub fn init_edit_client_form(&mut self, abbrev: &str) {
+        // Find the client to edit
+        let client = match self.msp_config.clients.iter().find(|c| c.abbreviation == abbrev) {
+            Some(c) => c.clone(),
+            None => {
+                self.status_message = Some((
+                    format!("Client {} not found", abbrev),
+                    StatusLevel::Error,
+                ));
+                self.go_back();
+                return;
+            }
+        };
+
+        self.form_state = Some(FormState {
+            title: format!("Edit Client: {}", abbrev),
+            fields: vec![
+                FormField {
+                    id: "abbreviation".into(),
+                    label: "Client Abbreviation (read-only)".into(),
+                    value: client.abbreviation.clone(),
+                    placeholder: "Cannot be changed".into(),
+                    required: true,
+                    field_type: FormFieldType::Text, // Will be skipped in editing
+                },
+                FormField {
+                    id: "full_name".into(),
+                    label: "Full Name".into(),
+                    value: client.full_name.clone(),
+                    placeholder: "e.g., Acme Corporation".into(),
+                    required: true,
+                    field_type: FormFieldType::Text,
+                },
+                FormField {
+                    id: "tenant_id".into(),
+                    label: "Tenant ID".into(),
+                    value: client.tenant_id.clone(),
+                    placeholder: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx".into(),
+                    required: true,
+                    field_type: FormFieldType::Text,
+                },
+                FormField {
+                    id: "client_id".into(),
+                    label: "App Client ID".into(),
+                    value: client.client_id.clone(),
+                    placeholder: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx".into(),
+                    required: true,
+                    field_type: FormFieldType::Text,
+                },
+                FormField {
+                    id: "client_secret".into(),
+                    label: "Client Secret (leave empty to keep existing)".into(),
+                    value: String::new(), // Don't show existing secret for security
+                    placeholder: "Leave empty to keep existing secret".into(),
+                    required: false,
+                    field_type: FormFieldType::Password,
+                },
+                FormField {
+                    id: "contact_email".into(),
+                    label: "Contact Email".into(),
+                    value: client.contact_email.clone().unwrap_or_default(),
+                    placeholder: "admin@client.com".into(),
+                    required: false,
+                    field_type: FormFieldType::Text,
+                },
+                FormField {
+                    id: "notes".into(),
+                    label: "Notes".into(),
+                    value: client.notes.clone().unwrap_or_default(),
+                    placeholder: "Optional notes about this client".into(),
+                    required: false,
+                    field_type: FormFieldType::Text,
+                },
+            ],
+            current_field: 1, // Start on full_name, since abbreviation is read-only
+            submit_label: "Save Changes".to_string(),
+            on_submit: FormAction::EditClient(abbrev.to_string()),
+        });
+        self.input_mode = InputMode::Input;
+    }
+
     /// Initialize default toggle states for settings
     pub fn init_defender_toggles(&mut self) {
         self.setting_toggles.clear();
@@ -1277,11 +1387,147 @@ impl App {
         self.go_back();
     }
 
-    fn process_edit_client(&mut self, _abbrev: &str, _fields: &[FormField]) {
+    fn process_edit_client(&mut self, abbrev: &str, fields: &[FormField]) {
+        let get_field = |id: &str| -> String {
+            fields
+                .iter()
+                .find(|f| f.id == id)
+                .map(|f| f.value.clone())
+                .unwrap_or_default()
+        };
+
+        let full_name = get_field("full_name");
+        let tenant_id = get_field("tenant_id");
+        let client_id = get_field("client_id");
+        let client_secret = get_field("client_secret");
+        let contact_email = get_field("contact_email");
+        let notes = get_field("notes");
+
+        // Find and update the client in MSP config
+        let client_idx = match self
+            .msp_config
+            .clients
+            .iter()
+            .position(|c| c.abbreviation == abbrev)
+        {
+            Some(idx) => idx,
+            None => {
+                self.status_message = Some((
+                    format!("Client {} not found", abbrev),
+                    StatusLevel::Error,
+                ));
+                return;
+            }
+        };
+
+        // Get the old values for audit logging
+        let old_client = self.msp_config.clients[client_idx].clone();
+
+        // Update the client fields
+        let client = &mut self.msp_config.clients[client_idx];
+        client.full_name = full_name.clone();
+        client.tenant_id = tenant_id.clone();
+        client.client_id = client_id.clone();
+        
+        // Only update secret if a new one was provided
+        if !client_secret.is_empty() {
+            client.client_secret = Some(client_secret.clone());
+            client.auth_type = "client_credentials".into();
+        }
+        
+        client.contact_email = if contact_email.is_empty() {
+            None
+        } else {
+            Some(contact_email)
+        };
+        client.notes = if notes.is_empty() {
+            None
+        } else {
+            Some(notes)
+        };
+
+        // Save MSP config
+        if let Err(e) = self.msp_config.save() {
+            self.status_message = Some((
+                format!("Failed to save client changes: {}", e),
+                StatusLevel::Error,
+            ));
+            return;
+        }
+
+        // Also update tenant config for authentication
+        use crate::config::{AuthType, TenantConfig};
+        let has_secret = if client_secret.is_empty() {
+            old_client.client_secret.is_some()
+        } else {
+            true
+        };
+        
+        let tenant_config = TenantConfig {
+            name: abbrev.to_string(),
+            tenant_id: tenant_id.clone(),
+            client_id: client_id.clone(),
+            client_secret: if !client_secret.is_empty() {
+                Some(client_secret)
+            } else {
+                old_client.client_secret.clone() // Keep existing secret
+            },
+            auth_type: if has_secret {
+                AuthType::ClientCredentials
+            } else {
+                AuthType::DeviceCode
+            },
+            description: Some(full_name.clone()),
+        };
+
+        // Update tenant (remove old and add new)
+        let _ = self.config.remove_tenant(abbrev);
+        if let Err(e) = self.config.add_tenant(tenant_config) {
+            self.status_message = Some((
+                format!("Client updated but tenant config sync failed: {}", e),
+                StatusLevel::Warning,
+            ));
+            self.go_back();
+            return;
+        }
+
+        // Record audit entry for client edit
+        use crate::tui::change_tracker::{AuditAction, AuditEntry, record};
+        let mut changes = Vec::new();
+        if old_client.full_name != full_name {
+            changes.push(format!("name: {} -> {}", old_client.full_name, full_name));
+        }
+        if old_client.tenant_id != tenant_id {
+            changes.push("tenant_id updated".to_string());
+        }
+        if old_client.client_id != client_id {
+            changes.push("client_id updated".to_string());
+        }
+        if old_client.contact_email != self.msp_config.clients[client_idx].contact_email {
+            changes.push("contact_email updated".to_string());
+        }
+        
+        let change_details = if changes.is_empty() {
+            "No changes made".to_string()
+        } else {
+            changes.join(", ")
+        };
+
+        let entry = AuditEntry::new(
+            AuditAction::SettingChanged,
+            "Client",
+            abbrev,
+            abbrev,
+        )
+        .with_details(&format!("Client edited: {}", change_details))
+        .success();
+        record(entry);
+
         self.status_message = Some((
-            "Edit client not yet implemented".into(),
-            StatusLevel::Warning,
+            format!("Client {} updated successfully!", abbrev),
+            StatusLevel::Success,
         ));
+        self.go_back();
     }
 
     fn process_export_policies(&mut self, _fields: &[FormField]) {
@@ -1324,6 +1570,8 @@ impl App {
             Screen::Dashboard => self.dashboard_menu(),
             Screen::ClientList => self.client_list_menu(),
             Screen::ClientAdd => vec![], // Form-based, no menu
+            Screen::ClientEditSelect => self.client_edit_select_menu(),
+            Screen::ClientEdit(_) => vec![], // Form-based, no menu
             Screen::ClientDelete => self.client_delete_menu(),
             Screen::ClientConfig(_) => self.client_config_menu(),
             Screen::Settings(cat) => self.settings_menu(cat),
@@ -1339,6 +1587,11 @@ impl App {
             | Screen::RiskySignIns
             | Screen::DirectoryAudit
             | Screen::SecuritySummary => self.security_data_menu(),
+            // Connection test results screen
+            Screen::TestConnection => self.security_data_menu(), // Uses back-only menu
+            // Autopilot management
+            Screen::Autopilot => self.autopilot_menu(),
+            Screen::AutopilotDevices | Screen::AutopilotProfiles => self.autopilot_data_menu(),
         };
 
         // Load policies after match to avoid borrow conflict (non-blocking)
@@ -1648,6 +1901,13 @@ impl App {
                 enabled: self.active_tenant.is_some(),
             },
             MenuItem {
+                id: "autopilot".into(),
+                label: "Windows Autopilot".into(),
+                description: "Manage Autopilot devices and profiles".into(),
+                shortcut: Some('w'),
+                enabled: self.active_tenant.is_some(),
+            },
+            MenuItem {
                 id: "help".into(),
                 label: "Help & Documentation".into(),
                 description: "Keyboard shortcuts, guides".into(),
@@ -1687,6 +1947,14 @@ impl App {
             description: "Register a new client tenant".into(),
             shortcut: Some('n'),
             enabled: true,
+        });
+
+        items.push(MenuItem {
+            id: "edit_client".into(),
+            label: "✎ Edit Client".into(),
+            description: "Modify an existing client's configuration".into(),
+            shortcut: Some('e'),
+            enabled: !self.msp_config.clients.is_empty(),
         });
 
         items.push(MenuItem {
@@ -1738,6 +2006,35 @@ impl App {
             id: "back".into(),
             label: "← Cancel".into(),
             description: "Return without deleting".into(),
+            shortcut: Some('b'),
+            enabled: true,
+        });
+
+        items
+    }
+
+    fn client_edit_select_menu(&self) -> Vec<MenuItem> {
+        let mut items: Vec<MenuItem> = self
+            .msp_config
+            .clients
+            .iter()
+            .map(|c| MenuItem {
+                id: format!("edit:{}", c.abbreviation),
+                label: format!("{} - {}", c.abbreviation, c.full_name),
+                description: format!(
+                    "Tenant: {} | Contact: {}",
+                    c.tenant_id.chars().take(8).collect::<String>(),
+                    c.contact_email.as_deref().unwrap_or("None")
+                ),
+                shortcut: None,
+                enabled: true,
+            })
+            .collect();
+
+        items.push(MenuItem {
+            id: "back".into(),
+            label: "← Cancel".into(),
+            description: "Return without editing".into(),
             shortcut: Some('b'),
             enabled: true,
         });
@@ -1801,6 +2098,13 @@ impl App {
                 label: "Generate Report".into(),
                 description: "Export an HTML report for this client. Includes current configuration, compliance status, and recommendations. Saved to ~/.ctl365/reports/.".into(),
                 shortcut: Some('r'),
+                enabled: true,
+            },
+            MenuItem {
+                id: "test_connection".into(),
+                label: "Test Connection".into(),
+                description: "Verify Graph API connection and check app registration permissions. Tests authentication and each required permission scope.".into(),
+                shortcut: Some('x'),
                 enabled: true,
             },
             MenuItem {
@@ -1994,14 +2298,14 @@ impl App {
             ],
             SettingsCategory::Intune => vec![
                 MenuItem {
-                    id: "compliance".into(),
+                    id: "compliance_policies".into(),
                     label: "Compliance Policies".into(),
                     description: "View/deploy compliance policies".into(),
                     shortcut: Some('1'),
                     enabled: true,
                 },
                 MenuItem {
-                    id: "configuration".into(),
+                    id: "configuration_policies".into(),
                     label: "Configuration Profiles".into(),
                     description: "View/deploy config profiles".into(),
                     shortcut: Some('2'),
@@ -2010,9 +2314,9 @@ impl App {
                 MenuItem {
                     id: "apps".into(),
                     label: "Applications".into(),
-                    description: "View/deploy apps (Coming in v0.2)".into(),
+                    description: "View deployed mobile apps".into(),
                     shortcut: Some('3'),
-                    enabled: false, // Not yet implemented
+                    enabled: true,
                 },
                 MenuItem {
                     id: "back".into(),
@@ -2032,41 +2336,107 @@ impl App {
         }
     }
 
+    fn autopilot_menu(&self) -> Vec<MenuItem> {
+        vec![
+            MenuItem {
+                id: "autopilot_list".into(),
+                label: "List Autopilot Devices".into(),
+                description: "View all registered Autopilot devices".into(),
+                shortcut: Some('l'),
+                enabled: true,
+            },
+            MenuItem {
+                id: "autopilot_profiles".into(),
+                label: "View Deployment Profiles".into(),
+                description: "List Autopilot deployment profiles".into(),
+                shortcut: Some('p'),
+                enabled: true,
+            },
+            MenuItem {
+                id: "autopilot_sync".into(),
+                label: "Sync Devices".into(),
+                description: "Trigger Autopilot sync with Intune".into(),
+                shortcut: Some('s'),
+                enabled: true,
+            },
+            MenuItem {
+                id: "autopilot_import".into(),
+                label: "Import Devices (CSV)".into(),
+                description: "Import devices from hardware hash CSV".into(),
+                shortcut: Some('i'),
+                enabled: false, // Requires CLI for now (file selection)
+            },
+            MenuItem {
+                id: "back".into(),
+                label: "← Back".into(),
+                description: "Return to dashboard".into(),
+                shortcut: Some('b'),
+                enabled: true,
+            },
+        ]
+    }
+
+    fn autopilot_data_menu(&self) -> Vec<MenuItem> {
+        vec![
+            MenuItem {
+                id: "refresh".into(),
+                label: "↻ Refresh".into(),
+                description: "Reload data from Graph API".into(),
+                shortcut: Some('r'),
+                enabled: true,
+            },
+            MenuItem {
+                id: "back".into(),
+                label: "← Back".into(),
+                description: "Return to Autopilot menu".into(),
+                shortcut: Some('b'),
+                enabled: true,
+            },
+        ]
+    }
+
     fn reports_menu(&self) -> Vec<MenuItem> {
         vec![
             MenuItem {
-                id: "compliance".into(),
-                label: "Compliance Report".into(),
-                description: "Generate a full compliance audit report with 0-100 scoring. Shows policy deployment status, gap analysis vs baseline, and actionable remediation steps.".into(),
+                id: "comprehensive".into(),
+                label: "★ Generate Full Security Report".into(),
+                description: "RECOMMENDED: Fetches live data from Graph API. Includes security grade, MFA status, CA policy coverage, Named Locations, Intune summary, findings, and audit trail. Perfect for client deliverables.".into(),
                 shortcut: Some('1'),
+                enabled: self.active_tenant.is_some(),
+            },
+            MenuItem {
+                id: "compliance".into(),
+                label: "Compliance Report (Cached)".into(),
+                description: "Generate compliance report from cached policy data. Load policies first for accurate results.".into(),
+                shortcut: Some('2'),
                 enabled: true,
             },
             MenuItem {
                 id: "security".into(),
-                label: "Security Assessment".into(),
-                description: "Analyze tenant security posture. Reviews Defender settings, CA policies, MFA enforcement, and risky configurations. Outputs findings with severity ratings.".into(),
-                shortcut: Some('2'),
+                label: "Security Assessment (Cached)".into(),
+                description: "Analyze security posture from cached settings. Configure settings first for accurate results.".into(),
+                shortcut: Some('3'),
                 enabled: true,
             },
             MenuItem {
                 id: "inventory".into(),
                 label: "Policy Inventory".into(),
                 description: "Export a complete inventory of all deployed Intune policies. Includes compliance policies, configuration profiles, apps, and CA policies with assignment details.".into(),
-                shortcut: Some('3'),
+                shortcut: Some('4'),
                 enabled: true,
             },
             MenuItem {
                 id: "changes".into(),
                 label: "Change Control Report".into(),
                 description: "Generate a detailed change log of all modifications made in this session. Useful for change management documentation and client sign-off.".into(),
-                shortcut: Some('4'),
+                shortcut: Some('5'),
                 enabled: true,
             },
             MenuItem {
                 id: "executive".into(),
                 label: "Executive Summary".into(),
                 description: "One-page executive summary for leadership. Includes compliance score, key metrics, risk highlights, and recommendations. Suitable for board or client presentations.".into(),
-                shortcut: Some('5'),
+                shortcut: Some('6'),
                 enabled: true,
             },
             MenuItem {
@@ -2115,6 +2485,9 @@ impl App {
             "delete_client" => {
                 self.navigate_to(Screen::ClientDelete);
             }
+            "edit_client" => {
+                self.navigate_to(Screen::ClientEditSelect);
+            }
             "import_config" => {
                 self.import_clients_from_config();
             }
@@ -2135,6 +2508,10 @@ impl App {
                 self.navigate_to(Screen::Settings(SettingsCategory::Teams));
             }
             "ca" => self.navigate_to(Screen::PolicyList(PolicyListType::ConditionalAccess)),
+            "apps" => self.navigate_to(Screen::PolicyList(PolicyListType::Apps)),
+            // Policy list navigation from Intune submenu
+            "compliance_policies" => self.navigate_to(Screen::PolicyList(PolicyListType::Compliance)),
+            "configuration_policies" => self.navigate_to(Screen::PolicyList(PolicyListType::Configuration)),
             "intune" => self.navigate_to(Screen::Settings(SettingsCategory::Intune)),
             "baseline" => self.navigate_to(Screen::BaselineSelect),
             "audit" => self.navigate_to(Screen::PolicyList(PolicyListType::All)),
@@ -2156,6 +2533,31 @@ impl App {
             }
             "sec_summary" => {
                 self.fetch_security_summary();
+            }
+
+            // Connection testing
+            "test_connection" => {
+                self.start_connection_test();
+            }
+
+            // Autopilot actions
+            "autopilot" => {
+                self.navigate_to(Screen::Autopilot);
+            }
+            "autopilot_list" => {
+                self.load_autopilot_devices();
+            }
+            "autopilot_profiles" => {
+                self.load_autopilot_profiles();
+            }
+            "autopilot_sync" => {
+                self.sync_autopilot();
+            }
+            "autopilot_import" => {
+                self.status_message = Some((
+                    "Use CLI: ctl365 autopilot import -f <csv-file>".into(),
+                    StatusLevel::Info,
+                ));
             }
 
             // Audit history actions
@@ -2308,21 +2710,32 @@ impl App {
             // Search toggle
             "filter" => self.toggle_search(),
 
-            // Refresh action (non-blocking)
+            // Refresh action (non-blocking, context-sensitive)
             "refresh" => {
-                let policy_type_clone = if let Screen::PolicyList(pt) = &self.screen {
-                    Some(pt.clone())
-                } else {
-                    None
-                };
-                if let Some(policy_type) = policy_type_clone {
-                    self.load_policies_async(&policy_type);
-                    self.status_message =
-                        Some(("Refreshing policies...".into(), StatusLevel::Info));
+                match &self.screen {
+                    Screen::PolicyList(pt) => {
+                        let policy_type = pt.clone();
+                        self.load_policies_async(&policy_type);
+                        self.status_message =
+                            Some(("Refreshing policies...".into(), StatusLevel::Info));
+                    }
+                    Screen::AutopilotDevices => self.load_autopilot_devices(),
+                    Screen::AutopilotProfiles => self.load_autopilot_profiles(),
+                    Screen::SignInLogs => self.fetch_signin_logs(),
+                    Screen::RiskyUsers => self.fetch_risky_users(),
+                    Screen::RiskySignIns => self.fetch_risky_signins(),
+                    Screen::DirectoryAudit => self.fetch_directory_audit(),
+                    _ => {
+                        self.status_message = Some((
+                            "Refresh not available for this screen".into(),
+                            StatusLevel::Warning,
+                        ));
+                    }
                 }
             }
 
             // Report generation actions
+            "comprehensive" => self.start_tenant_report(),
             "compliance" => self.generate_report("compliance"),
             "security" => self.generate_report("security"),
             "inventory" => self.generate_report("inventory"),
@@ -2381,6 +2794,11 @@ impl App {
             id if id.starts_with("delete:") => {
                 let abbrev = id.strip_prefix("delete:").unwrap_or(id);
                 self.delete_client(abbrev);
+            }
+            id if id.starts_with("edit:") => {
+                let abbrev = id.strip_prefix("edit:").unwrap_or(id);
+                self.navigate_to(Screen::ClientEdit(abbrev.to_string()));
+                self.init_edit_client_form(abbrev);
             }
             _ => {
                 self.status_message = Some((
@@ -3322,6 +3740,456 @@ impl App {
         )
     }
 
+    /// Generate comprehensive HTML report from TenantSecurityReport data
+    fn generate_comprehensive_report(&self, report: &crate::tui::tasks::TenantSecurityReport) -> String {
+        let grade_color = match report.security_grade.as_str() {
+            "A" => "#16a34a",
+            "B" => "#22c55e",
+            "C" => "#eab308",
+            "D" => "#f97316",
+            _ => "#dc2626",
+        };
+
+        // Generate CA policies table
+        let ca_rows: String = report.ca_summary.policies_by_category
+            .iter()
+            .map(|(category, policies)| {
+                let policy_list = policies.iter().take(5).cloned().collect::<Vec<_>>().join(", ");
+                let more = if policies.len() > 5 { format!(" (+{} more)", policies.len() - 5) } else { String::new() };
+                format!(
+                    "<tr><td>{}</td><td>{}</td><td>{}{}</td></tr>",
+                    category, policies.len(), policy_list, more
+                )
+            })
+            .collect();
+
+        // Generate findings table
+        let findings_rows: String = report.findings
+            .iter()
+            .map(|f| {
+                let severity_class = match f.severity.as_str() {
+                    "CRITICAL" => "badge-danger",
+                    "HIGH" => "badge-warning",
+                    _ => "badge-success",
+                };
+                format!(
+                    r#"<tr>
+                        <td><span class="badge {}">{}</span></td>
+                        <td>{}</td>
+                        <td>{}</td>
+                        <td>{}</td>
+                    </tr>"#,
+                    severity_class, f.severity, f.category, f.title, f.recommendation
+                )
+            })
+            .collect();
+
+        // Generate named locations table
+        let locations_rows: String = report.named_locations
+            .iter()
+            .map(|loc| {
+                let details = if !loc.countries.is_empty() {
+                    loc.countries.join(", ")
+                } else if !loc.ip_ranges.is_empty() {
+                    format!("{} IP ranges", loc.ip_ranges.len())
+                } else {
+                    "N/A".to_string()
+                };
+                format!(
+                    "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
+                    loc.name, loc.location_type, if loc.is_trusted { "Yes" } else { "No" }, details
+                )
+            })
+            .collect();
+
+        // Generate recent changes table
+        let changes_rows: String = report.recent_changes
+            .iter()
+            .take(20)
+            .map(|c| {
+                format!(
+                    "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
+                    c.timestamp, c.category, c.action, c.target
+                )
+            })
+            .collect();
+
+        // Security checks summary
+        let mfa_status = if report.mfa_status.enforced_by_ca {
+            ("<span class=\"status-deployed\">Enforced</span>", "Low")
+        } else {
+            ("<span class=\"status-disabled\">Not Enforced</span>", "High")
+        };
+
+        let legacy_auth = if report.ca_summary.has_legacy_auth_block {
+            ("<span class=\"status-deployed\">Blocked</span>", "Low")
+        } else {
+            ("<span class=\"status-disabled\">Allowed</span>", "High")
+        };
+
+        let device_compliance = if report.ca_summary.has_device_compliance {
+            ("<span class=\"status-deployed\">Required</span>", "Low")
+        } else {
+            ("<span class=\"status-reportonly\">Not Required</span>", "Medium")
+        };
+
+        let security_defaults = if report.security_defaults_enabled {
+            ("<span class=\"status-reportonly\">Enabled</span>", "Basic protection active")
+        } else {
+            ("<span class=\"status-deployed\">Disabled</span>", "Custom CA policies can be used")
+        };
+
+        format!(
+            r#"<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security Report - {tenant}</title>
+    <style>
+        :root {{
+            --ms-blue: #0078d4;
+            --ms-dark-blue: #004578;
+            --ms-green: #107c10;
+            --ms-yellow: #ffb900;
+            --ms-red: #d13438;
+            --ms-gray: #605e5c;
+            --ms-light-gray: #f3f2f1;
+            --ms-border: #edebe9;
+        }}
+        * {{ box-sizing: border-box; }}
+        body {{
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: #f5f5f5;
+            color: #323130;
+        }}
+        .header-bar {{
+            background: linear-gradient(135deg, var(--ms-blue) 0%, var(--ms-dark-blue) 100%);
+            color: white;
+            padding: 20px 30px;
+        }}
+        .header-bar h1 {{ margin: 0; font-size: 24px; font-weight: 600; }}
+        .header-bar .subtitle {{ opacity: 0.9; margin-top: 5px; }}
+        .container {{ max-width: 1200px; margin: 0 auto; padding: 30px; }}
+        .score-hero {{
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+            display: flex;
+            align-items: center;
+            gap: 40px;
+        }}
+        .score-circle {{
+            width: 140px;
+            height: 140px;
+            border-radius: 50%;
+            background: {grade_color};
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            flex-shrink: 0;
+        }}
+        .score-circle .grade {{ font-size: 48px; font-weight: bold; }}
+        .score-circle .label {{ font-size: 14px; opacity: 0.9; }}
+        .score-details {{ flex: 1; }}
+        .score-details h2 {{ margin: 0 0 15px 0; color: var(--ms-dark-blue); }}
+        .score-bar {{ background: var(--ms-light-gray); height: 10px; border-radius: 5px; margin: 10px 0; }}
+        .score-bar-fill {{ background: {grade_color}; height: 100%; border-radius: 5px; width: {score}%; }}
+        .metrics {{ display: flex; gap: 30px; margin-top: 20px; }}
+        .metric {{ text-align: center; }}
+        .metric .value {{ font-size: 28px; font-weight: bold; color: var(--ms-dark-blue); }}
+        .metric .label {{ font-size: 12px; color: var(--ms-gray); text-transform: uppercase; }}
+        .card {{
+            background: white;
+            border-radius: 8px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+        }}
+        .card h3 {{
+            margin: 0 0 20px 0;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--ms-blue);
+            color: var(--ms-dark-blue);
+            font-size: 16px;
+        }}
+        table {{ width: 100%; border-collapse: collapse; font-size: 14px; }}
+        th, td {{ padding: 12px; text-align: left; border-bottom: 1px solid var(--ms-border); }}
+        th {{ background: var(--ms-light-gray); font-weight: 600; font-size: 12px; text-transform: uppercase; }}
+        .status-deployed {{ color: var(--ms-green); font-weight: 500; }}
+        .status-reportonly {{ color: var(--ms-yellow); font-weight: 500; }}
+        .status-disabled {{ color: var(--ms-red); font-weight: 500; }}
+        .badge {{
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }}
+        .badge-success {{ background: #dff6dd; color: var(--ms-green); }}
+        .badge-warning {{ background: #fff4ce; color: #8a6914; }}
+        .badge-danger {{ background: #fde7e9; color: var(--ms-red); }}
+        .grid-2 {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 20px; }}
+        .check-item {{ display: flex; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--ms-border); }}
+        .check-item:last-child {{ border-bottom: none; }}
+        .check-icon {{ width: 24px; height: 24px; border-radius: 50%; margin-right: 12px; display: flex; align-items: center; justify-content: center; font-size: 14px; }}
+        .check-pass {{ background: #dff6dd; color: var(--ms-green); }}
+        .check-fail {{ background: #fde7e9; color: var(--ms-red); }}
+        .check-warn {{ background: #fff4ce; color: #8a6914; }}
+        .check-item .text {{ flex: 1; }}
+        .check-item .risk {{ font-size: 12px; color: var(--ms-gray); }}
+        .footer {{
+            text-align: center;
+            padding: 30px;
+            color: var(--ms-gray);
+            font-size: 12px;
+        }}
+        @media print {{
+            body {{ background: white; }}
+            .card {{ box-shadow: none; border: 1px solid var(--ms-border); }}
+        }}
+    </style>
+</head>
+<body>
+    <div class="header-bar">
+        <h1>Microsoft 365 Security Report</h1>
+        <div class="subtitle">{tenant} • Generated {generated_at} • ctl365 v{version}</div>
+    </div>
+
+    <div class="container">
+        <div class="score-hero">
+            <div class="score-circle">
+                <span class="grade">{grade}</span>
+                <span class="label">Security Grade</span>
+            </div>
+            <div class="score-details">
+                <h2>Overall Security Score: {score}%</h2>
+                <div class="score-bar"><div class="score-bar-fill"></div></div>
+                <div class="metrics">
+                    <div class="metric">
+                        <div class="value">{ca_enabled}</div>
+                        <div class="label">CA Policies Enabled</div>
+                    </div>
+                    <div class="metric">
+                        <div class="value">{ca_report_only}</div>
+                        <div class="label">Report-Only</div>
+                    </div>
+                    <div class="metric">
+                        <div class="value">{findings_count}</div>
+                        <div class="label">Findings</div>
+                    </div>
+                    <div class="metric">
+                        <div class="value">{intune_policies}</div>
+                        <div class="label">Intune Policies</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <div class="card">
+                <h3>Security Controls</h3>
+                <div class="check-item">
+                    <div class="check-icon {mfa_check_class}">✓</div>
+                    <div class="text"><strong>MFA Enforcement</strong><br>{mfa_status}</div>
+                    <div class="risk">Risk: {mfa_risk}</div>
+                </div>
+                <div class="check-item">
+                    <div class="check-icon {legacy_check_class}">✓</div>
+                    <div class="text"><strong>Legacy Auth Blocking</strong><br>{legacy_status}</div>
+                    <div class="risk">Risk: {legacy_risk}</div>
+                </div>
+                <div class="check-item">
+                    <div class="check-icon {device_check_class}">✓</div>
+                    <div class="text"><strong>Device Compliance</strong><br>{device_status}</div>
+                    <div class="risk">Risk: {device_risk}</div>
+                </div>
+                <div class="check-item">
+                    <div class="check-icon check-pass">ℹ</div>
+                    <div class="text"><strong>Security Defaults</strong><br>{sec_defaults_status}</div>
+                    <div class="risk">{sec_defaults_note}</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>Conditional Access Summary</h3>
+                <table>
+                    <tr><td>Total Policies</td><td><strong>{ca_total}</strong></td></tr>
+                    <tr><td>Enabled (Enforcing)</td><td class="status-deployed">{ca_enabled}</td></tr>
+                    <tr><td>Report-Only</td><td class="status-reportonly">{ca_report_only}</td></tr>
+                    <tr><td>Disabled</td><td class="status-disabled">{ca_disabled}</td></tr>
+                </table>
+            </div>
+        </div>
+
+        {findings_section}
+
+        <div class="card">
+            <h3>Conditional Access Policies by Category</h3>
+            <table>
+                <tr><th>Category</th><th>Count</th><th>Policies</th></tr>
+                {ca_rows}
+            </table>
+        </div>
+
+        <div class="card">
+            <h3>Named Locations</h3>
+            {locations_table}
+        </div>
+
+        <div class="card">
+            <h3>Intune Configuration</h3>
+            <table>
+                <tr><td>Compliance Policies</td><td><strong>{compliance_policies}</strong></td></tr>
+                <tr><td>Configuration Policies</td><td><strong>{config_policies}</strong></td></tr>
+                <tr><td>Settings Catalog Policies</td><td><strong>{settings_catalog}</strong></td></tr>
+                <tr><td>Managed Apps</td><td><strong>{managed_apps}</strong></td></tr>
+            </table>
+        </div>
+
+        {changes_section}
+    </div>
+
+    <div class="footer">
+        <p>Generated by ctl365 - Microsoft 365 Baseline Automation CLI</p>
+        <p>Tenant: {tenant} ({tenant_id})</p>
+        <p>© 2025 Resolve Technology LLC</p>
+    </div>
+</body>
+</html>"#,
+            tenant = report.tenant_name,
+            tenant_id = report.tenant_id,
+            generated_at = report.report_generated_at,
+            version = env!("CARGO_PKG_VERSION"),
+            grade = report.security_grade,
+            score = report.compliance_score,
+            grade_color = grade_color,
+            ca_enabled = report.ca_summary.enabled_count,
+            ca_report_only = report.ca_summary.report_only_count,
+            ca_disabled = report.ca_summary.disabled_count,
+            ca_total = report.ca_summary.total_policies,
+            findings_count = report.findings.len(),
+            intune_policies = report.intune_summary.compliance_policies + report.intune_summary.configuration_policies + report.intune_summary.settings_catalog_policies,
+            mfa_status = mfa_status.0,
+            mfa_risk = mfa_status.1,
+            mfa_check_class = if report.mfa_status.enforced_by_ca { "check-pass" } else { "check-fail" },
+            legacy_status = legacy_auth.0,
+            legacy_risk = legacy_auth.1,
+            legacy_check_class = if report.ca_summary.has_legacy_auth_block { "check-pass" } else { "check-fail" },
+            device_status = device_compliance.0,
+            device_risk = device_compliance.1,
+            device_check_class = if report.ca_summary.has_device_compliance { "check-pass" } else { "check-warn" },
+            sec_defaults_status = security_defaults.0,
+            sec_defaults_note = security_defaults.1,
+            ca_rows = if ca_rows.is_empty() { "<tr><td colspan='3'>No CA policies found</td></tr>".to_string() } else { ca_rows },
+            locations_table = if report.named_locations.is_empty() {
+                "<p>No Named Locations configured</p>".to_string()
+            } else {
+                format!(
+                    "<table><tr><th>Name</th><th>Type</th><th>Trusted</th><th>Details</th></tr>{}</table>",
+                    locations_rows
+                )
+            },
+            findings_section = if report.findings.is_empty() {
+                r#"<div class="card"><h3>Findings</h3><p style="color: var(--ms-green);">✓ No security issues found. Excellent security posture!</p></div>"#.to_string()
+            } else {
+                format!(
+                    r#"<div class="card"><h3>Security Findings ({} issues)</h3><table><tr><th>Severity</th><th>Category</th><th>Issue</th><th>Recommendation</th></tr>{}</table></div>"#,
+                    report.findings.len(), findings_rows
+                )
+            },
+            changes_section = if report.recent_changes.is_empty() {
+                String::new()
+            } else {
+                format!(
+                    r#"<div class="card"><h3>Recent Changes (Audit Trail)</h3><table><tr><th>Timestamp</th><th>Category</th><th>Action</th><th>Target</th></tr>{}</table></div>"#,
+                    changes_rows
+                )
+            },
+            compliance_policies = report.intune_summary.compliance_policies,
+            config_policies = report.intune_summary.configuration_policies,
+            settings_catalog = report.intune_summary.settings_catalog_policies,
+            managed_apps = report.intune_summary.managed_apps,
+        )
+    }
+
+    /// Save HTML report to file and open it
+    fn save_report_html(&mut self, html: &str, report_name: &str) {
+        let tenant = self
+            .active_tenant
+            .clone()
+            .unwrap_or_else(|| "Unknown".to_string());
+        let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
+        let filename = format!("{}_{}_report_{}.html", tenant, report_name, timestamp);
+
+        let report_dir = directories::UserDirs::new()
+            .map(|u| u.home_dir().join(".ctl365").join("reports"))
+            .unwrap_or_else(|| std::path::PathBuf::from("./reports"));
+
+        if let Err(e) = std::fs::create_dir_all(&report_dir) {
+            self.status_message = Some((
+                format!("Failed to create reports directory: {}", e),
+                StatusLevel::Error,
+            ));
+            return;
+        }
+
+        let report_path = report_dir.join(&filename);
+        match std::fs::write(&report_path, html) {
+            Ok(_) => {
+                crate::tui::change_tracker::record_report_generated(
+                    "Tenant Security Report",
+                    &report_path.display().to_string(),
+                    &tenant,
+                );
+                self.status_message = Some((
+                    format!(
+                        "Report saved: {} (open in browser, Ctrl+P to save as PDF)",
+                        report_path.display()
+                    ),
+                    StatusLevel::Success,
+                ));
+            }
+            Err(e) => {
+                self.status_message = Some((
+                    format!("Failed to save report: {}", e),
+                    StatusLevel::Error,
+                ));
+            }
+        }
+    }
+
+    /// Start generating a comprehensive tenant security report
+    fn start_tenant_report(&mut self) {
+        if self.active_tenant.is_none() {
+            self.status_message = Some((
+                "No active tenant. Select a tenant first.".to_string(),
+                StatusLevel::Warning,
+            ));
+            return;
+        }
+
+        // Guard: check if already running a task
+        if let Err(reason) = self.begin_task("Generating comprehensive security report...") {
+            self.status_message = Some((reason, StatusLevel::Warning));
+            return;
+        }
+
+        let tenant_name = self.active_tenant.clone().unwrap();
+        let request = crate::tui::tasks::TaskRequest::GenerateTenantReport { tenant_name };
+
+        if self.send_task(request).is_none() {
+            self.clear_async_task();
+        }
+    }
+
     /// Export policies to JSON/CSV
     fn export_policies(&mut self) {
         if self.table_data.is_empty() {
@@ -3601,6 +4469,124 @@ impl App {
         }
 
         let request = crate::tui::tasks::TaskRequest::FetchSecuritySummary {
+            tenant_name: tenant,
+        };
+
+        if self.send_task(request).is_none() {
+            self.clear_async_task();
+        }
+    }
+
+    // =========================================================================
+    // Autopilot Functions
+    // =========================================================================
+
+    /// Load Autopilot devices from Microsoft Graph
+    fn load_autopilot_devices(&mut self) {
+        let tenant = match self.active_tenant.clone() {
+            Some(t) => t,
+            None => {
+                self.status_message = Some((
+                    "No tenant selected. Please select a client first.".into(),
+                    StatusLevel::Warning,
+                ));
+                return;
+            }
+        };
+
+        if let Err(reason) = self.begin_task("Loading Autopilot devices...") {
+            self.status_message = Some((reason, StatusLevel::Warning));
+            return;
+        }
+
+        let request = crate::tui::tasks::TaskRequest::LoadAutopilotDevices {
+            tenant_name: tenant,
+        };
+
+        if self.send_task(request).is_none() {
+            self.clear_async_task();
+        }
+    }
+
+    /// Load Autopilot deployment profiles
+    fn load_autopilot_profiles(&mut self) {
+        let tenant = match self.active_tenant.clone() {
+            Some(t) => t,
+            None => {
+                self.status_message = Some((
+                    "No tenant selected. Please select a client first.".into(),
+                    StatusLevel::Warning,
+                ));
+                return;
+            }
+        };
+
+        if let Err(reason) = self.begin_task("Loading Autopilot profiles...") {
+            self.status_message = Some((reason, StatusLevel::Warning));
+            return;
+        }
+
+        let request = crate::tui::tasks::TaskRequest::LoadAutopilotProfiles {
+            tenant_name: tenant,
+        };
+
+        if self.send_task(request).is_none() {
+            self.clear_async_task();
+        }
+    }
+
+    /// Trigger Autopilot sync with Intune
+    fn sync_autopilot(&mut self) {
+        let tenant = match self.active_tenant.clone() {
+            Some(t) => t,
+            None => {
+                self.status_message = Some((
+                    "No tenant selected. Please select a client first.".into(),
+                    StatusLevel::Warning,
+                ));
+                return;
+            }
+        };
+
+        if let Err(reason) = self.begin_task("Syncing Autopilot devices...") {
+            self.status_message = Some((reason, StatusLevel::Warning));
+            return;
+        }
+
+        let request = crate::tui::tasks::TaskRequest::SyncAutopilot {
+            tenant_name: tenant,
+        };
+
+        if self.send_task(request).is_none() {
+            self.clear_async_task();
+        }
+    }
+
+    /// Start connection test to verify API permissions
+    fn start_connection_test(&mut self) {
+        let tenant = match self.active_tenant.clone() {
+            Some(t) => t,
+            None => {
+                self.status_message = Some((
+                    "No tenant selected. Please select a client first.".into(),
+                    StatusLevel::Warning,
+                ));
+                return;
+            }
+        };
+
+        // Clear previous results
+        self.connection_test_results.clear();
+
+        if let Err(reason) = self.begin_task("Testing connection and permissions...") {
+            self.status_message = Some((reason, StatusLevel::Warning));
+            return;
+        }
+
+        // Navigate to the results screen
+        self.navigate_to(Screen::TestConnection);
+
+        let request = crate::tui::tasks::TaskRequest::TestConnection {
             tenant_name: tenant,
         };
 
@@ -4280,7 +5266,7 @@ impl App {
                     // Verify task ID matches before processing completion
                     if Some(&task_id) == self.current_task_id.as_ref() {
                         // Process result-specific data before clearing state
-                        match result {
+                        match *result {
                             TaskResult::PoliciesLoaded { policies } => {
                                 // Convert to table data
                                 self.table_data = policies
@@ -4372,6 +5358,57 @@ impl App {
                                 self.security_summary = Some(summary);
                                 self.finish_task(true, "Security summary loaded".to_string());
                                 self.navigate_to(Screen::SecuritySummary);
+                            }
+                            TaskResult::ConnectionTestResult { results } => {
+                                let passed = results.iter().filter(|r| r.success).count();
+                                let total = results.len();
+                                self.connection_test_results = results;
+                                self.finish_task(
+                                    true,
+                                    format!(
+                                        "Connection test complete: {}/{} checks passed",
+                                        passed, total
+                                    ),
+                                );
+                            }
+                            TaskResult::TenantReportGenerated { report } => {
+                                // Store the report and generate HTML
+                                self.tenant_report = Some(*report.clone());
+                                let html = self.generate_comprehensive_report(&report);
+                                self.save_report_html(&html, "security-report");
+                                self.finish_task(
+                                    true,
+                                    format!(
+                                        "Security report generated - Grade: {}, Score: {}%",
+                                        report.security_grade, report.compliance_score
+                                    ),
+                                );
+                            }
+                            // Autopilot Results
+                            TaskResult::AutopilotDevicesLoaded { devices } => {
+                                self.autopilot_devices = devices;
+                                let count = self.autopilot_devices.len();
+                                let msg = if count == 0 {
+                                    "No Autopilot devices found".to_string()
+                                } else {
+                                    format!("Loaded {} Autopilot devices", count)
+                                };
+                                self.finish_task(true, msg);
+                                self.navigate_to(Screen::AutopilotDevices);
+                            }
+                            TaskResult::AutopilotProfilesLoaded { profiles } => {
+                                self.autopilot_profiles = profiles;
+                                let count = self.autopilot_profiles.len();
+                                let msg = if count == 0 {
+                                    "No Autopilot profiles found".to_string()
+                                } else {
+                                    format!("Loaded {} Autopilot profiles", count)
+                                };
+                                self.finish_task(true, msg);
+                                self.navigate_to(Screen::AutopilotProfiles);
+                            }
+                            TaskResult::AutopilotSynced { message } => {
+                                self.finish_task(true, message);
                             }
                             TaskResult::Error { message } => {
                                 self.finish_task(false, message);
@@ -5006,6 +6043,8 @@ fn render_header(f: &mut Frame, app: &App, area: Rect) {
         Screen::Dashboard => "Home".into(),
         Screen::ClientList => "Home > MSP Clients".into(),
         Screen::ClientAdd => "Home > MSP Clients > Add Client".into(),
+        Screen::ClientEditSelect => "Home > MSP Clients > Edit Client".into(),
+        Screen::ClientEdit(name) => format!("Home > MSP Clients > Edit {}", name),
         Screen::ClientDelete => "Home > MSP Clients > Delete Client".into(),
         Screen::ClientConfig(name) => format!("Home > {} > Configure", name),
         Screen::Settings(cat) => {
@@ -5041,6 +6080,10 @@ fn render_header(f: &mut Frame, app: &App, area: Rect) {
         Screen::RiskySignIns => "Home > Security Monitoring > Risky Sign-ins".into(),
         Screen::DirectoryAudit => "Home > Security Monitoring > Directory Audit".into(),
         Screen::SecuritySummary => "Home > Security Monitoring > Security Summary".into(),
+        Screen::TestConnection => "Home > Configure Tenant > Test Connection".into(),
+        Screen::Autopilot => "Home > Windows Autopilot".into(),
+        Screen::AutopilotDevices => "Home > Windows Autopilot > Devices".into(),
+        Screen::AutopilotProfiles => "Home > Windows Autopilot > Profiles".into(),
     };
 
     // Microsoft 365-inspired header with Fluent Design blue accent
@@ -5739,6 +6782,15 @@ fn render_security_data(f: &mut Frame, app: &App, area: Rect) {
         Screen::SecuritySummary => {
             render_security_summary_panel(f, app, area, m365_blue, m365_green, m365_gold, m365_red)
         }
+        Screen::TestConnection => {
+            render_connection_test_panel(f, app, area, m365_blue, m365_green, m365_gold, m365_red)
+        }
+        Screen::AutopilotDevices => {
+            render_autopilot_devices_table(f, app, area, m365_blue, m365_green, m365_gold, m365_red)
+        }
+        Screen::AutopilotProfiles => {
+            render_autopilot_profiles_table(f, app, area, m365_blue, m365_green, m365_gold, m365_red)
+        }
         _ => {}
     }
 }
@@ -6256,6 +7308,238 @@ fn render_security_summary_panel(
     );
 
     f.render_widget(para, area);
+}
+
+/// Render connection test results panel
+fn render_connection_test_panel(
+    f: &mut Frame,
+    app: &App,
+    area: Rect,
+    m365_blue: Color,
+    m365_green: Color,
+    m365_gold: Color,
+    m365_red: Color,
+) {
+    if app.connection_test_results.is_empty() {
+        render_empty_state(f, area, "Running connection test... Please wait.");
+        return;
+    }
+
+    let header_cells = ["Status", "Check", "Required Permission", "Details"]
+        .iter()
+        .map(|h| {
+            ratatui::widgets::Cell::from(*h)
+                .style(Style::default().fg(m365_blue).add_modifier(Modifier::BOLD))
+        });
+    let header = Row::new(header_cells).height(1).bottom_margin(1);
+
+    let rows = app.connection_test_results.iter().map(|result| {
+        let (status_icon, status_color) = if result.success {
+            ("[OK]", m365_green)
+        } else {
+            ("[FAIL]", m365_red)
+        };
+
+        let cells = vec![
+            ratatui::widgets::Cell::from(status_icon).style(Style::default().fg(status_color)),
+            ratatui::widgets::Cell::from(result.name.clone()),
+            ratatui::widgets::Cell::from(result.required_permission.clone())
+                .style(Style::default().fg(m365_gold)),
+            ratatui::widgets::Cell::from(result.message.clone()).style(if result.success {
+                Style::default().fg(Color::Rgb(150, 150, 150))
+            } else {
+                Style::default().fg(m365_red)
+            }),
+        ];
+        Row::new(cells).height(1)
+    });
+
+    // Count passed/failed
+    let passed = app
+        .connection_test_results
+        .iter()
+        .filter(|r| r.success)
+        .count();
+    let total = app.connection_test_results.len();
+    let summary_color = if passed == total {
+        m365_green
+    } else if passed as f32 / total as f32 >= 0.7 {
+        m365_gold
+    } else {
+        m365_red
+    };
+
+    let title = format!(" Connection Test Results ({}/{} passed) ", passed, total);
+
+    let table = Table::new(
+        rows,
+        [
+            Constraint::Length(6),  // Status
+            Constraint::Length(30), // Check name
+            Constraint::Length(35), // Permission
+            Constraint::Min(20),    // Details
+        ],
+    )
+    .header(header)
+    .block(
+        Block::default()
+            .title(title)
+            .title_style(
+                Style::default()
+                    .fg(summary_color)
+                    .add_modifier(Modifier::BOLD),
+            )
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(m365_blue)),
+    )
+    .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED));
+
+    f.render_widget(table, area);
+}
+
+/// Render Autopilot devices table
+fn render_autopilot_devices_table(
+    f: &mut Frame,
+    app: &App,
+    area: Rect,
+    m365_blue: Color,
+    m365_green: Color,
+    _m365_gold: Color,
+    m365_red: Color,
+) {
+    let header_cells = ["Serial Number", "Model", "Manufacturer", "Group Tag", "State", "Last Contact"]
+        .iter()
+        .map(|h| {
+            ratatui::widgets::Cell::from(*h)
+                .style(Style::default().fg(m365_blue).add_modifier(Modifier::BOLD))
+        });
+    let header = Row::new(header_cells).height(1).bottom_margin(1);
+
+    let rows = app.autopilot_devices.iter().map(|device| {
+        let state_color = match device.enrollment_state.to_lowercase().as_str() {
+            "enrolled" => m365_green,
+            "notcontacted" | "notEnrolled" => m365_red,
+            _ => Color::Rgb(150, 150, 150),
+        };
+
+        let cells = vec![
+            ratatui::widgets::Cell::from(device.serial_number.clone()),
+            ratatui::widgets::Cell::from(truncate_string(&device.model, 20)),
+            ratatui::widgets::Cell::from(truncate_string(&device.manufacturer, 15)),
+            ratatui::widgets::Cell::from(device.group_tag.clone()),
+            ratatui::widgets::Cell::from(device.enrollment_state.clone())
+                .style(Style::default().fg(state_color)),
+            ratatui::widgets::Cell::from(truncate_string(&device.last_contacted, 19)),
+        ];
+        Row::new(cells).height(1)
+    });
+
+    let title = format!(" Autopilot Devices ({} devices) ", app.autopilot_devices.len());
+
+    let table = Table::new(
+        rows,
+        [
+            Constraint::Percentage(18), // Serial
+            Constraint::Percentage(20), // Model
+            Constraint::Percentage(15), // Manufacturer
+            Constraint::Percentage(15), // Group Tag
+            Constraint::Percentage(12), // State
+            Constraint::Percentage(20), // Last Contact
+        ],
+    )
+    .header(header)
+    .block(
+        Block::default()
+            .title(title)
+            .title_style(
+                Style::default()
+                    .fg(Color::White)
+                    .add_modifier(Modifier::BOLD),
+            )
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(m365_blue)),
+    )
+    .row_highlight_style(
+        Style::default()
+            .bg(m365_blue)
+            .fg(Color::White)
+            .add_modifier(Modifier::BOLD),
+    );
+
+    f.render_widget(table, area);
+
+    // Show empty state if no devices
+    if app.autopilot_devices.is_empty() {
+        render_empty_state(f, area, "No Autopilot devices found. Use 'autopilot import' CLI to add devices.");
+    }
+}
+
+/// Render Autopilot profiles table
+fn render_autopilot_profiles_table(
+    f: &mut Frame,
+    app: &App,
+    area: Rect,
+    m365_blue: Color,
+    _m365_green: Color,
+    _m365_gold: Color,
+    _m365_red: Color,
+) {
+    let header_cells = ["Profile Name", "Description", "Device Type", "Deployment Mode", "Assigned"]
+        .iter()
+        .map(|h| {
+            ratatui::widgets::Cell::from(*h)
+                .style(Style::default().fg(m365_blue).add_modifier(Modifier::BOLD))
+        });
+    let header = Row::new(header_cells).height(1).bottom_margin(1);
+
+    let rows = app.autopilot_profiles.iter().map(|profile| {
+        let cells = vec![
+            ratatui::widgets::Cell::from(truncate_string(&profile.name, 30)),
+            ratatui::widgets::Cell::from(truncate_string(&profile.description, 30)),
+            ratatui::widgets::Cell::from(profile.device_type.clone()),
+            ratatui::widgets::Cell::from(profile.deployment_mode.clone()),
+            ratatui::widgets::Cell::from(format!("{}", profile.assigned_devices)),
+        ];
+        Row::new(cells).height(1)
+    });
+
+    let title = format!(" Autopilot Deployment Profiles ({} profiles) ", app.autopilot_profiles.len());
+
+    let table = Table::new(
+        rows,
+        [
+            Constraint::Percentage(25), // Name
+            Constraint::Percentage(30), // Description
+            Constraint::Percentage(15), // Device Type
+            Constraint::Percentage(20), // Deployment Mode
+            Constraint::Percentage(10), // Assigned
+        ],
+    )
+    .header(header)
+    .block(
+        Block::default()
+            .title(title)
+            .title_style(
+                Style::default()
+                    .fg(Color::White)
+                    .add_modifier(Modifier::BOLD),
+            )
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(m365_blue)),
+    )
+    .row_highlight_style(
+        Style::default()
+            .bg(m365_blue)
+            .fg(Color::White)
+            .add_modifier(Modifier::BOLD),
+    );
+
+    f.render_widget(table, area);
+
+    // Show empty state if no profiles
+    if app.autopilot_profiles.is_empty() {
+        render_empty_state(f, area, "No Autopilot deployment profiles found. Create profiles via Intune portal or 'autopilot profile' CLI.");
+    }
 }
 
 /// Helper to render empty state message
@@ -6993,6 +8277,13 @@ mod tests {
             risky_signins: Vec::new(),
             directory_audits: Vec::new(),
             security_summary: None,
+            // Connection testing
+            connection_test_results: Vec::new(),
+            // Tenant security report
+            tenant_report: None,
+            // Autopilot
+            autopilot_devices: Vec::new(),
+            autopilot_profiles: Vec::new(),
         };
 
         app.refresh_menu();

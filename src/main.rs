@@ -151,9 +151,11 @@ enum CaCommands {
     /// List deployed CA policies
     List(cmd::ca::ListArgs),
 
-    /// Enable a CA policy (report-only → enforced)
-    #[command(hide = true)]
-    Enable,
+    /// Enable CA policies (move from report-only to enforced)
+    Enable(cmd::ca::EnableArgs),
+
+    /// Disable CA policies (move to disabled state)
+    Disable(cmd::ca::DisableArgs),
 }
 
 #[derive(Subcommand, Debug)]
@@ -501,9 +503,8 @@ async fn run() -> error::Result<()> {
         Commands::Ca(ca_cmd) => match ca_cmd {
             CaCommands::Deploy(args) => cmd::ca::deploy(args).await?,
             CaCommands::List(args) => cmd::ca::list(args).await?,
-            CaCommands::Enable => {
-                println!("{} Feature coming soon!", "CA Enable".cyan().bold());
-            }
+            CaCommands::Enable(args) => cmd::ca::enable(args).await?,
+            CaCommands::Disable(args) => cmd::ca::disable(args).await?,
         },
         Commands::Export(export_cmd) => match export_cmd {
             ExportCommands::Export(args) => cmd::export_enhanced::export_enhanced(args).await?,

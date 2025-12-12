@@ -1,54 +1,51 @@
-# 🚀 Getting Started with ctl365
+# Getting Started with ctl365
 
-**Welcome!** This guide will get you from zero to authenticated in **10 minutes**.
+**Welcome!** This guide will get you from zero to managing your M365 tenants in **10 minutes**.
 
 ---
 
-## 📋 What You'll Need
+## What You'll Need
 
-1. ✅ **Global Administrator** or **Application Administrator** access to your M365 tenant
-2. ✅ **5 minutes** to set up an Azure AD app registration
-3. ✅ **ctl365 binary** (built from source or downloaded)
+1. **Global Administrator** or **Application Administrator** access to your M365 tenant
+2. **5 minutes** to set up an Azure AD app registration
+3. **ctl365 binary** (built from source or downloaded)
 
 ---
 
 ## Step 1: Set Up Azure AD App Registration
 
-**⏱️ Time: 5 minutes**
+**Time: 5 minutes**
 
-Follow our detailed guide: **[docs/APP_REGISTRATION.md](docs/APP_REGISTRATION.md)**
+Follow our detailed guide: **[APP_REGISTRATION.md](APP_REGISTRATION.md)**
 
 **Quick Summary:**
 1. Go to https://portal.azure.com
-2. Navigate to **Azure AD** → **App registrations** → **New registration**
+2. Navigate to **Entra ID** → **App registrations** → **New registration**
 3. Name it: `ctl365-automation`
 4. Copy these values:
    - **Application (client) ID**
    - **Directory (tenant) ID**
-5. Add **API Permissions** (Microsoft Graph → Delegated):
+5. Add **API Permissions** (Microsoft Graph → Application):
    - `DeviceManagementConfiguration.ReadWrite.All`
    - `DeviceManagementApps.ReadWrite.All`
    - `Directory.ReadWrite.All`
    - `Policy.ReadWrite.ConditionalAccess`
+   - `AuditLog.Read.All` (for security monitoring)
 6. Click **Grant admin consent**
 
-**✅ Done!** You now have the credentials you need.
+**Done!** You now have the credentials you need.
 
 ---
 
 ## Step 2: Quick Setup & Authentication
 
-**⏱️ Time: 2 minutes**
+**Time: 2 minutes**
 
-### Option A: Quick Login (Recommended for First-Time Users)
-
-This is the **fastest way** to get started:
+### Option A: Quick Login (Recommended)
 
 ```bash
-cd /data/lab/ctl365
-
 # One command login - ctl365 will save the tenant config automatically
-./target/x86_64-unknown-linux-gnu/release/ctl365 login \
+ctl365 login \
   --tenant-id "YOUR-TENANT-ID-HERE" \
   --client-id "YOUR-CLIENT-ID-HERE"
 ```
@@ -56,49 +53,36 @@ cd /data/lab/ctl365
 **What happens:**
 ```
 → Quick setup mode: Creating tenant configuration...
-
 → Auto-generated tenant name: abc123def
-💡 You can rename it later with: ctl365 tenant add <new-name> ...
-🔐 Using device code flow (interactive mode)
 ✓ Tenant 'abc123def' configuration saved to ~/.config/ctl365/tenants.toml
 
-🔐 Starting device code authentication for tenant 'abc123def'...
-
+🔐 Starting device code authentication...
 📱 Please visit: https://microsoft.com/devicelogin
 🔑 Enter code: ABC12-DEFG3
 
 ✅ Authentication successful!
-💾 Token saved to: /home/chris/.config/ctl365/cache/abc123def.token
-
 → Active tenant: abc123def
 ```
 
-**That's it!** You're authenticated and ready to use ctl365.
-
----
-
-### Option B: Pre-Configure Tenant (Better for Multi-Tenant)
-
-If you want more control over the tenant name:
+### Option B: Pre-Configure Tenant (Better for Multi-Tenant/MSPs)
 
 ```bash
 # Step 1: Add tenant with a friendly name
-./target/x86_64-unknown-linux-gnu/release/ctl365 tenant add my-production-tenant \
+ctl365 tenant add my-production-tenant \
   --tenant-id "YOUR-TENANT-ID" \
   --client-id "YOUR-CLIENT-ID" \
   --description "Production M365 Tenant"
 
 # Step 2: Login
-./target/x86_64-unknown-linux-gnu/release/ctl365 login --tenant my-production-tenant
+ctl365 login --tenant my-production-tenant
 ```
 
 ---
 
-## Step 3: Verify It Worked
+## Step 3: Verify Authentication
 
 ```bash
-# List your tenants
-./target/x86_64-unknown-linux-gnu/release/ctl365 tenant list --verbose
+ctl365 tenant list --verbose
 ```
 
 **Expected output:**
@@ -111,178 +95,234 @@ Configured Tenants:
   Client ID:    11111111-1111-1111-1111-111111111111
   Auth Type:    DeviceCode
   Description:  Production M365 Tenant
-  Status:       Authenticated (expires: 2025-11-07 20:30:00 UTC)
+  Status:       Authenticated (expires: 2025-12-07 20:30:00 UTC)
 
 ────────────────────────────────────────────────────────────
 → 1 tenant(s) total
 → Active: my-production-tenant
 ```
 
-**✅ Success!** The green checkmark (●) and "Authenticated" status mean you're ready to go.
-
 ---
 
-## Step 4: Test Your Access (Coming in Phase 2)
+## Step 4: Launch the TUI Dashboard (Recommended)
 
-Once baseline management is implemented, you'll be able to:
+The TUI is the **primary interface** for ctl365:
 
 ```bash
-# Generate a Windows baseline
-./target/x86_64-unknown-linux-gnu/release/ctl365 baseline new windows
-
-# Apply it to your tenant
-./target/x86_64-unknown-linux-gnu/release/ctl365 baseline apply --file baseline.json
-
-# Export existing config
-./target/x86_64-unknown-linux-gnu/release/ctl365 baseline export --path ./backup/
+ctl365 tui dashboard
 ```
 
-**For now**, your authentication is working and ready for Phase 2!
+From the dashboard you can:
+- **Manage Clients** - Add/switch tenants
+- **Deploy Baselines** - Windows, macOS, iOS, Android
+- **Conditional Access** - Deploy 44 CA policies
+- **Security Monitoring** - Sign-in logs, risky users
+- **Generate Reports** - HTML security reports
+
+**Keyboard shortcuts:**
+- `↑/↓` or `j/k` - Navigate menus
+- `Enter` - Select item
+- `b` - Go back
+- `?` - Help
+- `q` - Quit
 
 ---
 
-## 🎯 Quick Reference
+## Step 5: Deploy Your First Baseline
 
-### Authentication Commands
+### Via TUI (Recommended)
+1. Launch: `ctl365 tui dashboard`
+2. Select **Deploy Baseline**
+3. Choose **Windows - OIB v3.6**
+4. Confirm the deployment
 
+### Via CLI
 ```bash
-# Quick login (auto-creates tenant)
-ctl365 login --tenant-id "..." --client-id "..."
+# Generate a Windows baseline with BitLocker and Defender
+ctl365 baseline new windows --template oib --encryption --defender -o baseline.json
 
-# Login to existing tenant
-ctl365 login --tenant my-tenant
+# Preview what will be deployed
+ctl365 baseline apply --file baseline.json --dry-run
 
-# Logout
-ctl365 logout
+# Apply to your tenant
+ctl365 baseline apply --file baseline.json
+```
 
-# Logout from all
-ctl365 logout --all
+---
+
+## Step 6: Deploy Conditional Access Policies
+
+### Via TUI
+1. Launch: `ctl365 tui dashboard`
+2. Select **Conditional Access**
+3. View or deploy CA Baseline 2025 (44 policies)
+
+### Via CLI
+```bash
+# Deploy all 44 CA policies in report-only mode
+ctl365 ca deploy --baseline 2025 --report-only
+
+# List deployed policies
+ctl365 ca list
+
+# Enable policies after testing
+ctl365 ca enable --name "CAU001*"
+```
+
+---
+
+## Quick Reference
+
+### Authentication
+```bash
+ctl365 login --tenant-id "..." --client-id "..."   # Quick setup
+ctl365 login --tenant my-tenant                     # Existing tenant
+ctl365 logout                                       # Current tenant
+ctl365 logout --all                                 # All tenants
 ```
 
 ### Tenant Management
-
 ```bash
-# Add tenant
 ctl365 tenant add <name> --tenant-id "..." --client-id "..."
-
-# List tenants
-ctl365 tenant list
 ctl365 tenant list --verbose
-
-# Switch tenant
 ctl365 tenant switch <name>
-
-# Remove tenant
 ctl365 tenant remove <name>
+```
+
+### Baselines
+```bash
+ctl365 baseline list                                # Show available templates
+ctl365 baseline new windows --template oib          # Generate baseline
+ctl365 baseline apply --file baseline.json          # Deploy
+ctl365 baseline apply --file baseline.json --dry-run # Preview only
+```
+
+### Conditional Access
+```bash
+ctl365 ca list                                      # List CA policies
+ctl365 ca deploy --baseline 2025                    # Deploy CA Baseline 2025
+ctl365 ca enable --name "CAD*"                      # Enable by pattern
+```
+
+### TUI Commands
+```bash
+ctl365 tui dashboard      # Full dashboard (recommended)
+ctl365 tui clients        # MSP client management
+ctl365 tui configure      # Configure active tenant
+ctl365 tui defender       # Defender for Office 365
+ctl365 tui exchange       # Exchange Online
+ctl365 tui sharepoint     # SharePoint/OneDrive
+ctl365 tui teams          # Microsoft Teams
 ```
 
 ---
 
-## 🔧 Optional: Install System-Wide
-
-If you want to run `ctl365` from anywhere (not just the project directory):
+## Install System-Wide (Optional)
 
 ```bash
-# Option 1: Copy to /usr/local/bin (requires sudo)
-sudo cp target/x86_64-unknown-linux-gnu/release/ctl365 /usr/local/bin/
+# Option 1: Copy to /usr/local/bin
+sudo cp target/release/ctl365 /usr/local/bin/
 
 # Option 2: Install via cargo
 cargo install --path .
 
-# Now you can run:
+# Now run from anywhere:
 ctl365 --help
-ctl365 login --tenant-id "..." --client-id "..."
 ```
 
 ---
 
-## 🎉 What's Next?
-
-### For MSPs: Add Multiple Tenants
+## For MSPs: Multi-Tenant Setup
 
 ```bash
-# Customer A
-ctl365 tenant add customer-a \
-  --tenant-id "TENANT-A-ID" \
-  --client-id "APP-A-ID"
+# Add multiple clients
+ctl365 tenant add acme-corp \
+  --tenant-id "ACME-TENANT-ID" \
+  --client-id "ACME-APP-ID"
 
-# Customer B
-ctl365 tenant add customer-b \
-  --tenant-id "TENANT-B-ID" \
-  --client-id "APP-B-ID"
+ctl365 tenant add contoso \
+  --tenant-id "CONTOSO-TENANT-ID" \
+  --client-id "CONTOSO-APP-ID"
 
 # Switch between them
-ctl365 tenant switch customer-a
-ctl365 tenant switch customer-b
+ctl365 tenant switch acme-corp
+ctl365 tenant switch contoso
+
+# Or use the TUI for visual management
+ctl365 tui clients
 ```
 
 ---
 
-### For Automation: Use Client Credentials
+## For Automation: Client Credentials Flow
 
 **Setup:**
-1. Create a **client secret** in Azure AD app registration
+1. Create a **client secret** in your Azure AD app registration
 2. Copy the secret value
 
 **Usage:**
 ```bash
-ctl365 login \
+ctl365 tenant add automation-tenant \
   --tenant-id "..." \
   --client-id "..." \
   --client-secret "YOUR-SECRET" \
   --client-credentials
+
+ctl365 login --tenant automation-tenant
 ```
 
 **No browser required!** Perfect for CI/CD pipelines.
 
 ---
 
-## 📚 Full Documentation
-
-- **[App Registration Guide](docs/APP_REGISTRATION.md)** - Detailed Azure AD setup
-- **[Quick Start](QUICKSTART.md)** - Full features walkthrough
-- **[Authentication Testing](TEST_AUTHENTICATION.md)** - Troubleshooting
-- **[Reference Analysis](REFERENCE_ANALYSIS.md)** - Baseline frameworks
-
----
-
-## 🐛 Common Issues
+## Common Issues
 
 ### "Authentication failed"
-- ✅ Check tenant ID and client ID are correct
-- ✅ Verify permissions granted in Azure AD
-- ✅ Click "Grant admin consent" button
+- Check tenant ID and client ID are correct
+- Verify permissions granted in Azure AD
+- Click "Grant admin consent" button
+- Wait 5 minutes for permissions to propagate
 
 ### "Token expired"
-- ✅ Just run `ctl365 login --tenant <name>` again
+```bash
+ctl365 login --tenant <name>
+```
 
 ### "Can't find config directory"
-- ✅ Run: `mkdir -p ~/.config/ctl365/cache`
+```bash
+mkdir -p ~/.config/ctl365/cache
+```
 
-See **[TEST_AUTHENTICATION.md](TEST_AUTHENTICATION.md)** for more troubleshooting.
+### "Permission denied" errors
+- Verify all Graph API permissions are granted
+- Check admin consent status in Azure portal
+- Some features require Entra ID P1/P2 license
 
 ---
 
-## ✅ Success Checklist
+## Success Checklist
 
 - [x] Azure AD app registration created
 - [x] Permissions granted & admin consent clicked
 - [x] Tenant added to ctl365
-- [x] Successfully authenticated via device code
+- [x] Successfully authenticated
 - [x] Token cached (verified with `tenant list --verbose`)
-- [ ] Ready for Phase 2 (baseline management)!
+- [x] TUI dashboard launches (`ctl365 tui dashboard`)
+- [ ] First baseline deployed
+- [ ] CA policies deployed (report-only mode)
 
 ---
 
-**🎉 Congratulations!** You're all set up and ready to use ctl365.
+## Full Documentation
 
-**Next Steps:**
-- Wait for Phase 2 (Windows baseline generation)
-- Read [REFERENCE_ANALYSIS.md](REFERENCE_ANALYSIS.md) to see what's coming
-- Star the repo and share with other MSPs!
+- **[APP_REGISTRATION.md](APP_REGISTRATION.md)** - Detailed Azure AD setup
+- **[COMMANDS.md](COMMANDS.md)** - Complete command reference
+- **[PERMISSIONS.md](PERMISSIONS.md)** - Required Graph API permissions
+- **[QUICKSTART.md](QUICKSTART.md)** - Feature walkthrough
+- **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Common issues
 
 ---
 
-**Need help?** Check the [docs/](docs/) folder or open a GitHub issue.
+**Need help?** Check the [docs/](.) folder or open a GitHub issue.
 
-**ctl365** — *Control your cloud. Define your baseline.* 🚀
+**ctl365** — *Control, configure, and secure Microsoft 365 — at scale.*
