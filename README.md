@@ -19,6 +19,16 @@
 
 ---
 
+## 📦 Install on Windows
+
+```powershell
+irm https://raw.githubusercontent.com/ResoTech/ctl365/main/release/windows/bootstrap.ps1 | iex
+```
+
+See [INSTALL.md](INSTALL.md) for Windows and Linux installation options.
+
+---
+
 ## 🚀 Quick Start
 
 ```bash
