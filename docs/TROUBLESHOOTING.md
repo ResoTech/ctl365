@@ -21,13 +21,13 @@ Error: InvalidAuthenticationToken - Access token is empty.
 **Solutions:**
 ```bash
 # Re-authenticate
-ctl365 login --tenant my-tenant
+ctl365 login ACME
 
 # Check current tenant
-ctl365 tenant list --verbose
+ctl365 tenant list --detailed
 
 # Switch to correct tenant
-ctl365 tenant switch my-tenant
+ctl365 tenant switch ACME
 ```
 
 ---
@@ -65,8 +65,8 @@ Error: Authorization_RequestDenied - Insufficient privileges to complete the ope
 
 3. **Re-authenticate:**
    ```bash
-   ctl365 logout --tenant my-tenant
-   ctl365 login --tenant my-tenant
+   ctl365 logout --tenant ACME
+   ctl365 login ACME
    ```
 
 See: [APP_REGISTRATION.md](APP_REGISTRATION.md)
@@ -85,7 +85,7 @@ Error: Device code expired. Please try again.
 **Solution:**
 ```bash
 # Try again and complete auth faster
-ctl365 login --tenant my-tenant
+ctl365 login ACME
 ```
 
 ---
@@ -110,8 +110,8 @@ Error: AADSTS7000215: Invalid client secret provided.
 
 2. **Update tenant configuration:**
    ```bash
-   ctl365 tenant remove my-tenant
-   ctl365 tenant add my-tenant \
+   ctl365 tenant remove ACME
+   ctl365 tenant add ACME \
      --tenant-id "..." \
      --client-id "..." \
      --client-secret "NEW-SECRET" \
@@ -151,13 +151,13 @@ Error: No active tenant. Run 'ctl365 tenant add' first.
 
 **Solution:**
 ```bash
-# Add a tenant
-ctl365 tenant add my-tenant \
+# Add a tenant (use a 4-char client identifier)
+ctl365 tenant add ACME \
   --tenant-id "YOUR-TENANT-ID" \
   --client-id "YOUR-CLIENT-ID"
 
 # Login
-ctl365 login --tenant my-tenant
+ctl365 login ACME
 ```
 
 ---
@@ -174,7 +174,7 @@ ctl365 login --tenant my-tenant
 ctl365 tenant list
 
 # Switch tenant
-ctl365 tenant switch correct-tenant
+ctl365 tenant switch ACME
 ```
 
 ---
@@ -228,7 +228,7 @@ Error: Request_ResourceNotFound - Resource not found.
 **Solutions:**
 ```bash
 # Verify you're in correct tenant
-ctl365 tenant list --verbose
+ctl365 tenant list --detailed
 
 # List resources to find correct ID
 ctl365 baseline list
@@ -321,7 +321,7 @@ ctl365 autopilot sync
 # Wait 5-10 minutes for propagation
 
 # Check device status
-ctl365 autopilot list --verbose
+ctl365 autopilot list --detailed
 ```
 
 ---

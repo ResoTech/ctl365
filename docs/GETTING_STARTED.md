@@ -21,7 +21,7 @@ Follow our detailed guide: **[APP_REGISTRATION.md](APP_REGISTRATION.md)**
 **Quick Summary:**
 1. Go to https://portal.azure.com
 2. Navigate to **Entra ID** → **App registrations** → **New registration**
-3. Name it: `ctl365-automation`
+3. Name it: `ctl365`
 4. Copy these values:
    - **Application (client) ID**
    - **Directory (tenant) ID**
@@ -66,15 +66,17 @@ ctl365 login \
 
 ### Option B: Pre-Configure Tenant (Better for Multi-Tenant/MSPs)
 
+Use a short 4-character client identifier:
+
 ```bash
-# Step 1: Add tenant with a friendly name
-ctl365 tenant add my-production-tenant \
+# Step 1: Add tenant with a 4-char identifier
+ctl365 tenant add PROD \
   --tenant-id "YOUR-TENANT-ID" \
   --client-id "YOUR-CLIENT-ID" \
   --description "Production M365 Tenant"
 
 # Step 2: Login
-ctl365 login --tenant my-production-tenant
+ctl365 login PROD
 ```
 
 ---
@@ -82,7 +84,7 @@ ctl365 login --tenant my-production-tenant
 ## Step 3: Verify Authentication
 
 ```bash
-ctl365 tenant list --verbose
+ctl365 tenant list --detailed
 ```
 
 **Expected output:**
@@ -90,7 +92,7 @@ ctl365 tenant list --verbose
 Configured Tenants:
 ────────────────────────────────────────────────────────────
 
-● my-production-tenant
+● PROD
   Tenant ID:    00000000-0000-0000-0000-000000000000
   Client ID:    11111111-1111-1111-1111-111111111111
   Auth Type:    DeviceCode
@@ -99,7 +101,7 @@ Configured Tenants:
 
 ────────────────────────────────────────────────────────────
 → 1 tenant(s) total
-→ Active: my-production-tenant
+→ Active: PROD
 ```
 
 ---
@@ -176,17 +178,17 @@ ctl365 ca enable --name "CAU001*"
 ### Authentication
 ```bash
 ctl365 login --tenant-id "..." --client-id "..."   # Quick setup
-ctl365 login --tenant my-tenant                     # Existing tenant
+ctl365 login ACME                                   # Existing tenant
 ctl365 logout                                       # Current tenant
 ctl365 logout --all                                 # All tenants
 ```
 
 ### Tenant Management
 ```bash
-ctl365 tenant add <name> --tenant-id "..." --client-id "..."
-ctl365 tenant list --verbose
-ctl365 tenant switch <name>
-ctl365 tenant remove <name>
+ctl365 tenant add ACME --tenant-id "..." --client-id "..."
+ctl365 tenant list --detailed
+ctl365 tenant switch ACME
+ctl365 tenant remove ACME
 ```
 
 ### Baselines
@@ -234,19 +236,21 @@ ctl365 --help
 
 ## For MSPs: Multi-Tenant Setup
 
+Use 4-character client identifiers for quick reference:
+
 ```bash
 # Add multiple clients
-ctl365 tenant add acme-corp \
+ctl365 tenant add ACME \
   --tenant-id "ACME-TENANT-ID" \
   --client-id "ACME-APP-ID"
 
-ctl365 tenant add contoso \
+ctl365 tenant add CNTO \
   --tenant-id "CONTOSO-TENANT-ID" \
   --client-id "CONTOSO-APP-ID"
 
 # Switch between them
-ctl365 tenant switch acme-corp
-ctl365 tenant switch contoso
+ctl365 tenant switch ACME
+ctl365 tenant switch CNTO
 
 # Or use the TUI for visual management
 ctl365 tui clients
@@ -254,7 +258,7 @@ ctl365 tui clients
 
 ---
 
-## For Automation: Client Credentials Flow
+## Client Credentials Flow (Non-Interactive)
 
 **Setup:**
 1. Create a **client secret** in your Azure AD app registration
@@ -262,16 +266,16 @@ ctl365 tui clients
 
 **Usage:**
 ```bash
-ctl365 tenant add automation-tenant \
+ctl365 tenant add AUTO \
   --tenant-id "..." \
   --client-id "..." \
   --client-secret "YOUR-SECRET" \
   --client-credentials
 
-ctl365 login --tenant automation-tenant
+ctl365 login AUTO
 ```
 
-**No browser required!** Perfect for CI/CD pipelines.
+**No browser required!** Perfect for CI/CD pipelines and scheduled tasks.
 
 ---
 
@@ -306,7 +310,7 @@ mkdir -p ~/.config/ctl365/cache
 - [x] Permissions granted & admin consent clicked
 - [x] Tenant added to ctl365
 - [x] Successfully authenticated
-- [x] Token cached (verified with `tenant list --verbose`)
+- [x] Token cached (verified with `tenant list --detailed`)
 - [x] TUI dashboard launches (`ctl365 tui dashboard`)
 - [ ] First baseline deployed
 - [ ] CA policies deployed (report-only mode)

@@ -33,7 +33,7 @@ ctl365 tenant add test-tenant \
 
 #### 1.2 List Tenants
 ```bash
-ctl365 tenant list --verbose
+ctl365 tenant list --detailed
 ```
 
 **Expected Output:**
@@ -308,7 +308,7 @@ ctl365 autopilot profile \
 
 #### 5.4 List Devices
 ```bash
-ctl365 autopilot list --verbose
+ctl365 autopilot list --detailed
 ```
 
 ---

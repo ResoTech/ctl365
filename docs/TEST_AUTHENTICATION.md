@@ -47,7 +47,7 @@ Policy.ReadWrite.ConditionalAccess
 ### Step 1: Add Your Tenant
 
 ```bash
-./target/x86_64-unknown-linux-gnu/release/ctl365 tenant add my-test-tenant \
+ctl365 tenant add TEST \
   --tenant-id "YOUR-TENANT-ID-HERE" \
   --client-id "YOUR-CLIENT-ID-HERE" \
   --description "Test tenant for ctl365"
@@ -55,9 +55,9 @@ Policy.ReadWrite.ConditionalAccess
 
 **Expected output:**
 ```
-✓ Tenant 'my-test-tenant' added successfully
+✓ Tenant 'TEST' added successfully
 
-→ Run ctl365 login --tenant my-test-tenant to authenticate
+→ Run ctl365 login TEST to authenticate
 ```
 
 ---
@@ -65,20 +65,20 @@ Policy.ReadWrite.ConditionalAccess
 ### Step 2: Login (Device Code Flow)
 
 ```bash
-./target/x86_64-unknown-linux-gnu/release/ctl365 login --tenant my-test-tenant
+ctl365 login TEST
 ```
 
 **Expected output:**
 ```
-🔐 Starting device code authentication for tenant 'my-test-tenant'...
+🔐 Starting device code authentication for tenant 'TEST'...
 
 📱 Please visit: https://microsoft.com/devicelogin
 🔑 Enter code: ABC12-DEFG3
 
 ✅ Authentication successful!
-💾 Token saved to: /home/chris/.config/ctl365/cache/my-test-tenant.token
+💾 Token saved to: /home/chris/.config/ctl365/cache/TEST.token
 
-→ Active tenant: my-test-tenant
+→ Active tenant: TEST
 ```
 
 **Action Required:**
@@ -98,7 +98,7 @@ ls -lh ~/.config/ctl365/cache/
 
 **Expected:**
 ```
-my-test-tenant.token
+TEST.token
 ```
 
 ---
@@ -106,7 +106,7 @@ my-test-tenant.token
 ### Step 4: List Tenants
 
 ```bash
-./target/x86_64-unknown-linux-gnu/release/ctl365 tenant list --verbose
+ctl365 tenant list --detailed
 ```
 
 **Expected output:**
@@ -114,7 +114,7 @@ my-test-tenant.token
 Configured Tenants:
 ────────────────────────────────────────────────────────────
 
-● my-test-tenant
+● TEST
   Tenant ID:    00000000-0000-0000-0000-000000000000
   Client ID:    11111111-1111-1111-1111-111111111111
   Auth Type:    DeviceCode
@@ -123,7 +123,7 @@ Configured Tenants:
 
 ────────────────────────────────────────────────────────────
 → 1 tenant(s) total
-→ Active: my-test-tenant
+→ Active: TEST
 ```
 
 ---
@@ -133,7 +133,7 @@ Configured Tenants:
 Wait for token to expire (typically 1 hour), then run login again:
 
 ```bash
-./target/x86_64-unknown-linux-gnu/release/ctl365 login --tenant my-test-tenant
+ctl365 login TEST
 ```
 
 It should prompt for device code again (we haven't implemented refresh tokens yet - that's Phase 1.5).
@@ -149,10 +149,10 @@ It should prompt for device code again (we haven't implemented refresh tokens ye
 **Fix:**
 ```bash
 # Remove the tenant
-./target/x86_64-unknown-linux-gnu/release/ctl365 tenant remove my-test-tenant
+ctl365 tenant remove TEST
 
 # Add it again with correct IDs
-./target/x86_64-unknown-linux-gnu/release/ctl365 tenant add my-test-tenant \
+ctl365 tenant add TEST \
   --tenant-id "CORRECT-TENANT-ID" \
   --client-id "CORRECT-CLIENT-ID"
 ```
@@ -178,7 +178,7 @@ It should prompt for device code again (we haven't implemented refresh tokens ye
 **Fix:**
 ```bash
 # Just login again
-./target/x86_64-unknown-linux-gnu/release/ctl365 login --tenant my-test-tenant
+ctl365 login TEST
 ```
 
 ---
@@ -195,7 +195,7 @@ mkdir -p ~/.config/ctl365/cache
 
 ## Testing Client Credentials Flow (Advanced)
 
-If you want to test non-interactive auth (for automation):
+If you want to test non-interactive auth:
 
 ### 1. Create Client Secret
 
@@ -267,13 +267,13 @@ Once authentication works, you can test:
 
 ```bash
 # Logout
-./target/x86_64-unknown-linux-gnu/release/ctl365 logout
+ctl365 logout
 
 # Switch between tenants
-./target/x86_64-unknown-linux-gnu/release/ctl365 tenant switch my-other-tenant
+ctl365 tenant switch ACME
 
 # Remove a tenant
-./target/x86_64-unknown-linux-gnu/release/ctl365 tenant remove old-tenant
+ctl365 tenant remove TEST
 ```
 
 ---
@@ -284,10 +284,6 @@ Once authentication works, you can test:
 - [ ] Device code login prompt appears
 - [ ] Browser authentication completes
 - [ ] Token saved to cache
-- [ ] `tenant list --verbose` shows "Authenticated" status
+- [ ] `tenant list --detailed` shows "Authenticated" status
 - [ ] Token persists after closing terminal
 - [ ] Can logout and login again
-
----
-
-Let me know what happens! 🚀

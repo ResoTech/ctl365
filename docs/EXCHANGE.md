@@ -146,6 +146,47 @@ ctl365 audit --product exchange --standard cis
 
 ---
 
+## 🔒 Quarantine Presets (v0.1.7+)
+
+ctl365 includes built-in quarantine presets for MSPs:
+
+### Strict Mode (No Digest)
+- **No user notifications** - Admin-only release
+- **Use case:** MSPs who handle all quarantine reviews centrally
+
+```rust
+// EndUserQuarantinePermissionsValue = 0 (no permissions)
+// EndUserSpamNotificationFrequency = 0 (disabled)
+```
+
+### Moderate Mode (Daily Digest, Request-Only Release)
+- **Daily digest emails** to end users
+- **Users can REQUEST release** but cannot self-release
+- **Use case:** Most MSP clients who want visibility but security control
+
+```rust
+// EndUserQuarantinePermissionsValue = 80 (Preview + Request Release)
+// EndUserSpamNotificationFrequency = 1 (daily)
+```
+
+### Permission Flags Reference
+```
+Value  | Permission
+-------|---------------------------
+1      | PermissionToAllowSender
+2      | PermissionToBlockSender
+4      | PermissionToDelete
+8      | PermissionToDownload
+16     | PermissionToPreview
+32     | PermissionToRelease (self-release)
+64     | PermissionToRequestRelease (request admin)
+128    | PermissionToViewHeader
+```
+
+**Moderate preset uses:** 16 + 64 = 80 (Preview + Request Release)
+
+---
+
 **This document will be used as reference when implementing Exchange features in ctl365 Phase 4/5.**
 
 **ctl365** — *Control your cloud. Define your baseline.* 📧

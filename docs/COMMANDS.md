@@ -14,10 +14,10 @@ ctl365 login --tenant-id "YOUR-TENANT-ID" --client-id "YOUR-CLIENT-ID"
 
 ### Login (Existing Tenant)
 ```bash
-ctl365 login --tenant my-tenant
+ctl365 login ACME
 ```
 
-### Login (Client Credentials for Automation)
+### Login (Client Credentials - Non-Interactive)
 ```bash
 ctl365 login \
   --tenant-id "..." \
@@ -48,7 +48,7 @@ ctl365 tenant add <name> \
 ### List Tenants
 ```bash
 ctl365 tenant list               # Simple list
-ctl365 tenant list --verbose     # Show auth status, expiry, etc.
+ctl365 tenant list --detailed    # Show auth status, expiry, etc.
 ```
 
 ### Switch Active Tenant
@@ -602,7 +602,7 @@ All commands support these flags:
 
 ### Examples
 ```bash
-ctl365 --verbose login --tenant my-tenant
+ctl365 --verbose login ACME
 ctl365 tenant list --help
 ctl365 --version
 ```
@@ -627,11 +627,11 @@ ctl365 --version
 **tenants.toml:**
 ```toml
 [[tenants]]
-name = "my-tenant"
+name = "ACME"
 tenant_id = "00000000-0000-0000-0000-000000000000"
 client_id = "11111111-1111-1111-1111-111111111111"
 auth_type = "devicecode"
-description = "Production tenant"
+description = "Acme Corporation"
 ```
 
 ---

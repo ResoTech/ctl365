@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.7] - 2025-12-16
+
+### Fixed
+- **TUI Reports Empty Data** - All report types now fetch data from Graph API before generating
+  - Reports no longer require navigating to policy views first
+  - New `pending_report_type` field tracks which format to generate
+  - Compliance, Security, Executive, and Inventory reports all work immediately
+
+- **Clap Verbose Flag Conflicts** - Fixed across all commands
+  - `tenant.rs`: verbose → detailed
+  - `ca.rs`: verbose → verbose_output
+  - `autopilot.rs`, `gpo.rs`, `script.rs`, `aadconnect.rs`: verbose → detailed
+
+### Added
+- **Quarantine Presets** - Two new Exchange Online configurations
+  - `configure_quarantine_strict()`: No digest, admin-only release (for MSPs handling all reviews)
+  - `configure_quarantine_moderate()`: Daily digest, users can REQUEST release only (can't self-release)
+
+- **New Report Generation Functions** - Beautiful HTML reports with real tenant data
+  - `generate_compliance_report_from_data()`: Compliance-focused with score visualization
+  - `generate_security_report_from_data()`: Dark theme security assessment
+  - `generate_executive_report_from_data()`: Visual grade circle for executives
+  - `generate_inventory_report_from_data()`: Full policy inventory listing
+
+### Changed
+- **Documentation Updates**
+  - Replaced "my-automation" examples with proper tenant names (RESO)
+  - Cleaner command examples: `ctl365 login RESO`
+
+### Technical
+- 155 tests passing
+- Zero clippy warnings
+
 ## [0.1.6] - 2025-12-12
 
 ### Added

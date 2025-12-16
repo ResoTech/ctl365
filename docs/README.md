@@ -42,19 +42,19 @@ See: [APP_REGISTRATION.md](APP_REGISTRATION.md)
 
 ### Multi-Tenant Management
 
-Manage multiple M365 tenants from a single ctl365 installation:
+Manage multiple M365 tenants from a single ctl365 installation. Use 4-character client identifiers:
 
 ```bash
-# Add multiple tenants
-ctl365 tenant add customer-a --tenant-id ... --client-id ...
-ctl365 tenant add customer-b --tenant-id ... --client-id ...
+# Add multiple tenants (use 4-char identifiers like ACME, CNTO, CORP)
+ctl365 tenant add ACME --tenant-id ... --client-id ...
+ctl365 tenant add CNTO --tenant-id ... --client-id ...
 
 # Switch between them
-ctl365 tenant switch customer-a
-ctl365 tenant switch customer-b
+ctl365 tenant switch ACME
+ctl365 tenant switch CNTO
 
 # List all tenants
-ctl365 tenant list --verbose
+ctl365 tenant list --detailed
 ```
 
 ---
@@ -89,12 +89,12 @@ ctl365 baseline list
 
 ```bash
 # Login to tenant (device code flow)
-ctl365 login --tenant my-tenant
+ctl365 login ACME
 
 # Login with quick setup (auto-creates tenant config)
 ctl365 login --tenant-id "..." --client-id "..."
 
-# Login with client credentials (automation)
+# Login with client credentials (non-interactive)
 ctl365 login --tenant-id "..." --client-id "..." --client-secret "..." --client-credentials
 
 # Logout from current tenant
@@ -109,11 +109,11 @@ ctl365 logout --all
 ### Tenant Management
 
 ```bash
-# Add new tenant
-ctl365 tenant add <name> --tenant-id "..." --client-id "..."
+# Add new tenant (use 4-char identifier)
+ctl365 tenant add ACME --tenant-id "..." --client-id "..."
 
-# Add with client secret (automation)
-ctl365 tenant add <name> \
+# Add with client secret (non-interactive)
+ctl365 tenant add AUTO \
   --tenant-id "..." \
   --client-id "..." \
   --client-secret "..." \
@@ -121,13 +121,13 @@ ctl365 tenant add <name> \
 
 # List all tenants
 ctl365 tenant list
-ctl365 tenant list --verbose  # Show auth status
+ctl365 tenant list --detailed  # Show auth status
 
 # Switch active tenant
-ctl365 tenant switch <name>
+ctl365 tenant switch ACME
 
 # Remove tenant
-ctl365 tenant remove <name>
+ctl365 tenant remove ACME
 
 # Configure tenant services
 ctl365 tenant configure
@@ -364,13 +364,14 @@ ctl365 tui teams           # Microsoft Teams
 
 ```
 ~/.config/ctl365/              # Linux/macOS
-%LOCALAPPDATA%\ctl365\         # Windows
+C:\Users\<user>\.ctl365\       # Windows
 
 ├── config.toml                # Global settings
 ├── tenants.toml               # Tenant configurations
+├── reports/                   # Generated HTML reports
 └── cache/
-    ├── tenant-a.token         # Cached access tokens
-    └── tenant-b.token
+    ├── ACME.token             # Cached access tokens (per client)
+    └── CNTO.token
 ```
 
 ---
@@ -379,26 +380,27 @@ ctl365 tui teams           # Microsoft Teams
 
 **config.toml** (global settings):
 ```toml
-default_tenant = "my-tenant"
-current_tenant = "my-tenant"
+default_tenant = "ACME"
+current_tenant = "ACME"
 log_level = "info"
 ```
 
 **tenants.toml** (tenant registry):
 ```toml
 [[tenants]]
-name = "my-tenant"
+name = "ACME"
 tenant_id = "00000000-0000-0000-0000-000000000000"
 client_id = "11111111-1111-1111-1111-111111111111"
 auth_type = "devicecode"
-description = "Production tenant"
+description = "Acme Corporation"
 
 [[tenants]]
-name = "automation-tenant"
+name = "AUTO"
 tenant_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
 client_id = "ffffffff-0000-1111-2222-333333333333"
 client_secret = "your-secret-here"
 auth_type = "clientcredentials"
+description = "Non-interactive automation"
 ```
 
 ---
@@ -415,7 +417,7 @@ auth_type = "clientcredentials"
 **Token expired:**
 ```bash
 # Just login again
-ctl365 login --tenant my-tenant
+ctl365 login ACME
 ```
 
 **Can't find config directory:**

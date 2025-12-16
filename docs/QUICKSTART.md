@@ -7,8 +7,8 @@ ctl365 is a full-featured M365 management CLI with TUI dashboard. Here's what's 
 ### Authentication & Multi-Tenant Management
 
 - **Microsoft Graph Authentication**
-  - Device code flow (interactive)
-  - Client credentials flow (automation)
+  - Device code flow (interactive login)
+  - Client credentials flow (non-interactive)
   - Secure token caching in `~/.ctl365/`
 
 - **Multi-Tenant Management**
@@ -75,18 +75,20 @@ You'll need:
 - **Tenant ID**: Your Azure AD tenant ID (found in Azure Portal)
 - **Client ID**: Application (client) ID from your Azure AD app registration
 
+> **Client Identifier**: Each tenant you add gets a short 4-character identifier that you choose. This is how you'll reference the client in all commands. For MSPs managing multiple customers, use memorable codes like `ACME`, `BOWL`, `CORP`, `CNTO`. Keep it short - you'll type it often.
+
 #### Option A: Interactive Login (Device Code Flow)
 
 ```bash
-ctl365 tenant add my-tenant \
+ctl365 tenant add ACME \
   --tenant-id "00000000-0000-0000-0000-000000000000" \
   --client-id "11111111-1111-1111-1111-111111111111"
 ```
 
-#### Option B: Automation (Client Credentials Flow)
+#### Option B: Client Credentials (Non-Interactive)
 
 ```bash
-ctl365 tenant add my-tenant \
+ctl365 tenant add ACME \
   --tenant-id "00000000-0000-0000-0000-000000000000" \
   --client-id "11111111-1111-1111-1111-111111111111" \
   --client-secret "your-client-secret" \
@@ -97,14 +99,14 @@ ctl365 tenant add my-tenant \
 
 ```bash
 # Login to the tenant you just added
-ctl365 login --tenant my-tenant
+ctl365 login ACME
 ```
 
 This will:
 1. Open a browser prompt (device code flow)
 2. Ask you to visit https://microsoft.com/devicelogin
 3. Enter the code displayed
-4. Save your access token securely to `~/.ctl365/cache/my-tenant.token`
+4. Save your access token securely to `~/.ctl365/cache/ACME.token`
 
 ### 3. Manage Multiple Tenants
 
@@ -113,18 +115,18 @@ This will:
 ctl365 tenant list
 
 # List with detailed info (shows auth status)
-ctl365 tenant list --verbose
+ctl365 tenant list --detailed
 
 # Add another tenant
-ctl365 tenant add contoso \
+ctl365 tenant add CNTO \
   --tenant-id "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" \
   --client-id "ffffffff-gggg-hhhh-iiii-jjjjjjjjjjjj"
 
 # Switch active tenant
-ctl365 tenant switch contoso
+ctl365 tenant switch CNTO
 
 # Login to the new tenant
-ctl365 login --tenant contoso
+ctl365 login --tenant CNTO
 ```
 
 ### 4. Logout
@@ -134,7 +136,7 @@ ctl365 login --tenant contoso
 ctl365 logout
 
 # Logout from specific tenant
-ctl365 logout --tenant my-tenant
+ctl365 logout --tenant ACME
 
 # Logout from all tenants
 ctl365 logout --all
@@ -151,7 +153,7 @@ To use ctl365, you need to register an application in Azure AD:
 1. Go to [Azure Portal](https://portal.azure.com)
 2. Navigate to **Azure Active Directory** → **App registrations**
 3. Click **New registration**
-4. Name: `ctl365-automation` (or your preference)
+4. Name: `ctl365` (or your preference)
 5. Supported account types: **Accounts in this organizational directory only**
 6. Click **Register**
 
@@ -173,7 +175,7 @@ Add the following **Microsoft Graph** permissions (Application type):
 - Copy the **Application (client) ID**
 - Copy your **Directory (tenant) ID**
 
-#### For Client Credentials Flow (Automation):
+#### For Client Credentials Flow (Non-Interactive):
 - Go to **Certificates & secrets**
 - Click **New client secret**
 - Copy the secret value immediately (it won't be shown again!)
@@ -189,26 +191,26 @@ All configuration is stored in `~/.ctl365/`:
 ├── config.toml          # Global settings
 ├── tenants.toml         # Tenant configurations
 └── cache/
-    └── my-tenant.token  # Cached access tokens (per tenant)
+    └── ACME.token       # Cached access tokens (per client)
 ```
 
 ### Example `tenants.toml`:
 
 ```toml
 [[tenants]]
-name = "my-tenant"
+name = "ACME"
 tenant_id = "00000000-0000-0000-0000-000000000000"
 client_id = "11111111-1111-1111-1111-111111111111"
 auth_type = "devicecode"
-description = "Production tenant"
+description = "Acme Corporation"
 
 [[tenants]]
-name = "contoso"
+name = "CNTO"
 tenant_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
 client_id = "ffffffff-gggg-hhhh-iiii-jjjjjjjjjjjj"
 client_secret = "your-secret-here"
 auth_type = "clientcredentials"
-description = "MSP customer - Contoso Corp"
+description = "Contoso Corp"
 ```
 
 ---
@@ -265,7 +267,7 @@ ctl365 ca enable --name "CAD*"       # Enable by name pattern
 If you see "Token expired", simply login again:
 
 ```bash
-ctl365 login --tenant my-tenant
+ctl365 login ACME
 ```
 
 ### Permission Errors
@@ -279,7 +281,7 @@ Make sure you've granted admin consent for all required Graph API permissions in
 ctl365 tenant list
 
 # Add if missing
-ctl365 tenant add my-tenant --tenant-id ... --client-id ...
+ctl365 tenant add ACME --tenant-id ... --client-id ...
 ```
 
 ---

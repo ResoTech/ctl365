@@ -188,7 +188,7 @@ In addition to API permissions, the signed-in user (for delegated flow) needs ap
 Connect-AzureAD
 
 # Get the service principal
-$sp = Get-AzureADServicePrincipal -Filter "displayName eq 'ctl365-automation'"
+$sp = Get-AzureADServicePrincipal -Filter "displayName eq 'ctl365'"
 
 # Grant consent (example for one permission)
 New-AzureADServiceAppRoleAssignment `
@@ -205,7 +205,7 @@ New-AzureADServiceAppRoleAssignment `
 Connect-MgGraph -Scopes "Application.ReadWrite.All", "Directory.ReadWrite.All"
 
 # Get app registration
-$app = Get-MgApplication -Filter "displayName eq 'ctl365-automation'"
+$app = Get-MgApplication -Filter "displayName eq 'ctl365'"
 
 # Get Microsoft Graph service principal
 $graphSp = Get-MgServicePrincipal -Filter "displayName eq 'Microsoft Graph'"
@@ -253,7 +253,7 @@ Error: Missing scope for operation
 ```bash
 # Re-authenticate to get new token with updated scopes
 ctl365 logout
-ctl365 login --tenant my-tenant
+ctl365 login ACME
 ```
 
 ### Consent Not Granted

@@ -47,7 +47,7 @@ By the end of this guide, you'll have:
 
    **Name:**
    ```
-   ctl365-automation
+   ctl365
    ```
    *You can use any name, but this helps identify it later*
 
@@ -158,7 +158,7 @@ If you want to use **client credentials flow** (non-interactive/automation), cre
 
 3. **Fill in:**
    ```
-   Description: ctl365-automation-secret
+   Description: ctl365-secret
    Expires:     6 months (or your preference)
    ```
 
@@ -191,14 +191,14 @@ Before proceeding, verify:
 ### Interactive Login (Device Code Flow)
 
 ```bash
-# Add your tenant to ctl365
-ctl365 tenant add my-tenant \
+# Add your tenant to ctl365 (use a 4-char client identifier)
+ctl365 tenant add ACME \
   --tenant-id "YOUR-TENANT-ID-HERE" \
   --client-id "YOUR-CLIENT-ID-HERE" \
   --description "Production M365 Tenant"
 
 # Login (will prompt for browser authentication)
-ctl365 login --tenant my-tenant
+ctl365 login ACME
 ```
 
 **What happens:**
@@ -206,11 +206,11 @@ ctl365 login --tenant my-tenant
 2. You visit https://microsoft.com/devicelogin
 3. Enter the code and sign in
 4. ctl365 receives access token
-5. Token saved to `~/.ctl365/cache/my-tenant.token`
+5. Token saved to `~/.ctl365/cache/ACME.token`
 
 ---
 
-### Automation (Client Credentials Flow)
+### Client Credentials Flow (Non-Interactive)
 
 **⚠️ Only use if you created a client secret**
 
@@ -285,8 +285,8 @@ Instead of client secrets, use certificate-based auth:
 **Fix:**
 ```bash
 # Remove and re-add tenant with correct IDs
-ctl365 tenant remove my-tenant
-ctl365 tenant add my-tenant --tenant-id "CORRECT-ID" --client-id "CORRECT-ID"
+ctl365 tenant remove ACME
+ctl365 tenant add ACME --tenant-id "CORRECT-ID" --client-id "CORRECT-ID"
 ```
 
 ---
@@ -341,15 +341,15 @@ Now that your app registration is ready:
 
 1. **Test authentication:**
    ```bash
-   ctl365 login --tenant my-tenant
+   ctl365 login ACME
    ```
 
 2. **List tenants:**
    ```bash
-   ctl365 tenant list --verbose
+   ctl365 tenant list --detailed
    ```
 
-3. **Start deploying baselines** (Phase 2):
+3. **Start deploying baselines:**
    ```bash
    ctl365 baseline new windows --template openintune
    ```
@@ -360,23 +360,23 @@ Now that your app registration is ready:
 
 ### For MSPs Managing Multiple Tenants
 
-Create **one app registration per tenant**:
+Create **one app registration per tenant** and use 4-char client identifiers:
 ```bash
-# Tenant A
-ctl365 tenant add customer-a \
+# Client A (Acme Corp)
+ctl365 tenant add ACME \
   --tenant-id "TENANT-A-ID" \
   --client-id "APP-A-ID"
 
-# Tenant B
-ctl365 tenant add customer-b \
+# Client B (Contoso)
+ctl365 tenant add CNTO \
   --tenant-id "TENANT-B-ID" \
   --client-id "APP-B-ID"
 
 # Switch between them
-ctl365 tenant switch customer-a
+ctl365 tenant switch ACME
 ctl365 baseline apply --file prod-baseline.json
 
-ctl365 tenant switch customer-b
+ctl365 tenant switch CNTO
 ctl365 baseline apply --file prod-baseline.json
 ```
 
