@@ -32,8 +32,8 @@ pub struct TenantAddArgs {
 #[derive(Args, Debug)]
 pub struct TenantListArgs {
     /// Show detailed information
-    #[arg(short, long)]
-    verbose: bool,
+    #[arg(short = 'd', long = "detailed")]
+    pub detailed: bool,
 }
 
 #[derive(Args, Debug)]
@@ -106,7 +106,7 @@ pub async fn list(args: TenantListArgs) -> Result<()> {
 
         println!("\n{} {}", marker, tenant.name.bold());
 
-        if args.verbose {
+        if args.detailed {
             println!("  Tenant ID:    {}", tenant.tenant_id);
             println!("  Client ID:    {}", tenant.client_id);
             println!("  Auth Type:    {:?}", tenant.auth_type);

@@ -169,8 +169,8 @@ pub struct ListArgs {
     pub state: Option<String>,
 
     /// Show detailed information
-    #[arg(short = 'v', long)]
-    pub verbose: bool,
+    #[arg(short = 'd', long = "detailed")]
+    pub detailed: bool,
 }
 
 #[derive(Args, Debug)]
@@ -757,7 +757,7 @@ pub async fn list(args: ListArgs) -> Result<()> {
 
         println!("\n{} {} devices found", "→".cyan(), device_list.len());
 
-        if args.verbose {
+        if args.detailed {
             for device in device_list {
                 print_device_detailed(device);
             }

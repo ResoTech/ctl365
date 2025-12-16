@@ -41,8 +41,8 @@ pub struct ExportConfigArgs {
 #[derive(Args, Debug)]
 pub struct SyncStatusArgs {
     /// Show detailed sync status
-    #[arg(short, long)]
-    pub verbose: bool,
+    #[arg(short = 'd', long = "detailed")]
+    pub detailed: bool,
 
     /// Show sync errors
     #[arg(long)]
@@ -251,7 +251,7 @@ pub async fn sync_status(args: SyncStatusArgs) -> Result<()> {
                     );
                     println!("  Last Sync: {}", last_sync.cyan());
 
-                    if args.verbose {
+                    if args.detailed {
                         let pwd_sync = org["onPremisesLastPasswordSyncDateTime"].as_str();
                         if let Some(pwd_time) = pwd_sync {
                             println!("  Last Password Sync: {}", pwd_time.cyan());

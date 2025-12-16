@@ -789,8 +789,8 @@ fn remove_group_placeholders(policy: &mut Value) {
 #[derive(Args, Debug)]
 pub struct ListArgs {
     /// Show verbose details
-    #[arg(short, long)]
-    pub verbose: bool,
+    #[arg(short = 'V', long = "verbose-output")]
+    pub verbose_output: bool,
 
     /// Filter by state (enabled, report-only, disabled)
     #[arg(long)]
@@ -937,7 +937,7 @@ pub async fn list(args: ListArgs) -> Result<()> {
 
                         println!("{:<50} {:<15} {:<12}", name_display, state_display, created);
 
-                        if args.verbose {
+                        if args.verbose_output {
                             let id = policy["id"].as_str().unwrap_or("");
                             let modified = policy["modifiedDateTime"]
                                 .as_str()

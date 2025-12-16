@@ -36,8 +36,8 @@ pub struct AnalyzeArgs {
     pub format: String,
 
     /// Show detailed mapping information
-    #[arg(short, long)]
-    pub verbose: bool,
+    #[arg(short = 'd', long = "detailed")]
+    pub detailed: bool,
 }
 
 #[derive(Args, Debug)]
@@ -340,7 +340,7 @@ pub async fn analyze(args: AnalyzeArgs) -> Result<()> {
     );
 
     // Show details if verbose
-    if args.verbose {
+    if args.detailed {
         println!("\n{} Setting Details:", "→".cyan().bold());
         for setting in &analyzed {
             let support_color = match setting.intune_support {

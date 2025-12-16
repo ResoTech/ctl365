@@ -1265,12 +1265,35 @@ async fn deploy_ca_async(
             .post::<_, serde_json::Value>("identity/conditionalAccess/policies", policy)
             .await
         {
-            Ok(_) => deployed += 1,
-            Err(e) => errors.push(format!("{}: {}", policy_name, e)),
+            Ok(_) => {
+                deployed += 1;
+                // Update progress with success
+                let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
+                    task_id: task_id.to_string(),
+                    percent,
+                    message: format!("✓ Deployed: {} ({}/{})", policy_name, deployed, total),
+                    phase: "deploy".into(),
+                }));
+            }
+            Err(e) => {
+                let error_msg = e.to_string();
+                // Check if policy already exists (409 Conflict)
+                if error_msg.contains("409") || error_msg.contains("already exists") {
+                    // Skip existing policies silently
+                    let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
+                        task_id: task_id.to_string(),
+                        percent,
+                        message: format!("⊘ Skipped (exists): {}", policy_name),
+                        phase: "deploy".into(),
+                    }));
+                } else {
+                    errors.push(format!("{}: {}", policy_name, e));
+                }
+            }
         }
 
-        // Small delay to avoid rate limiting
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        // Delay to avoid rate limiting (500ms recommended by Microsoft)
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
     }
 
     // Record audit

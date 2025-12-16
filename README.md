@@ -407,7 +407,7 @@ See [ROADMAP.md](ROADMAP.md) for detailed planning.
 - ✅ CISA SCuBA baseline audits
 - ✅ Safety flags (--dry-run, -y/--yes)
 - ✅ Logging & observability (-v/-vv/-vvv, --log-file)
-- ✅ Test infrastructure (119 tests)
+- ✅ Test infrastructure (155+ tests)
 - ⏳ End-to-end testing with production tenant
 - ⏳ Cross-platform binaries (Windows, macOS, Linux)
 
@@ -434,7 +434,7 @@ We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## 📝 License
 
-Copyright 2026 Resolve Technology LLC. See [LICENSE](LICENSE) for details.
+Copyright 2025 Resolve Technology LLC. See [LICENSE](LICENSE) for details.
 
 ---
 

@@ -1654,93 +1654,294 @@ async fn generate_executive_report_data(graph: &GraphClient, tenant_name: &str) 
     }))
 }
 
-fn format_report_html(data: &Value, report_type: &str, _include_charts: bool) -> Result<String> {
+fn format_report_html(data: &Value, report_type: &str, include_charts: bool) -> Result<String> {
     let tenant = data["tenant"].as_str().unwrap_or("Unknown");
+    let generated = data["generated"].as_str().unwrap_or("Unknown");
+
+    // Extract summary metrics for display
+    let summary = data.get("summary");
+    let security_status = data.get("security_status");
+
+    // Build metric cards based on report type
+    let metrics_html = match report_type {
+        "compliance" => {
+            if let Some(s) = summary {
+                format!(
+                    r#"<div class="metrics-grid">
+                        <div class="metric-card">
+                            <div class="metric-value">{}</div>
+                            <div class="metric-label">Compliance Policies</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-value">{}</div>
+                            <div class="metric-label">Device Configurations</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-value">{}</div>
+                            <div class="metric-label">Conditional Access</div>
+                        </div>
+                        <div class="metric-card highlight">
+                            <div class="metric-value">{}</div>
+                            <div class="metric-label">Total Policies</div>
+                        </div>
+                    </div>"#,
+                    s["compliance_policies"].as_u64().unwrap_or(0),
+                    s["device_configurations"].as_u64().unwrap_or(0),
+                    s["conditional_access_policies"].as_u64().unwrap_or(0),
+                    s["total_policies"].as_u64().unwrap_or(0)
+                )
+            } else {
+                String::new()
+            }
+        }
+        "security" => {
+            if let Some(sec) = security_status {
+                let ca = &sec["conditional_access"];
+                let defaults_status = if sec["security_defaults_enabled"].as_bool().unwrap_or(false) {
+                    r#"<span class="status-warning">Enabled</span>"#
+                } else {
+                    r#"<span class="status-good">Disabled (CA Active)</span>"#
+                };
+                format!(
+                    r#"<div class="metrics-grid">
+                        <div class="metric-card">
+                            <div class="metric-value">{}</div>
+                            <div class="metric-label">CA Policies Enabled</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-value">{}</div>
+                            <div class="metric-label">Report-Only</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-value">{}</div>
+                            <div class="metric-label">Total CA Policies</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-label">Security Defaults</div>
+                            <div class="metric-status">{}</div>
+                        </div>
+                    </div>"#,
+                    ca["enabled"].as_u64().unwrap_or(0),
+                    ca["report_only"].as_u64().unwrap_or(0),
+                    ca["total"].as_u64().unwrap_or(0),
+                    defaults_status
+                )
+            } else {
+                String::new()
+            }
+        }
+        "executive" => {
+            let overview = data.get("overview");
+            if let Some(o) = overview {
+                format!(
+                    r#"<div class="executive-summary">
+                        <div class="metric-card large">
+                            <div class="metric-value">{}</div>
+                            <div class="metric-label">Total Policies Deployed</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-value">{}</div>
+                            <div class="metric-label">CA Policies Enabled</div>
+                        </div>
+                    </div>"#,
+                    o["total_policies"].as_u64().unwrap_or(0),
+                    o["ca_enabled"].as_u64().unwrap_or(0)
+                )
+            } else {
+                String::new()
+            }
+        }
+        _ => String::new(),
+    };
+
+    // Chart placeholder if requested
+    let charts_html = if include_charts {
+        r#"<div class="charts-section">
+            <h2>Visual Analytics</h2>
+            <p class="chart-note">Charts available in future release</p>
+        </div>"#
+    } else {
+        ""
+    };
 
     Ok(format!(
         r#"<!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>{} Report - {}</title>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{report_type} Report - {tenant}</title>
     <style>
+        :root {{
+            --primary: #0078d4;
+            --primary-dark: #106ebe;
+            --success: #107c10;
+            --warning: #f7b500;
+            --danger: #d13438;
+            --gray-100: #faf9f8;
+            --gray-200: #f3f2f1;
+            --gray-500: #605e5c;
+            --gray-800: #323130;
+        }}
+        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
         body {{
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 40px;
-            background: #f5f5f5;
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--gray-100);
+            color: var(--gray-800);
+            line-height: 1.5;
         }}
         .container {{
             max-width: 1200px;
             margin: 0 auto;
-            background: white;
+            padding: 40px 20px;
+        }}
+        .header {{
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
             padding: 40px;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border-radius: 12px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 12px rgba(0,120,212,0.3);
         }}
-        h1 {{
-            color: #0078d4;
-            border-bottom: 3px solid #0078d4;
-            padding-bottom: 10px;
+        .header h1 {{
+            font-size: 2rem;
+            font-weight: 600;
+            margin-bottom: 8px;
         }}
-        .summary {{
+        .header .subtitle {{
+            opacity: 0.9;
+            font-size: 1rem;
+        }}
+        .header-meta {{
+            display: flex;
+            gap: 24px;
+            margin-top: 20px;
+            font-size: 0.9rem;
+            opacity: 0.85;
+        }}
+        .metrics-grid {{
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 20px;
-            margin: 30px 0;
+            margin-bottom: 30px;
         }}
-        .metric {{
-            background: #f3f2f1;
-            padding: 20px;
-            border-radius: 4px;
+        .metric-card {{
+            background: white;
+            padding: 24px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
             text-align: center;
+            transition: transform 0.2s, box-shadow 0.2s;
         }}
-        .metric h3 {{
-            margin: 0 0 10px 0;
-            font-size: 14px;
-            color: #605e5c;
+        .metric-card:hover {{
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.12);
         }}
-        .metric .value {{
-            font-size: 36px;
-            font-weight: bold;
-            color: #0078d4;
+        .metric-card.highlight {{
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
         }}
-        pre {{
-            background: #f3f2f1;
-            padding: 20px;
-            border-radius: 4px;
-            overflow-x: auto;
+        .metric-card.large {{
+            grid-column: span 2;
+        }}
+        .metric-value {{
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--primary);
+        }}
+        .metric-card.highlight .metric-value {{
+            color: white;
+        }}
+        .metric-label {{
+            font-size: 0.85rem;
+            color: var(--gray-500);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 8px;
+        }}
+        .metric-card.highlight .metric-label {{
+            color: rgba(255,255,255,0.85);
+        }}
+        .status-good {{ color: var(--success); font-weight: 600; }}
+        .status-warning {{ color: var(--warning); font-weight: 600; }}
+        .status-danger {{ color: var(--danger); font-weight: 600; }}
+        .section {{
+            background: white;
+            border-radius: 8px;
+            padding: 24px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }}
+        .section h2 {{
+            font-size: 1.25rem;
+            color: var(--primary);
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid var(--gray-200);
         }}
         .footer {{
-            margin-top: 40px;
-            padding-top: 20px;
-            border-top: 1px solid #edebe9;
-            color: #605e5c;
-            font-size: 12px;
+            text-align: center;
+            padding: 30px;
+            color: var(--gray-500);
+            font-size: 0.85rem;
+        }}
+        .footer a {{
+            color: var(--primary);
+            text-decoration: none;
+        }}
+        .charts-section {{
+            background: var(--gray-200);
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 20px;
+        }}
+        .chart-note {{
+            color: var(--gray-500);
+            font-style: italic;
+        }}
+        @media print {{
+            body {{ background: white; }}
+            .container {{ padding: 0; }}
+            .metric-card {{ break-inside: avoid; }}
         }}
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>{} Report</h1>
-        <p><strong>Tenant:</strong> {}</p>
-        <p><strong>Generated:</strong> {}</p>
+        <header class="header">
+            <h1>{report_type_display} Report</h1>
+            <p class="subtitle">Microsoft 365 Tenant Analysis</p>
+            <div class="header-meta">
+                <span><strong>Tenant:</strong> {tenant}</span>
+                <span><strong>Generated:</strong> {generated_display}</span>
+            </div>
+        </header>
 
-        <h2>Data</h2>
-        <pre>{}</pre>
+        {metrics}
 
-        <div class="footer">
-            Generated by ctl365 v{} • <a href="https://github.com/your-org/ctl365">Documentation</a>
-        </div>
+        {charts}
+
+        <footer class="footer">
+            <p>Generated by <strong>ctl365</strong> v{version}</p>
+            <p><a href="https://github.com/resolvetech/ctl365">Documentation</a></p>
+        </footer>
     </div>
 </body>
 </html>"#,
-        report_type.to_uppercase(),
-        tenant,
-        report_type.to_uppercase(),
-        tenant,
-        data["generated"].as_str().unwrap_or("Unknown"),
-        serde_json::to_string_pretty(data)?,
-        env!("CARGO_PKG_VERSION")
+        report_type = report_type,
+        tenant = tenant,
+        report_type_display = match report_type {
+            "compliance" => "Compliance",
+            "security" => "Security Assessment",
+            "inventory" => "Policy Inventory",
+            "executive" => "Executive Summary",
+            _ => report_type,
+        },
+        generated_display = &generated[..19].replace("T", " "),
+        metrics = metrics_html,
+        charts = charts_html,
+        version = env!("CARGO_PKG_VERSION")
     ))
 }
 

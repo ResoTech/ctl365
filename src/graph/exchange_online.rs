@@ -122,21 +122,50 @@ pub async fn apply_retention_policy_tenant_wide(
         .await
 }
 
-/// Disable quarantine email notifications for end users
-pub async fn disable_quarantine_notifications(client: &GraphClient) -> Result<Value> {
-    // Update quarantine policy to disable end-user notifications
-
+/// Quarantine Preset: Strict - No digest, no user release permissions
+/// Use case: MSPs who handle all quarantine reviews centrally
+pub async fn configure_quarantine_strict(client: &GraphClient) -> Result<Value> {
     let policy = json!({
         "@odata.type": "#microsoft.graph.quarantinePolicy",
-        "endUserSpamNotificationFrequency": 0, // Disable notifications
+        "endUserSpamNotificationFrequency": 0, // No notifications
         "endUserSpamNotificationEnabled": false,
-        "endUserQuarantinePermissionsValue": 0 // No permissions to release
+        "endUserQuarantinePermissionsValue": 0 // No permissions - admin only
     });
 
-    // Update default quarantine policy
     client
         .patch("security/threatIntelligence/quarantinePolicy", &policy)
         .await
+}
+
+/// Quarantine Preset: Moderate - Daily digest, users can REQUEST release only
+/// Use case: Most MSP clients - users see digest but can't self-release
+pub async fn configure_quarantine_moderate(client: &GraphClient) -> Result<Value> {
+    // EndUserQuarantinePermissionsValue flags:
+    // 1 = PermissionToAllowSender
+    // 2 = PermissionToBlockSender
+    // 4 = PermissionToDelete
+    // 8 = PermissionToDownload
+    // 16 = PermissionToPreview
+    // 32 = PermissionToRelease (self-release)
+    // 64 = PermissionToRequestRelease (request admin to release)
+    // 128 = PermissionToViewHeader
+    //
+    // For moderate: Preview + Request Release = 16 + 64 = 80
+    let policy = json!({
+        "@odata.type": "#microsoft.graph.quarantinePolicy",
+        "endUserSpamNotificationFrequency": 1, // Daily (1 = daily, 3 = every 3 days)
+        "endUserSpamNotificationEnabled": true,
+        "endUserQuarantinePermissionsValue": 80 // Preview + Request Release only
+    });
+
+    client
+        .patch("security/threatIntelligence/quarantinePolicy", &policy)
+        .await
+}
+
+/// Legacy function - alias for configure_quarantine_strict
+pub async fn disable_quarantine_notifications(client: &GraphClient) -> Result<Value> {
+    configure_quarantine_strict(client).await
 }
 
 /// Configure anti-spam policy with recommended settings

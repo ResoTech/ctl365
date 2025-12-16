@@ -177,6 +177,8 @@ pub struct App {
     pub connection_test_results: Vec<crate::tui::tasks::PermissionCheckResult>,
     /// Comprehensive tenant security report (for HTML export)
     pub tenant_report: Option<crate::tui::tasks::TenantSecurityReport>,
+    /// Pending report type (when async report generation is in progress)
+    pub pending_report_type: Option<String>,
     // ========================================================================
     // Autopilot fields
     // ========================================================================
@@ -483,6 +485,7 @@ impl App {
             connection_test_results: Vec::new(),
             // Tenant security report
             tenant_report: None,
+            pending_report_type: None,
             // Autopilot
             autopilot_devices: Vec::new(),
             autopilot_profiles: Vec::new(),
@@ -2728,14 +2731,14 @@ impl App {
                 }
             },
 
-            // Report generation actions
-            "comprehensive" => self.start_tenant_report(),
-            "compliance" => self.generate_report("compliance"),
-            "security" => self.generate_report("security"),
-            "inventory" => self.generate_report("inventory"),
-            "changes" => self.generate_report("changes"),
-            "executive" => self.generate_report("executive"),
-            "report" => self.generate_report("client"),
+            // Report generation actions (all use async data fetch now)
+            "comprehensive" => self.start_tenant_report("comprehensive"),
+            "compliance" => self.start_tenant_report("compliance"),
+            "security" => self.start_tenant_report("security"),
+            "inventory" => self.start_tenant_report("inventory"),
+            "changes" => self.generate_report("changes"), // Changes uses audit trail, no API needed
+            "executive" => self.start_tenant_report("executive"),
+            "report" => self.start_tenant_report("client"),
 
             // Policy export
             "export" => self.export_policies(),
@@ -4168,6 +4171,370 @@ impl App {
         )
     }
 
+    /// Generate compliance-focused report from TenantSecurityReport data
+    fn generate_compliance_report_from_data(
+        &self,
+        report: &crate::tui::tasks::TenantSecurityReport,
+    ) -> String {
+        let score_color = if report.compliance_score >= 80 {
+            "#10b981"
+        } else if report.compliance_score >= 50 {
+            "#f59e0b"
+        } else {
+            "#ef4444"
+        };
+
+        format!(
+            r#"<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Compliance Report - {tenant}</title>
+    <style>
+        :root {{ --ms-blue: #0078d4; --ms-green: #10b981; --ms-yellow: #f59e0b; --ms-red: #ef4444; }}
+        body {{ font-family: 'Segoe UI', sans-serif; margin: 0; padding: 40px; background: #f8fafc; }}
+        .container {{ max-width: 1000px; margin: 0 auto; background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }}
+        h1 {{ color: var(--ms-blue); border-bottom: 3px solid var(--ms-blue); padding-bottom: 15px; }}
+        .score-box {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 12px; text-align: center; margin: 30px 0; }}
+        .score-value {{ font-size: 72px; font-weight: bold; }}
+        .metrics {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin: 30px 0; }}
+        .metric {{ background: #f1f5f9; padding: 20px; border-radius: 8px; text-align: center; }}
+        .metric-value {{ font-size: 36px; font-weight: bold; color: var(--ms-blue); }}
+        .metric-label {{ color: #64748b; margin-top: 5px; }}
+        table {{ width: 100%; border-collapse: collapse; margin: 20px 0; }}
+        th, td {{ padding: 12px; text-align: left; border-bottom: 1px solid #e2e8f0; }}
+        th {{ background: #f8fafc; font-weight: 600; }}
+        .status-good {{ color: var(--ms-green); font-weight: 600; }}
+        .status-warn {{ color: var(--ms-yellow); font-weight: 600; }}
+        .status-bad {{ color: var(--ms-red); font-weight: 600; }}
+        .footer {{ margin-top: 40px; padding-top: 20px; border-top: 1px solid #e2e8f0; color: #64748b; font-size: 12px; text-align: center; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Compliance Report</h1>
+        <p><strong>Tenant:</strong> {tenant} &nbsp;|&nbsp; <strong>Generated:</strong> {generated}</p>
+
+        <div class="score-box">
+            <div class="score-value" style="color: {score_color}">{score}%</div>
+            <div>Compliance Score</div>
+        </div>
+
+        <div class="metrics">
+            <div class="metric">
+                <div class="metric-value">{compliance_policies}</div>
+                <div class="metric-label">Compliance Policies</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">{config_policies}</div>
+                <div class="metric-label">Configuration Policies</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">{settings_catalog}</div>
+                <div class="metric-label">Settings Catalog</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">{ca_total}</div>
+                <div class="metric-label">CA Policies</div>
+            </div>
+        </div>
+
+        <h2>Conditional Access Status</h2>
+        <table>
+            <tr><th>Metric</th><th>Count</th><th>Status</th></tr>
+            <tr><td>Enabled (Enforcing)</td><td>{ca_enabled}</td><td class="status-good">Active</td></tr>
+            <tr><td>Report-Only Mode</td><td>{ca_report_only}</td><td class="status-warn">Testing</td></tr>
+            <tr><td>Disabled</td><td>{ca_disabled}</td><td class="status-bad">Inactive</td></tr>
+        </table>
+
+        <h2>Security Controls</h2>
+        <table>
+            <tr><th>Control</th><th>Status</th></tr>
+            <tr><td>MFA Enforcement</td><td class="{mfa_class}">{mfa_status}</td></tr>
+            <tr><td>Legacy Auth Blocked</td><td class="{legacy_class}">{legacy_status}</td></tr>
+            <tr><td>Device Compliance Required</td><td class="{device_class}">{device_status}</td></tr>
+            <tr><td>Security Defaults</td><td class="{defaults_class}">{defaults_status}</td></tr>
+        </table>
+
+        <div class="footer">
+            Generated by ctl365 v{version} | Resolve Technology
+        </div>
+    </div>
+</body>
+</html>"#,
+            tenant = report.tenant_name,
+            generated = report.report_generated_at,
+            score = report.compliance_score,
+            score_color = score_color,
+            compliance_policies = report.intune_summary.compliance_policies,
+            config_policies = report.intune_summary.configuration_policies,
+            settings_catalog = report.intune_summary.settings_catalog_policies,
+            ca_total = report.ca_summary.total_policies,
+            ca_enabled = report.ca_summary.enabled_count,
+            ca_report_only = report.ca_summary.report_only_count,
+            ca_disabled = report.ca_summary.disabled_count,
+            mfa_status = if report.mfa_status.enforced_by_ca { "Enforced" } else { "Not Enforced" },
+            mfa_class = if report.mfa_status.enforced_by_ca { "status-good" } else { "status-bad" },
+            legacy_status = if report.ca_summary.has_legacy_auth_block { "Blocked" } else { "Not Blocked" },
+            legacy_class = if report.ca_summary.has_legacy_auth_block { "status-good" } else { "status-bad" },
+            device_status = if report.ca_summary.has_device_compliance { "Required" } else { "Not Required" },
+            device_class = if report.ca_summary.has_device_compliance { "status-good" } else { "status-warn" },
+            defaults_status = if report.security_defaults_enabled { "Enabled" } else { "Disabled (CA Active)" },
+            defaults_class = if report.security_defaults_enabled { "status-warn" } else { "status-good" },
+            version = env!("CARGO_PKG_VERSION"),
+        )
+    }
+
+    /// Generate security assessment report from TenantSecurityReport data
+    fn generate_security_report_from_data(
+        &self,
+        report: &crate::tui::tasks::TenantSecurityReport,
+    ) -> String {
+        let findings_html: String = if report.findings.is_empty() {
+            "<p style='color: #10b981; font-weight: 600;'>✓ No security issues found!</p>".to_string()
+        } else {
+            report.findings.iter().map(|f| {
+                let severity_color = match f.severity.as_str() {
+                    "CRITICAL" => "#ef4444",
+                    "HIGH" => "#f59e0b",
+                    _ => "#10b981",
+                };
+                format!(
+                    "<tr><td style='color: {}'><strong>{}</strong></td><td>{}</td><td>{}</td><td>{}</td></tr>",
+                    severity_color, f.severity, f.category, f.title, f.recommendation
+                )
+            }).collect()
+        };
+
+        format!(
+            r#"<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security Assessment - {tenant}</title>
+    <style>
+        body {{ font-family: 'Segoe UI', sans-serif; margin: 0; padding: 40px; background: #0f172a; color: #e2e8f0; }}
+        .container {{ max-width: 1000px; margin: 0 auto; background: #1e293b; padding: 40px; border-radius: 12px; }}
+        h1 {{ color: #60a5fa; border-bottom: 2px solid #3b82f6; padding-bottom: 15px; }}
+        h2 {{ color: #94a3b8; margin-top: 30px; }}
+        .grade-box {{ background: linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%); padding: 30px; border-radius: 12px; text-align: center; border: 2px solid #3b82f6; margin: 20px 0; }}
+        .grade {{ font-size: 80px; font-weight: bold; color: {grade_color}; }}
+        table {{ width: 100%; border-collapse: collapse; margin: 20px 0; }}
+        th, td {{ padding: 12px; text-align: left; border-bottom: 1px solid #334155; }}
+        th {{ background: #0f172a; color: #60a5fa; }}
+        .footer {{ margin-top: 40px; text-align: center; color: #64748b; font-size: 12px; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Security Assessment</h1>
+        <p>Tenant: {tenant} | Generated: {generated}</p>
+
+        <div class="grade-box">
+            <div class="grade">{grade}</div>
+            <div>Security Grade | Score: {score}%</div>
+        </div>
+
+        <h2>Security Findings</h2>
+        <table>
+            <tr><th>Severity</th><th>Category</th><th>Finding</th><th>Recommendation</th></tr>
+            {findings_html}
+        </table>
+
+        <h2>Protection Status</h2>
+        <table>
+            <tr><th>Control</th><th>Status</th></tr>
+            <tr><td>MFA Enforcement</td><td>{mfa}</td></tr>
+            <tr><td>Legacy Auth</td><td>{legacy}</td></tr>
+            <tr><td>Admin Protection</td><td>{admin}</td></tr>
+            <tr><td>Location-Based Access</td><td>{location}</td></tr>
+        </table>
+
+        <div class="footer">ctl365 v{version} | Resolve Technology</div>
+    </div>
+</body>
+</html>"#,
+            tenant = report.tenant_name,
+            generated = report.report_generated_at,
+            grade = report.security_grade,
+            grade_color = match report.security_grade.as_str() { "A" | "A+" => "#10b981", "B" => "#3b82f6", "C" => "#f59e0b", _ => "#ef4444" },
+            score = report.compliance_score,
+            findings_html = findings_html,
+            mfa = if report.mfa_status.enforced_by_ca { "✓ Enforced" } else { "✗ Not Enforced" },
+            legacy = if report.ca_summary.has_legacy_auth_block { "✓ Blocked" } else { "✗ Allowed" },
+            admin = if report.ca_summary.has_admin_protection { "✓ Protected" } else { "✗ Not Protected" },
+            location = if report.ca_summary.has_location_policy { "✓ Configured" } else { "○ Not Configured" },
+            version = env!("CARGO_PKG_VERSION"),
+        )
+    }
+
+    /// Generate executive summary report from TenantSecurityReport data
+    fn generate_executive_report_from_data(
+        &self,
+        report: &crate::tui::tasks::TenantSecurityReport,
+    ) -> String {
+        let critical_count = report.findings.iter().filter(|f| f.severity == "CRITICAL").count();
+        let high_count = report.findings.iter().filter(|f| f.severity == "HIGH").count();
+
+        format!(
+            r#"<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Executive Summary - {tenant}</title>
+    <style>
+        body {{ font-family: 'Segoe UI', sans-serif; margin: 0; padding: 40px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }}
+        .container {{ max-width: 800px; margin: 0 auto; background: white; padding: 50px; border-radius: 16px; box-shadow: 0 25px 50px rgba(0,0,0,0.25); }}
+        h1 {{ color: #1e293b; text-align: center; font-size: 28px; margin-bottom: 10px; }}
+        .subtitle {{ text-align: center; color: #64748b; margin-bottom: 40px; }}
+        .grade-circle {{ width: 150px; height: 150px; border-radius: 50%; background: {grade_bg}; margin: 0 auto 30px; display: flex; align-items: center; justify-content: center; }}
+        .grade-circle span {{ font-size: 64px; font-weight: bold; color: white; }}
+        .score-bar {{ background: #e2e8f0; border-radius: 999px; height: 20px; margin: 20px 0; overflow: hidden; }}
+        .score-fill {{ background: linear-gradient(90deg, #3b82f6, #10b981); height: 100%; border-radius: 999px; width: {score}%; }}
+        .kpis {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin: 40px 0; }}
+        .kpi {{ text-align: center; padding: 20px; background: #f8fafc; border-radius: 12px; }}
+        .kpi-value {{ font-size: 32px; font-weight: bold; color: #0078d4; }}
+        .kpi-label {{ color: #64748b; font-size: 14px; margin-top: 5px; }}
+        .issues {{ margin: 30px 0; }}
+        .issue {{ padding: 15px; margin: 10px 0; border-radius: 8px; }}
+        .issue.critical {{ background: #fef2f2; border-left: 4px solid #ef4444; }}
+        .issue.high {{ background: #fffbeb; border-left: 4px solid #f59e0b; }}
+        .footer {{ text-align: center; color: #94a3b8; font-size: 12px; margin-top: 40px; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Executive Security Summary</h1>
+        <p class="subtitle">{tenant} | {generated}</p>
+
+        <div class="grade-circle"><span>{grade}</span></div>
+
+        <div class="score-bar"><div class="score-fill"></div></div>
+        <p style="text-align: center; color: #64748b;">Compliance Score: {score}%</p>
+
+        <div class="kpis">
+            <div class="kpi">
+                <div class="kpi-value">{ca_enabled}</div>
+                <div class="kpi-label">Active CA Policies</div>
+            </div>
+            <div class="kpi">
+                <div class="kpi-value">{total_policies}</div>
+                <div class="kpi-label">Total Policies</div>
+            </div>
+            <div class="kpi">
+                <div class="kpi-value">{findings}</div>
+                <div class="kpi-label">Findings</div>
+            </div>
+        </div>
+
+        {issues_section}
+
+        <div class="footer">Generated by ctl365 v{version} | Resolve Technology</div>
+    </div>
+</body>
+</html>"#,
+            tenant = report.tenant_name,
+            generated = report.report_generated_at,
+            grade = report.security_grade,
+            grade_bg = match report.security_grade.as_str() { "A" | "A+" => "#10b981", "B" => "#3b82f6", "C" => "#f59e0b", _ => "#ef4444" },
+            score = report.compliance_score,
+            ca_enabled = report.ca_summary.enabled_count,
+            total_policies = report.intune_summary.compliance_policies + report.intune_summary.configuration_policies + report.intune_summary.settings_catalog_policies,
+            findings = report.findings.len(),
+            issues_section = if critical_count > 0 || high_count > 0 {
+                format!(r#"<div class="issues"><h3>Priority Issues</h3>{}{}</div>"#,
+                    if critical_count > 0 { format!(r#"<div class="issue critical"><strong>CRITICAL:</strong> {} critical issue(s) require immediate attention</div>"#, critical_count) } else { String::new() },
+                    if high_count > 0 { format!(r#"<div class="issue high"><strong>HIGH:</strong> {} high priority issue(s) should be addressed</div>"#, high_count) } else { String::new() }
+                )
+            } else {
+                r#"<div style="text-align: center; color: #10b981; font-size: 18px; margin: 30px 0;">✓ No critical or high priority issues</div>"#.to_string()
+            },
+            version = env!("CARGO_PKG_VERSION"),
+        )
+    }
+
+    /// Generate inventory report from TenantSecurityReport data
+    fn generate_inventory_report_from_data(
+        &self,
+        report: &crate::tui::tasks::TenantSecurityReport,
+    ) -> String {
+        let ca_policies_html: String = report.ca_summary.policies_by_category.iter().map(|(cat, policies)| {
+            let policy_list = policies.iter().map(|p| format!("<li>{}</li>", p)).collect::<String>();
+            format!("<tr><td><strong>{}</strong></td><td>{}</td><td><ul style='margin:0;padding-left:20px;'>{}</ul></td></tr>", cat, policies.len(), policy_list)
+        }).collect();
+
+        format!(
+            r#"<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Policy Inventory - {tenant}</title>
+    <style>
+        body {{ font-family: 'Segoe UI', sans-serif; margin: 0; padding: 40px; background: #f8fafc; }}
+        .container {{ max-width: 1100px; margin: 0 auto; background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }}
+        h1 {{ color: #0078d4; }}
+        h2 {{ color: #334155; margin-top: 30px; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; }}
+        .summary {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin: 30px 0; }}
+        .summary-item {{ background: #f1f5f9; padding: 20px; border-radius: 8px; text-align: center; }}
+        .summary-value {{ font-size: 28px; font-weight: bold; color: #0078d4; }}
+        .summary-label {{ color: #64748b; font-size: 13px; }}
+        table {{ width: 100%; border-collapse: collapse; margin: 20px 0; }}
+        th, td {{ padding: 12px; text-align: left; border-bottom: 1px solid #e2e8f0; vertical-align: top; }}
+        th {{ background: #f8fafc; font-weight: 600; }}
+        ul {{ margin: 0; }}
+        .footer {{ margin-top: 40px; text-align: center; color: #94a3b8; font-size: 12px; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Policy Inventory</h1>
+        <p>Tenant: {tenant} | Generated: {generated}</p>
+
+        <div class="summary">
+            <div class="summary-item"><div class="summary-value">{compliance}</div><div class="summary-label">Compliance Policies</div></div>
+            <div class="summary-item"><div class="summary-value">{config}</div><div class="summary-label">Configuration Profiles</div></div>
+            <div class="summary-item"><div class="summary-value">{settings}</div><div class="summary-label">Settings Catalog</div></div>
+            <div class="summary-item"><div class="summary-value">{apps}</div><div class="summary-label">Managed Apps</div></div>
+            <div class="summary-item"><div class="summary-value">{ca_total}</div><div class="summary-label">CA Policies</div></div>
+        </div>
+
+        <h2>Conditional Access Policies by Category</h2>
+        <table>
+            <tr><th>Category</th><th>Count</th><th>Policies</th></tr>
+            {ca_policies_html}
+        </table>
+
+        <h2>Named Locations</h2>
+        <table>
+            <tr><th>Name</th><th>Type</th><th>Trusted</th></tr>
+            {locations_html}
+        </table>
+
+        <div class="footer">Generated by ctl365 v{version} | Resolve Technology</div>
+    </div>
+</body>
+</html>"#,
+            tenant = report.tenant_name,
+            generated = report.report_generated_at,
+            compliance = report.intune_summary.compliance_policies,
+            config = report.intune_summary.configuration_policies,
+            settings = report.intune_summary.settings_catalog_policies,
+            apps = report.intune_summary.managed_apps,
+            ca_total = report.ca_summary.total_policies,
+            ca_policies_html = if ca_policies_html.is_empty() { "<tr><td colspan='3'>No CA policies found</td></tr>".to_string() } else { ca_policies_html },
+            locations_html = if report.named_locations.is_empty() {
+                "<tr><td colspan='3'>No named locations configured</td></tr>".to_string()
+            } else {
+                report.named_locations.iter().map(|l| format!("<tr><td>{}</td><td>{}</td><td>{}</td></tr>", l.name, l.location_type, if l.is_trusted { "Yes" } else { "No" })).collect()
+            },
+            version = env!("CARGO_PKG_VERSION"),
+        )
+    }
+
     /// Save HTML report to file and open it
     fn save_report_html(&mut self, html: &str, report_name: &str) {
         let tenant = self
@@ -4212,8 +4579,9 @@ impl App {
         }
     }
 
-    /// Start generating a comprehensive tenant security report
-    fn start_tenant_report(&mut self) {
+    /// Start generating a tenant report (fetches data from Graph API)
+    /// report_type: "comprehensive", "compliance", "security", "executive", "inventory"
+    fn start_tenant_report(&mut self, report_type: &str) {
         if self.active_tenant.is_none() {
             self.status_message = Some((
                 "No active tenant. Select a tenant first.".to_string(),
@@ -4222,17 +4590,30 @@ impl App {
             return;
         }
 
+        let msg = match report_type {
+            "comprehensive" => "Generating comprehensive security report...",
+            "compliance" => "Generating compliance report (fetching data)...",
+            "security" => "Generating security assessment (fetching data)...",
+            "executive" => "Generating executive summary (fetching data)...",
+            "inventory" => "Generating policy inventory (fetching data)...",
+            _ => "Generating report (fetching data)...",
+        };
+
         // Guard: check if already running a task
-        if let Err(reason) = self.begin_task("Generating comprehensive security report...") {
+        if let Err(reason) = self.begin_task(msg) {
             self.status_message = Some((reason, StatusLevel::Warning));
             return;
         }
+
+        // Store the report type so we know which format to generate when data returns
+        self.pending_report_type = Some(report_type.to_string());
 
         let tenant_name = self.active_tenant.clone().unwrap();
         let request = crate::tui::tasks::TaskRequest::GenerateTenantReport { tenant_name };
 
         if self.send_task(request).is_none() {
             self.clear_async_task();
+            self.pending_report_type = None;
         }
     }
 
@@ -5418,15 +5799,49 @@ impl App {
                                 );
                             }
                             TaskResult::TenantReportGenerated { report } => {
-                                // Store the report and generate HTML
+                                // Store the report
                                 self.tenant_report = Some(*report.clone());
-                                let html = self.generate_comprehensive_report(&report);
-                                self.save_report_html(&html, "security-report");
+
+                                // Generate HTML based on pending report type
+                                let report_type = self.pending_report_type.take().unwrap_or_else(|| "comprehensive".to_string());
+                                let (html, filename, title) = match report_type.as_str() {
+                                    "compliance" => (
+                                        self.generate_compliance_report_from_data(&report),
+                                        "compliance-report",
+                                        "Compliance Report",
+                                    ),
+                                    "security" => (
+                                        self.generate_security_report_from_data(&report),
+                                        "security-assessment",
+                                        "Security Assessment",
+                                    ),
+                                    "executive" => (
+                                        self.generate_executive_report_from_data(&report),
+                                        "executive-summary",
+                                        "Executive Summary",
+                                    ),
+                                    "inventory" => (
+                                        self.generate_inventory_report_from_data(&report),
+                                        "policy-inventory",
+                                        "Policy Inventory",
+                                    ),
+                                    "client" => (
+                                        self.generate_comprehensive_report(&report),
+                                        "client-report",
+                                        "Client Report",
+                                    ),
+                                    _ => (
+                                        self.generate_comprehensive_report(&report),
+                                        "security-report",
+                                        "Security Report",
+                                    ),
+                                };
+                                self.save_report_html(&html, filename);
                                 self.finish_task(
                                     true,
                                     format!(
-                                        "Security report generated - Grade: {}, Score: {}%",
-                                        report.security_grade, report.compliance_score
+                                        "{} generated - Grade: {}, Score: {}%",
+                                        title, report.security_grade, report.compliance_score
                                     ),
                                 );
                             }
@@ -6372,6 +6787,20 @@ fn render_status_bar(f: &mut Frame, app: &App, area: Rect) {
         .status_timestamp
         .map(|ts| format!("[{}] ", ts.format("%H:%M:%S")))
         .unwrap_or_default();
+
+    // Show connecting indicator if worker not ready
+    if !app.worker_ready && app.status_message.is_none() {
+        let connecting_msg = " ◌ Connecting to background worker... ";
+        let status = Paragraph::new(connecting_msg)
+            .style(Style::default().fg(Color::Yellow).add_modifier(Modifier::ITALIC))
+            .block(
+                Block::default()
+                    .borders(Borders::TOP)
+                    .border_style(Style::default().fg(Color::DarkGray)),
+            );
+        f.render_widget(status, area);
+        return;
+    }
 
     // Use basic ANSI colors for Windows PowerShell compatibility
     let (msg, style) = match &app.status_message {
@@ -8354,6 +8783,7 @@ mod tests {
             connection_test_results: Vec::new(),
             // Tenant security report
             tenant_report: None,
+            pending_report_type: None,
             // Autopilot
             autopilot_devices: Vec::new(),
             autopilot_profiles: Vec::new(),

@@ -208,7 +208,8 @@ If you want to test non-interactive auth (for automation):
 ### 2. Add Tenant with Secret
 
 ```bash
-./target/x86_64-unknown-linux-gnu/release/ctl365 tenant add my-automation-tenant \
+# Use a short abbreviation for easy reference (e.g., RESO, ACME, CLIENT1)
+ctl365 tenant add RESO \
   --tenant-id "YOUR-TENANT-ID" \
   --client-id "YOUR-CLIENT-ID" \
   --client-secret "YOUR-CLIENT-SECRET" \
@@ -218,15 +219,15 @@ If you want to test non-interactive auth (for automation):
 ### 3. Login (No Browser Required!)
 
 ```bash
-./target/x86_64-unknown-linux-gnu/release/ctl365 login --tenant my-automation-tenant
+ctl365 login RESO
 ```
 
 **Expected output:**
 ```
-🔐 Authenticating with client credentials for tenant 'my-automation-tenant'...
+🔐 Authenticating with client credentials for tenant 'RESO'...
 ✅ Authentication successful!
 
-→ Active tenant: my-automation-tenant
+→ Active tenant: RESO
 ```
 
 ---

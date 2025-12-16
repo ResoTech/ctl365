@@ -215,15 +215,15 @@ ctl365 login --tenant my-tenant
 **⚠️ Only use if you created a client secret**
 
 ```bash
-# Add tenant with client secret
-ctl365 tenant add my-automation \
+# Add tenant with client secret (use short abbreviation for easy reference)
+ctl365 tenant add RESO \
   --tenant-id "YOUR-TENANT-ID" \
   --client-id "YOUR-CLIENT-ID" \
   --client-secret "YOUR-CLIENT-SECRET" \
   --client-credentials
 
 # Login (no browser required!)
-ctl365 login --tenant my-automation
+ctl365 login RESO
 ```
 
 **Use cases:**
@@ -312,7 +312,7 @@ ctl365 tenant add my-tenant --tenant-id "CORRECT-ID" --client-id "CORRECT-ID"
 2. Create new client secret
 3. Update ctl365 config:
 ```bash
-ctl365 tenant add my-automation \
+ctl365 tenant add RESO \
   --tenant-id "SAME-TENANT-ID" \
   --client-id "SAME-CLIENT-ID" \
   --client-secret "NEW-SECRET" \

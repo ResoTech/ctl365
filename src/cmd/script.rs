@@ -106,8 +106,8 @@ pub struct ListScriptsArgs {
     pub platform: String,
 
     /// Show verbose details
-    #[arg(short, long)]
-    pub verbose: bool,
+    #[arg(short = 'd', long = "detailed")]
+    pub detailed: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -324,7 +324,7 @@ pub async fn list_scripts(args: ListScriptsArgs) -> Result<()> {
                                 .unwrap_or("");
 
                             println!("  {} {}", "•".green(), name);
-                            if args.verbose {
+                            if args.detailed {
                                 println!("    ID: {}", id.dimmed());
                                 println!("    Created: {}", created.dimmed());
                             }
@@ -353,7 +353,7 @@ pub async fn list_scripts(args: ListScriptsArgs) -> Result<()> {
                             let id = script["id"].as_str().unwrap_or("");
 
                             println!("  {} {} ({})", "•".cyan(), name, publisher.dimmed());
-                            if args.verbose {
+                            if args.detailed {
                                 println!("    ID: {}", id.dimmed());
                             }
                         }
@@ -382,7 +382,7 @@ pub async fn list_scripts(args: ListScriptsArgs) -> Result<()> {
                             let id = script["id"].as_str().unwrap_or("");
 
                             println!("  {} {}", "•".blue(), name);
-                            if args.verbose {
+                            if args.detailed {
                                 println!("    ID: {}", id.dimmed());
                             }
                         }
