@@ -62,7 +62,7 @@ APP REGISTRATION SETUP (Azure Portal)
 -------------------------------------
 1. Go to Azure Portal > Entra ID > App registrations
 2. Click "New registration"
-3. Name: "ctl365-automation"
+3. Name: "ctl365"
 4. After creation, copy:
    - Application (client) ID -> CLIENT_ID
    - Directory (tenant) ID -> TENANT_ID

@@ -32,14 +32,14 @@ See [INSTALL.md](INSTALL.md) for Windows and Linux installation options.
 ## 🚀 Quick Start
 
 ```bash
-# Authenticate to Microsoft 365
-ctl365 tenant add my-tenant \
+# Authenticate to Microsoft 365 (use 4-char client identifier)
+ctl365 tenant add ACME \
   --tenant-id "YOUR-TENANT-ID" \
   --client-id "YOUR-APP-CLIENT-ID" \
   --client-secret "YOUR-SECRET" \
   --client-credentials
 
-ctl365 login
+ctl365 login ACME
 
 # Generate and deploy Windows baseline
 ctl365 baseline new windows --template oib --encryption --defender -o baseline.json

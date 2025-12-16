@@ -123,11 +123,7 @@ pub async fn login(args: LoginArgs) -> Result<()> {
 
         let name = args.tenant.unwrap_or_else(|| {
             // Generate a friendly tenant name from tenant_id first segment
-            let auto_name = tenant_id
-                .split('-')
-                .next()
-                .unwrap_or("my-tenant")
-                .to_string();
+            let auto_name = tenant_id.split('-').next().unwrap_or("tenant").to_string();
             println!(
                 "\n{} Auto-generated tenant name: {}",
                 "→".cyan(),
