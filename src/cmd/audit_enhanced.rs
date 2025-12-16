@@ -1697,7 +1697,8 @@ fn format_report_html(data: &Value, report_type: &str, include_charts: bool) -> 
         "security" => {
             if let Some(sec) = security_status {
                 let ca = &sec["conditional_access"];
-                let defaults_status = if sec["security_defaults_enabled"].as_bool().unwrap_or(false) {
+                let defaults_status = if sec["security_defaults_enabled"].as_bool().unwrap_or(false)
+                {
                     r#"<span class="status-warning">Enabled</span>"#
                 } else {
                     r#"<span class="status-good">Disabled (CA Active)</span>"#

@@ -4274,14 +4274,46 @@ impl App {
             ca_enabled = report.ca_summary.enabled_count,
             ca_report_only = report.ca_summary.report_only_count,
             ca_disabled = report.ca_summary.disabled_count,
-            mfa_status = if report.mfa_status.enforced_by_ca { "Enforced" } else { "Not Enforced" },
-            mfa_class = if report.mfa_status.enforced_by_ca { "status-good" } else { "status-bad" },
-            legacy_status = if report.ca_summary.has_legacy_auth_block { "Blocked" } else { "Not Blocked" },
-            legacy_class = if report.ca_summary.has_legacy_auth_block { "status-good" } else { "status-bad" },
-            device_status = if report.ca_summary.has_device_compliance { "Required" } else { "Not Required" },
-            device_class = if report.ca_summary.has_device_compliance { "status-good" } else { "status-warn" },
-            defaults_status = if report.security_defaults_enabled { "Enabled" } else { "Disabled (CA Active)" },
-            defaults_class = if report.security_defaults_enabled { "status-warn" } else { "status-good" },
+            mfa_status = if report.mfa_status.enforced_by_ca {
+                "Enforced"
+            } else {
+                "Not Enforced"
+            },
+            mfa_class = if report.mfa_status.enforced_by_ca {
+                "status-good"
+            } else {
+                "status-bad"
+            },
+            legacy_status = if report.ca_summary.has_legacy_auth_block {
+                "Blocked"
+            } else {
+                "Not Blocked"
+            },
+            legacy_class = if report.ca_summary.has_legacy_auth_block {
+                "status-good"
+            } else {
+                "status-bad"
+            },
+            device_status = if report.ca_summary.has_device_compliance {
+                "Required"
+            } else {
+                "Not Required"
+            },
+            device_class = if report.ca_summary.has_device_compliance {
+                "status-good"
+            } else {
+                "status-warn"
+            },
+            defaults_status = if report.security_defaults_enabled {
+                "Enabled"
+            } else {
+                "Disabled (CA Active)"
+            },
+            defaults_class = if report.security_defaults_enabled {
+                "status-warn"
+            } else {
+                "status-good"
+            },
             version = env!("CARGO_PKG_VERSION"),
         )
     }
@@ -4292,7 +4324,8 @@ impl App {
         report: &crate::tui::tasks::TenantSecurityReport,
     ) -> String {
         let findings_html: String = if report.findings.is_empty() {
-            "<p style='color: #10b981; font-weight: 600;'>✓ No security issues found!</p>".to_string()
+            "<p style='color: #10b981; font-weight: 600;'>✓ No security issues found!</p>"
+                .to_string()
         } else {
             report.findings.iter().map(|f| {
                 let severity_color = match f.severity.as_str() {
@@ -4359,13 +4392,34 @@ impl App {
             tenant = report.tenant_name,
             generated = report.report_generated_at,
             grade = report.security_grade,
-            grade_color = match report.security_grade.as_str() { "A" | "A+" => "#10b981", "B" => "#3b82f6", "C" => "#f59e0b", _ => "#ef4444" },
+            grade_color = match report.security_grade.as_str() {
+                "A" | "A+" => "#10b981",
+                "B" => "#3b82f6",
+                "C" => "#f59e0b",
+                _ => "#ef4444",
+            },
             score = report.compliance_score,
             findings_html = findings_html,
-            mfa = if report.mfa_status.enforced_by_ca { "✓ Enforced" } else { "✗ Not Enforced" },
-            legacy = if report.ca_summary.has_legacy_auth_block { "✓ Blocked" } else { "✗ Allowed" },
-            admin = if report.ca_summary.has_admin_protection { "✓ Protected" } else { "✗ Not Protected" },
-            location = if report.ca_summary.has_location_policy { "✓ Configured" } else { "○ Not Configured" },
+            mfa = if report.mfa_status.enforced_by_ca {
+                "✓ Enforced"
+            } else {
+                "✗ Not Enforced"
+            },
+            legacy = if report.ca_summary.has_legacy_auth_block {
+                "✓ Blocked"
+            } else {
+                "✗ Allowed"
+            },
+            admin = if report.ca_summary.has_admin_protection {
+                "✓ Protected"
+            } else {
+                "✗ Not Protected"
+            },
+            location = if report.ca_summary.has_location_policy {
+                "✓ Configured"
+            } else {
+                "○ Not Configured"
+            },
             version = env!("CARGO_PKG_VERSION"),
         )
     }
@@ -4375,8 +4429,16 @@ impl App {
         &self,
         report: &crate::tui::tasks::TenantSecurityReport,
     ) -> String {
-        let critical_count = report.findings.iter().filter(|f| f.severity == "CRITICAL").count();
-        let high_count = report.findings.iter().filter(|f| f.severity == "HIGH").count();
+        let critical_count = report
+            .findings
+            .iter()
+            .filter(|f| f.severity == "CRITICAL")
+            .count();
+        let high_count = report
+            .findings
+            .iter()
+            .filter(|f| f.severity == "HIGH")
+            .count();
 
         format!(
             r#"<!DOCTYPE html>
@@ -4439,15 +4501,37 @@ impl App {
             tenant = report.tenant_name,
             generated = report.report_generated_at,
             grade = report.security_grade,
-            grade_bg = match report.security_grade.as_str() { "A" | "A+" => "#10b981", "B" => "#3b82f6", "C" => "#f59e0b", _ => "#ef4444" },
+            grade_bg = match report.security_grade.as_str() {
+                "A" | "A+" => "#10b981",
+                "B" => "#3b82f6",
+                "C" => "#f59e0b",
+                _ => "#ef4444",
+            },
             score = report.compliance_score,
             ca_enabled = report.ca_summary.enabled_count,
-            total_policies = report.intune_summary.compliance_policies + report.intune_summary.configuration_policies + report.intune_summary.settings_catalog_policies,
+            total_policies = report.intune_summary.compliance_policies
+                + report.intune_summary.configuration_policies
+                + report.intune_summary.settings_catalog_policies,
             findings = report.findings.len(),
             issues_section = if critical_count > 0 || high_count > 0 {
-                format!(r#"<div class="issues"><h3>Priority Issues</h3>{}{}</div>"#,
-                    if critical_count > 0 { format!(r#"<div class="issue critical"><strong>CRITICAL:</strong> {} critical issue(s) require immediate attention</div>"#, critical_count) } else { String::new() },
-                    if high_count > 0 { format!(r#"<div class="issue high"><strong>HIGH:</strong> {} high priority issue(s) should be addressed</div>"#, high_count) } else { String::new() }
+                format!(
+                    r#"<div class="issues"><h3>Priority Issues</h3>{}{}</div>"#,
+                    if critical_count > 0 {
+                        format!(
+                            r#"<div class="issue critical"><strong>CRITICAL:</strong> {} critical issue(s) require immediate attention</div>"#,
+                            critical_count
+                        )
+                    } else {
+                        String::new()
+                    },
+                    if high_count > 0 {
+                        format!(
+                            r#"<div class="issue high"><strong>HIGH:</strong> {} high priority issue(s) should be addressed</div>"#,
+                            high_count
+                        )
+                    } else {
+                        String::new()
+                    }
                 )
             } else {
                 r#"<div style="text-align: center; color: #10b981; font-size: 18px; margin: 30px 0;">✓ No critical or high priority issues</div>"#.to_string()
@@ -4525,11 +4609,26 @@ impl App {
             settings = report.intune_summary.settings_catalog_policies,
             apps = report.intune_summary.managed_apps,
             ca_total = report.ca_summary.total_policies,
-            ca_policies_html = if ca_policies_html.is_empty() { "<tr><td colspan='3'>No CA policies found</td></tr>".to_string() } else { ca_policies_html },
+            ca_policies_html = if ca_policies_html.is_empty() {
+                "<tr><td colspan='3'>No CA policies found</td></tr>".to_string()
+            } else {
+                ca_policies_html
+            },
             locations_html = if report.named_locations.is_empty() {
                 "<tr><td colspan='3'>No named locations configured</td></tr>".to_string()
             } else {
-                report.named_locations.iter().map(|l| format!("<tr><td>{}</td><td>{}</td><td>{}</td></tr>", l.name, l.location_type, if l.is_trusted { "Yes" } else { "No" })).collect()
+                report
+                    .named_locations
+                    .iter()
+                    .map(|l| {
+                        format!(
+                            "<tr><td>{}</td><td>{}</td><td>{}</td></tr>",
+                            l.name,
+                            l.location_type,
+                            if l.is_trusted { "Yes" } else { "No" }
+                        )
+                    })
+                    .collect()
             },
             version = env!("CARGO_PKG_VERSION"),
         )
@@ -5803,7 +5902,10 @@ impl App {
                                 self.tenant_report = Some(*report.clone());
 
                                 // Generate HTML based on pending report type
-                                let report_type = self.pending_report_type.take().unwrap_or_else(|| "comprehensive".to_string());
+                                let report_type = self
+                                    .pending_report_type
+                                    .take()
+                                    .unwrap_or_else(|| "comprehensive".to_string());
                                 let (html, filename, title) = match report_type.as_str() {
                                     "compliance" => (
                                         self.generate_compliance_report_from_data(&report),
@@ -6792,7 +6894,11 @@ fn render_status_bar(f: &mut Frame, app: &App, area: Rect) {
     if !app.worker_ready && app.status_message.is_none() {
         let connecting_msg = " ◌ Connecting to background worker... ";
         let status = Paragraph::new(connecting_msg)
-            .style(Style::default().fg(Color::Yellow).add_modifier(Modifier::ITALIC))
+            .style(
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::ITALIC),
+            )
             .block(
                 Block::default()
                     .borders(Borders::TOP)
