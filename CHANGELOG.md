@@ -30,9 +30,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `generate_inventory_report_from_data()`: Full policy inventory listing
 
 ### Changed
-- **Documentation Updates**
-  - Replaced "my-automation" examples with proper tenant names (RESO)
-  - Cleaner command examples: `ctl365 login RESO`
+- **Documentation Overhaul** - Comprehensive cleanup across 11 docs files
+  - Added 4-character client identifier convention (ACME, CNTO, CORP, etc.)
+  - Replaced all "my-tenant", "my-automation" with proper identifiers
+  - Changed `--verbose` to `--detailed` for `tenant list` and `autopilot list`
+  - Removed "automation" terminology, use "non-interactive" or "client credentials"
+  - Azure AD app name: `ctl365` (not `ctl365-automation`)
+  - Removed `./target/` dev paths from user docs (just use `ctl365`)
+  - Added `reports/` directory to config structure
+  - Added Quarantine presets documentation to EXCHANGE.md
 
 ### Technical
 - 155 tests passing
