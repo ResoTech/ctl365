@@ -49,20 +49,20 @@ ctl365 is a full-featured M365 management CLI with TUI dashboard. Here's what's 
 
 ## Installation
 
-### Build from Source
+### Windows (Recommended)
 
-```bash
-cd /data/lab/ctl365
-cargo build --release
-
-# Binary location:
-# target/x86_64-unknown-linux-gnu/release/ctl365
+```powershell
+irm https://raw.githubusercontent.com/ResoTech/ctl365/main/release/windows/bootstrap.ps1 | iex
 ```
 
-### Quick Test
+### Linux / Build from Source
+
+See [INSTALL.md](../INSTALL.md) for detailed installation instructions.
+
+### Verify Installation
 
 ```bash
-./target/x86_64-unknown-linux-gnu/release/ctl365 --help
+ctl365 --help
 ```
 
 ---

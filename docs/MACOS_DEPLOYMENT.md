@@ -127,14 +127,14 @@ ctl365 login \
   --client-id "your-client-id-here"
 ```
 
-Or for multiple tenants:
+Or for multiple tenants (use 4-char client identifier):
 ```bash
-ctl365 tenant add my-company \
+ctl365 tenant add ACME \
   --tenant-id "tenant-id" \
   --client-id "client-id" \
   --description "Production macOS Management"
 
-ctl365 login --tenant my-company
+ctl365 login ACME
 ```
 
 ### Step 2: Create Entra ID Group for macOS Devices

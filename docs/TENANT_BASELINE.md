@@ -54,8 +54,9 @@ The tenant baseline configures organization-level settings that apply to **all u
 
 3. **Active Tenant Configured**:
    ```bash
-   ctl365 tenant add production --tenant-id <id> --client-id <id>
-   ctl365 login --tenant production
+   # Use 4-char client identifier (e.g., ACME, CNTO, CORP)
+   ctl365 tenant add ACME --tenant-id <id> --client-id <id>
+   ctl365 login ACME
    ```
 
 ---

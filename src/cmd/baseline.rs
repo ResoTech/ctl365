@@ -98,19 +98,29 @@ pub async fn new(args: NewArgs) -> Result<()> {
         "windows" => match args.template.as_str() {
             "basic" => templates::windows::generate_baseline(&args)?,
             "oib" | "openintune" => templates::windows_oib::generate_oib_baseline(&args)?,
-            "microsoft-baseline" | "ms" => {
-                return Err(crate::error::Error::NotImplemented(
-                    "Microsoft Security Baseline template not yet implemented".into(),
-                ));
+            "cis" | "cis-l1" => {
+                let policies = templates::cis_benchmarks::generate_cis_level1(&args.name);
+                serde_json::json!({
+                    "version": "1.0",
+                    "platform": "windows",
+                    "name": format!("{} - CIS Level 1", args.name),
+                    "description": "CIS Benchmark Level 1 for Windows 11 - Essential security settings",
+                    "policies": policies
+                })
             }
-            "cis" => {
-                return Err(crate::error::Error::NotImplemented(
-                    "CIS Benchmark template not yet implemented".into(),
-                ));
+            "cis-l2" => {
+                let policies = templates::cis_benchmarks::generate_cis_level2(&args.name);
+                serde_json::json!({
+                    "version": "1.0",
+                    "platform": "windows",
+                    "name": format!("{} - CIS Level 2", args.name),
+                    "description": "CIS Benchmark Level 2 for Windows 11 - Defense-in-depth (may impact functionality)",
+                    "policies": policies
+                })
             }
             _ => {
                 return Err(crate::error::Error::ConfigError(format!(
-                    "Unknown template: '{}'. Available: basic, oib, microsoft-baseline, cis",
+                    "Unknown template: '{}'. Available: basic, oib, cis, cis-l1, cis-l2",
                     args.template
                 )));
             }
@@ -333,9 +343,22 @@ pub async fn apply(args: ApplyArgs) -> Result<()> {
 }
 
 pub async fn export(_args: ExportArgs) -> Result<()> {
-    Err(crate::error::Error::NotImplemented(
-        "Baseline export not yet implemented".into(),
-    ))
+    println!(
+        "{}",
+        "Baseline export is planned for a future release.".yellow()
+    );
+    println!();
+    println!("For now, use these alternatives:");
+    println!(
+        "  {} - Export all tenant policies to JSON",
+        "ctl365 export".cyan()
+    );
+    println!(
+        "  {} - Export specific policy types",
+        "ctl365 export --type compliance".cyan()
+    );
+    println!();
+    Ok(())
 }
 
 pub async fn list() -> Result<()> {
@@ -373,6 +396,44 @@ pub async fn list() -> Result<()> {
     );
     println!(
         "    {} Features: WHfB, LAPS, ASR Rules, BitLocker, Firewall, MDE",
+        "✓".green()
+    );
+    println!();
+
+    println!(
+        "  {} {} - CIS Benchmark Level 1 (PRODUCTION-READY)",
+        "•".green(),
+        "cis".bold()
+    );
+    println!(
+        "    {} Essential security settings, broadly applicable",
+        "✓".green()
+    );
+    println!(
+        "    {} Based on CIS Microsoft Windows 11 Enterprise Benchmark v3.0.0",
+        "✓".green()
+    );
+    println!(
+        "    {} Password, lockout, audit, Windows components",
+        "✓".green()
+    );
+    println!();
+
+    println!(
+        "  {} {} - CIS Benchmark Level 2",
+        "•".yellow(),
+        "cis-l2".bold()
+    );
+    println!(
+        "    {} Defense-in-depth (may impact functionality)",
+        "⚠".yellow()
+    );
+    println!(
+        "    {} Includes all L1 controls plus additional hardening",
+        "✓".green()
+    );
+    println!(
+        "    {} Remote Desktop, network, legacy protocol hardening",
         "✓".green()
     );
     println!();
@@ -470,6 +531,8 @@ pub async fn list() -> Result<()> {
     println!("{}", "Templates:".bold());
     println!("  basic            - Simple, straightforward baseline (default)");
     println!("  oib/openintune   - OpenIntuneBaseline v3.6 (recommended for production)");
+    println!("  cis/cis-l1       - CIS Benchmark Level 1 (essential security)");
+    println!("  cis-l2           - CIS Benchmark Level 2 (defense-in-depth)");
 
     Ok(())
 }

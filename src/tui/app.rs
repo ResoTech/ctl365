@@ -8565,10 +8565,10 @@ async fn load_policies_from_api(
             parse_config_policies(&result)
         }
         PolicyListType::Apps => {
-            // Apps require different API - show sample for now
-            return Err(crate::error::Error::NotImplemented(
-                "App listing not yet implemented".into(),
-            ));
+            let result: serde_json::Value = graph
+                .get_beta("deviceAppManagement/mobileApps?$top=100")
+                .await?;
+            parse_app_policies(&result)
         }
         PolicyListType::All => {
             // Combine all types
@@ -8725,6 +8725,62 @@ fn parse_config_policies(response: &serde_json::Value) -> Vec<PolicyRow> {
             policies.push(PolicyRow {
                 name,
                 policy_type,
+                status: PolicyStatus::Deployed,
+                platform,
+                assignments: 0,
+                last_modified: modified,
+            });
+        }
+    }
+
+    policies
+}
+
+/// Parse mobile app policies from Graph API response
+fn parse_app_policies(response: &serde_json::Value) -> Vec<PolicyRow> {
+    let mut policies = Vec::new();
+
+    if let Some(value) = response.get("value").and_then(|v| v.as_array()) {
+        for app in value {
+            let name = app
+                .get("displayName")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Unknown")
+                .to_string();
+
+            let odata_type = app
+                .get("@odata.type")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+
+            // Determine app type and platform from @odata.type
+            let (app_type, platform) = if odata_type.contains("win32") {
+                ("Win32".into(), "Windows".into())
+            } else if odata_type.contains("windowsStore") || odata_type.contains("winGetApp") {
+                ("Store".into(), "Windows".into())
+            } else if odata_type.contains("officeSuite") {
+                ("M365 Apps".into(), "Windows".into())
+            } else if odata_type.contains("ios") || odata_type.contains("iOS") {
+                ("iOS App".into(), "iOS".into())
+            } else if odata_type.contains("android") {
+                ("Android App".into(), "Android".into())
+            } else if odata_type.contains("macOS") {
+                ("macOS App".into(), "macOS".into())
+            } else if odata_type.contains("webApp") {
+                ("Web App".into(), "All".into())
+            } else {
+                ("App".into(), "Unknown".into())
+            };
+
+            let modified = app
+                .get("lastModifiedDateTime")
+                .and_then(|v| v.as_str())
+                .map(|s| s.split('T').next().unwrap_or(s).to_string())
+                .unwrap_or_else(|| "N/A".into());
+
+            policies.push(PolicyRow {
+                name,
+                policy_type: app_type,
                 status: PolicyStatus::Deployed,
                 platform,
                 assignments: 0,

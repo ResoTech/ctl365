@@ -185,7 +185,7 @@ All mutation commands support:
 ### Authentication
 ```bash
 ctl365 tenant add <name> --tenant-id <id> --client-id <id> [--client-secret <secret>]
-ctl365 tenant list [--verbose]
+ctl365 tenant list [--detailed]
 ctl365 tenant switch <name>
 ctl365 login [--tenant <name>]
 ctl365 logout [--all]
