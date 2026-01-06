@@ -9,9 +9,9 @@ permissions:
   contents: write
 
 env:
-  CARGO: /home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo
-  CARGO_NIGHTLY: /home/runner/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo
-  RUSTC: /home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc
+  CARGO: ~/.cargo/bin/cargo
+  CARGO_NIGHTLY: ~/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo
+  RUSTC: ~/.cargo/bin/rustc
 
 jobs:
   release-windows:
