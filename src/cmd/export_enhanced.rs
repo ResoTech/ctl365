@@ -1212,20 +1212,210 @@ pub async fn compare(args: CompareArgs) -> Result<()> {
     if source_path.is_dir() && target_path.is_dir() {
         // Compare two export directories
         compare_exports(&source_path, &target_path, &args).await?;
+    } else if !source_path.exists() && !target_path.exists() {
+        // Both might be tenant names - try live comparison
+        compare_live_tenants(&args.source, &args.target, &args).await?;
     } else {
-        println!(
-            "\n{} Live tenant comparison coming soon!",
-            "ℹ".yellow().bold()
-        );
-        println!("Currently supports comparing export directories.");
-        println!("\nTo compare tenants:");
-        println!("  1. Export from source: ctl365 export export -o ./source-export");
-        println!("  2. Switch tenant: ctl365 tenant switch <target>");
-        println!("  3. Export from target: ctl365 export export -o ./target-export");
-        println!("  4. Compare: ctl365 export compare ./source-export ./target-export");
+        println!("\n{} Mixed comparison not supported", "⚠".yellow().bold());
+        println!("Either compare two export directories or two tenant names.");
+        println!("\nExamples:");
+        println!("  ctl365 export compare ./source-export ./target-export");
+        println!("  ctl365 export compare \"Tenant A\" \"Tenant B\"");
     }
 
     Ok(())
+}
+
+/// Compare two live tenants by fetching policies from each
+async fn compare_live_tenants(source: &str, target: &str, args: &CompareArgs) -> Result<()> {
+    let config = ConfigManager::load()?;
+
+    // Validate both tenants exist
+    let source_tenant = config.get_tenant(source)?;
+    let target_tenant = config.get_tenant(target)?;
+
+    println!("\n{} Comparing live tenants...", "→".cyan());
+    println!(
+        "  Source: {} ({})",
+        source_tenant.name, source_tenant.tenant_id
+    );
+    println!(
+        "  Target: {} ({})",
+        target_tenant.name, target_tenant.tenant_id
+    );
+
+    // Connect to both tenants
+    println!("\n{} Connecting to source tenant...", "→".cyan());
+    let source_graph = GraphClient::from_config(&config, &source_tenant.name).await?;
+    println!("{} Connected to source", "✓".green());
+
+    println!("{} Connecting to target tenant...", "→".cyan());
+    let target_graph = GraphClient::from_config(&config, &target_tenant.name).await?;
+    println!("{} Connected to target", "✓".green());
+
+    let mut differences: Vec<(String, String, String)> = vec![];
+
+    // Helper to extract "value" array from Graph API response
+    fn extract_values(response: &Value) -> Vec<Value> {
+        response["value"].as_array().cloned().unwrap_or_default()
+    }
+
+    // Compare compliance policies
+    println!("\n{} Comparing Compliance Policies...", "→".cyan());
+    let source_compliance = intune::list_compliance_policies(&source_graph).await?;
+    let target_compliance = intune::list_compliance_policies(&target_graph).await?;
+    compare_policy_lists(
+        &extract_values(&source_compliance),
+        &extract_values(&target_compliance),
+        "Compliance",
+        &mut differences,
+    );
+
+    // Compare device configurations
+    println!("{} Comparing Device Configurations...", "→".cyan());
+    let source_configs = intune::list_device_configurations(&source_graph).await?;
+    let target_configs = intune::list_device_configurations(&target_graph).await?;
+    compare_policy_lists(
+        &extract_values(&source_configs),
+        &extract_values(&target_configs),
+        "DeviceConfig",
+        &mut differences,
+    );
+
+    // Compare conditional access policies
+    println!("{} Comparing Conditional Access Policies...", "→".cyan());
+    let source_ca = conditional_access::list_policies(&source_graph).await?;
+    let target_ca = conditional_access::list_policies(&target_graph).await?;
+    compare_policy_lists(
+        &extract_values(&source_ca),
+        &extract_values(&target_ca),
+        "ConditionalAccess",
+        &mut differences,
+    );
+
+    // Summary
+    println!("\n{}", "Comparison Summary:".cyan().bold());
+    println!("────────────────────────────────────────────");
+
+    let only_in_source: Vec<_> = differences
+        .iter()
+        .filter(|(_, _, s)| s == "only_in_source")
+        .collect();
+    let only_in_target: Vec<_> = differences
+        .iter()
+        .filter(|(_, _, s)| s == "only_in_target")
+        .collect();
+
+    if only_in_source.is_empty() && only_in_target.is_empty() {
+        println!(
+            "{} Tenants have identical policy names!",
+            "✓".green().bold()
+        );
+        println!(
+            "  {} Note: This compares policy existence, not settings",
+            "ℹ".cyan()
+        );
+    } else {
+        if !only_in_source.is_empty() {
+            println!(
+                "\n{} {} policies only in source ({}):",
+                "−".red(),
+                only_in_source.len(),
+                source
+            );
+            for (ptype, name, _) in &only_in_source {
+                println!("    {} [{}] {}", "−".red(), ptype.dimmed(), name);
+            }
+        }
+        if !only_in_target.is_empty() {
+            println!(
+                "\n{} {} policies only in target ({}):",
+                "+".green(),
+                only_in_target.len(),
+                target
+            );
+            for (ptype, name, _) in &only_in_target {
+                println!("    {} [{}] {}", "+".green(), ptype.dimmed(), name);
+            }
+        }
+    }
+
+    // Save to file if specified
+    if let Some(output_path) = &args.output {
+        let report = serde_json::json!({
+            "comparison_date": chrono::Utc::now().to_rfc3339(),
+            "source_tenant": source,
+            "target_tenant": target,
+            "differences": differences.iter().map(|(t, n, s)| {
+                serde_json::json!({"type": t, "name": n, "status": s})
+            }).collect::<Vec<_>>()
+        });
+        fs::write(output_path, serde_json::to_string_pretty(&report)?)?;
+        println!(
+            "\n{} Report saved to: {}",
+            "✓".green(),
+            output_path.display()
+        );
+    }
+
+    Ok(())
+}
+
+/// Compare two lists of policies by displayName
+fn compare_policy_lists(
+    source: &[Value],
+    target: &[Value],
+    policy_type: &str,
+    differences: &mut Vec<(String, String, String)>,
+) {
+    use std::collections::HashSet;
+
+    let source_names: HashSet<String> = source
+        .iter()
+        .filter_map(|p| p["displayName"].as_str().map(|s| s.to_string()))
+        .collect();
+
+    let target_names: HashSet<String> = target
+        .iter()
+        .filter_map(|p| p["displayName"].as_str().map(|s| s.to_string()))
+        .collect();
+
+    // Only in source
+    for name in source_names.difference(&target_names) {
+        differences.push((
+            policy_type.to_string(),
+            name.to_string(),
+            "only_in_source".to_string(),
+        ));
+    }
+
+    // Only in target
+    for name in target_names.difference(&source_names) {
+        differences.push((
+            policy_type.to_string(),
+            name.to_string(),
+            "only_in_target".to_string(),
+        ));
+    }
+
+    let common = source_names.intersection(&target_names).count();
+    let source_only = source_names.difference(&target_names).count();
+    let target_only = target_names.difference(&source_names).count();
+
+    println!(
+        "  {} common, {} only in source, {} only in target",
+        common.to_string().green(),
+        if source_only > 0 {
+            source_only.to_string().red().to_string()
+        } else {
+            "0".into()
+        },
+        if target_only > 0 {
+            target_only.to_string().yellow().to_string()
+        } else {
+            "0".into()
+        }
+    );
 }
 
 async fn compare_exports(

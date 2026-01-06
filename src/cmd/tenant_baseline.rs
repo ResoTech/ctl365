@@ -82,6 +82,15 @@ pub async fn configure(args: ConfigureArgs) -> Result<()> {
             min_os: None,
             mde_onboarding: None,
             output: Some(output_path.clone()),
+            // Autopilot options (not used for tenant baseline)
+            autopilot_group_name: None,
+            bitlocker_policy_name: None,
+            update_ring_name: None,
+            feature_update_version: None,
+            no_bitlocker: false,
+            no_updates: false,
+            firewall_policy_name: None,
+            no_firewall: false,
         };
 
         let baseline = crate::templates::tenant_baseline::generate_tenant_baseline(&baseline_args)?;

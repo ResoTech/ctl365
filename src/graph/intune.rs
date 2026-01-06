@@ -8,6 +8,16 @@ use crate::error::{Error, Result};
 use crate::graph::GraphClient;
 use serde_json::Value;
 
+/// Strip internal metadata fields from policy before sending to Graph API
+fn clean_policy(policy: &Value) -> Value {
+    let mut clean = policy.clone();
+    if let Some(obj) = clean.as_object_mut() {
+        // Remove internal ctl365 metadata
+        obj.retain(|k, _| !k.starts_with("_ctl365_"));
+    }
+    clean
+}
+
 /// Create a policy in Intune via Microsoft Graph API
 ///
 /// Routes the policy to the appropriate endpoint based on @odata.type
@@ -23,19 +33,49 @@ pub async fn create_policy(
             .await;
     }
 
-    // All other policies use v1.0 endpoint
-    let endpoint = match odata_type {
+    // Route to appropriate endpoint based on policy type
+    let (endpoint, use_beta) = match odata_type {
+        // Compliance policies
         "#microsoft.graph.windows10CompliancePolicy"
         | "#microsoft.graph.iosCompliancePolicy"
         | "#microsoft.graph.macOSCompliancePolicy"
-        | "#microsoft.graph.androidCompliancePolicy" => "deviceManagement/deviceCompliancePolicies",
+        | "#microsoft.graph.androidCompliancePolicy" => {
+            ("deviceManagement/deviceCompliancePolicies", false)
+        }
 
+        // Device configurations
         "#microsoft.graph.windows10EndpointProtectionConfiguration"
         | "#microsoft.graph.windows10CustomConfiguration"
         | "#microsoft.graph.macOSDeviceFeaturesConfiguration"
         | "#microsoft.graph.iosDeviceFeaturesConfiguration"
         | "#microsoft.graph.androidDeviceOwnerGeneralDeviceConfiguration" => {
-            "deviceManagement/deviceConfigurations"
+            ("deviceManagement/deviceConfigurations", false)
+        }
+
+        // Security groups (Entra ID) - strip @odata.type before sending
+        "#microsoft.graph.group" => {
+            // Groups don't need @odata.type in the request body
+            let mut cleaned = clean_policy(policy);
+            if let Some(obj) = cleaned.as_object_mut() {
+                obj.remove("@odata.type");
+            }
+            return client.post("groups", &cleaned).await;
+        }
+
+        // Windows Autopilot deployment profiles (requires beta endpoint)
+        "#microsoft.graph.azureADWindowsAutopilotDeploymentProfile"
+        | "#microsoft.graph.activeDirectoryWindowsAutopilotDeploymentProfile" => {
+            ("deviceManagement/windowsAutopilotDeploymentProfiles", true)
+        }
+
+        // Windows Update for Business - Update Rings
+        "#microsoft.graph.windowsUpdateForBusinessConfiguration" => {
+            ("deviceManagement/deviceConfigurations", false)
+        }
+
+        // Windows Feature Update profiles
+        "#microsoft.graph.windowsFeatureUpdateProfile" => {
+            ("deviceManagement/windowsFeatureUpdateProfiles", true)
         }
 
         _ => {
@@ -46,7 +86,12 @@ pub async fn create_policy(
         }
     };
 
-    client.post(endpoint, policy).await
+    let cleaned = clean_policy(policy);
+    if use_beta {
+        client.post_beta(endpoint, &cleaned).await
+    } else {
+        client.post(endpoint, &cleaned).await
+    }
 }
 
 /// Assign a policy to a group

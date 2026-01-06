@@ -321,6 +321,14 @@ mod tests {
             output: None,
             name: "Test".to_string(),
             template: "basic".to_string(),
+            autopilot_group_name: None,
+            bitlocker_policy_name: None,
+            update_ring_name: None,
+            feature_update_version: None,
+            no_bitlocker: false,
+            no_updates: false,
+            firewall_policy_name: None,
+            no_firewall: false,
         };
 
         let policy = generate_compliance_policy(&args);
@@ -344,6 +352,14 @@ mod tests {
             output: None,
             name: "Test Baseline".to_string(),
             template: "basic".to_string(),
+            autopilot_group_name: None,
+            bitlocker_policy_name: None,
+            update_ring_name: None,
+            feature_update_version: None,
+            no_bitlocker: false,
+            no_updates: false,
+            firewall_policy_name: None,
+            no_firewall: false,
         };
 
         let baseline = generate_baseline(&args).unwrap();

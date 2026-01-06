@@ -4,6 +4,7 @@ pub mod audit_enhanced;
 pub mod autopilot;
 pub mod baseline;
 pub mod ca;
+pub mod ca_location;
 pub mod copilot;
 pub mod export_enhanced;
 pub mod gpo;

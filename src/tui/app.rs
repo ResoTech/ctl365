@@ -186,6 +186,11 @@ pub struct App {
     pub autopilot_devices: Vec<crate::tui::tasks::AutopilotDeviceData>,
     /// Autopilot deployment profiles
     pub autopilot_profiles: Vec<crate::tui::tasks::AutopilotProfileData>,
+    // ========================================================================
+    // Named Locations fields
+    // ========================================================================
+    /// Named Locations (for Conditional Access)
+    pub named_locations: Vec<crate::tui::tasks::NamedLocationInfo>,
 }
 
 /// State for tracking async operations
@@ -387,6 +392,8 @@ pub enum Screen {
     Autopilot,
     AutopilotDevices,
     AutopilotProfiles,
+    // Named Locations management
+    NamedLocations,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -489,6 +496,8 @@ impl App {
             // Autopilot
             autopilot_devices: Vec::new(),
             autopilot_profiles: Vec::new(),
+            // Named Locations
+            named_locations: Vec::new(),
         };
 
         // Spawn background task worker
@@ -1526,10 +1535,8 @@ impl App {
     }
 
     fn process_export_policies(&mut self, _fields: &[FormField]) {
-        self.status_message = Some((
-            "Export policies not yet implemented".into(),
-            StatusLevel::Warning,
-        ));
+        // Delegate to the actual export implementation
+        self.export_policies();
     }
 
     /// Navigate to a new screen
@@ -1587,6 +1594,8 @@ impl App {
             // Autopilot management
             Screen::Autopilot => self.autopilot_menu(),
             Screen::AutopilotDevices | Screen::AutopilotProfiles => self.autopilot_data_menu(),
+            // Named Locations management
+            Screen::NamedLocations => self.named_locations_menu(),
         };
 
         // Load policies after match to avoid borrow conflict (non-blocking)
@@ -1893,6 +1902,13 @@ impl App {
                 label: "Conditional Access".into(),
                 description: "44 production-ready CA policies".into(),
                 shortcut: Some('p'),
+                enabled: self.active_tenant.is_some(),
+            },
+            MenuItem {
+                id: "locations".into(),
+                label: "Named Locations".into(),
+                description: "Manage trusted IPs and country locations for CA".into(),
+                shortcut: Some('l'),
                 enabled: self.active_tenant.is_some(),
             },
             MenuItem {
@@ -2390,6 +2406,50 @@ impl App {
         ]
     }
 
+    fn named_locations_menu(&self) -> Vec<MenuItem> {
+        vec![
+            MenuItem {
+                id: "loc_list".into(),
+                label: "List Named Locations".into(),
+                description: "View all IP and country locations (CLI: ctl365 ca location list)"
+                    .into(),
+                shortcut: Some('l'),
+                enabled: true,
+            },
+            MenuItem {
+                id: "loc_add_ip".into(),
+                label: "Add IP Location".into(),
+                description: "Add trusted IP range (CLI: ctl365 ca location add --ip ...)".into(),
+                shortcut: Some('i'),
+                enabled: false, // Requires CLI for input
+            },
+            MenuItem {
+                id: "loc_add_country".into(),
+                label: "Add Country Location".into(),
+                description:
+                    "Add country-based location (CLI: ctl365 ca location add --countries ...)"
+                        .into(),
+                shortcut: Some('c'),
+                enabled: false, // Requires CLI for input
+            },
+            MenuItem {
+                id: "loc_block".into(),
+                label: "Create GeoIP Block Policy".into(),
+                description:
+                    "Block all except US/CA (CLI: ctl365 ca location block --except US,CA)".into(),
+                shortcut: Some('g'),
+                enabled: false, // Requires CLI for policy creation
+            },
+            MenuItem {
+                id: "back".into(),
+                label: "← Back".into(),
+                description: "Return to dashboard".into(),
+                shortcut: Some('b'),
+                enabled: true,
+            },
+        ]
+    }
+
     fn reports_menu(&self) -> Vec<MenuItem> {
         vec![
             MenuItem {
@@ -2503,6 +2563,9 @@ impl App {
                 self.navigate_to(Screen::Settings(SettingsCategory::Teams));
             }
             "ca" => self.navigate_to(Screen::PolicyList(PolicyListType::ConditionalAccess)),
+            "locations" => {
+                self.load_named_locations();
+            }
             "apps" => self.navigate_to(Screen::PolicyList(PolicyListType::Apps)),
             // Policy list navigation from Intune submenu
             "compliance_policies" => {
@@ -2723,6 +2786,7 @@ impl App {
                 Screen::RiskyUsers => self.fetch_risky_users(),
                 Screen::RiskySignIns => self.fetch_risky_signins(),
                 Screen::DirectoryAudit => self.fetch_directory_audit(),
+                Screen::NamedLocations => self.load_named_locations(),
                 _ => {
                     self.status_message = Some((
                         "Refresh not available for this screen".into(),
@@ -5061,6 +5125,43 @@ impl App {
         }
     }
 
+    /// Load Named Locations for CA management
+    fn load_named_locations(&mut self) {
+        let tenant = match self.active_tenant.clone() {
+            Some(t) => t,
+            None => {
+                self.status_message = Some((
+                    "No tenant selected. Please select a client first.".into(),
+                    StatusLevel::Warning,
+                ));
+                return;
+            }
+        };
+
+        if let Some(sender) = &self.task_sender {
+            let task_id = uuid::Uuid::new_v4().to_string();
+            self.current_task_id = Some(task_id.clone());
+            self.task_started_at = Some(std::time::Instant::now());
+            self.async_task = Some(AsyncTaskState::new(&task_id, "Loading named locations..."));
+            self.needs_redraw = true;
+
+            let request = crate::tui::tasks::TaskRequest::LoadNamedLocations {
+                tenant_name: tenant.clone(),
+            };
+            let envelope = crate::tui::tasks::TaskEnvelope::new(request);
+
+            if let Err(e) = sender.send(envelope) {
+                self.status_message =
+                    Some((format!("Failed to start task: {}", e), StatusLevel::Error));
+                self.async_task = None;
+                self.current_task_id = None;
+            }
+        } else {
+            self.status_message =
+                Some(("Background worker not available".into(), StatusLevel::Error));
+        }
+    }
+
     /// Trigger Autopilot sync with Intune
     fn sync_autopilot(&mut self) {
         let tenant = match self.active_tenant.clone() {
@@ -5434,6 +5535,15 @@ impl App {
             min_os: None,
             mde_onboarding: None,
             name: "Baseline".to_string(),
+            // Autopilot options (use defaults)
+            autopilot_group_name: None,
+            bitlocker_policy_name: None,
+            update_ring_name: None,
+            feature_update_version: None,
+            no_bitlocker: false,
+            no_updates: false,
+            firewall_policy_name: None,
+            no_firewall: false,
         };
 
         let baseline = match platform {
@@ -5972,6 +6082,18 @@ impl App {
                             }
                             TaskResult::AutopilotSynced { message } => {
                                 self.finish_task(true, message);
+                            }
+                            // Named Locations Results
+                            TaskResult::NamedLocationsLoaded { locations } => {
+                                self.named_locations = locations;
+                                let count = self.named_locations.len();
+                                let msg = if count == 0 {
+                                    "No named locations found".to_string()
+                                } else {
+                                    format!("Loaded {} named locations", count)
+                                };
+                                self.finish_task(true, msg);
+                                self.navigate_to(Screen::NamedLocations);
                             }
                             TaskResult::Error { message } => {
                                 self.finish_task(false, message);
@@ -6647,6 +6769,7 @@ fn render_header(f: &mut Frame, app: &App, area: Rect) {
         Screen::Autopilot => "Home > Windows Autopilot".into(),
         Screen::AutopilotDevices => "Home > Windows Autopilot > Devices".into(),
         Screen::AutopilotProfiles => "Home > Windows Autopilot > Profiles".into(),
+        Screen::NamedLocations => "Home > Named Locations".into(),
     };
 
     // Microsoft 365-inspired header with Fluent Design blue accent
@@ -7372,6 +7495,9 @@ fn render_security_data(f: &mut Frame, app: &App, area: Rect) {
         Screen::AutopilotProfiles => render_autopilot_profiles_table(
             f, app, area, m365_blue, m365_green, m365_gold, m365_red,
         ),
+        Screen::NamedLocations => {
+            render_named_locations_table(f, app, area, m365_blue, m365_green, m365_gold, m365_red)
+        }
         _ => {}
     }
 }
@@ -8875,6 +9001,105 @@ async fn deploy_ca_policies_2025_with_progress(
     Ok(deployed)
 }
 
+/// Render Named Locations table
+fn render_named_locations_table(
+    f: &mut Frame,
+    app: &App,
+    area: Rect,
+    m365_blue: Color,
+    m365_green: Color,
+    m365_gold: Color,
+    _m365_red: Color,
+) {
+    let header_cells = ["Name", "Type", "Details", "Trusted"].iter().map(|h| {
+        ratatui::widgets::Cell::from(*h)
+            .style(Style::default().fg(m365_blue).add_modifier(Modifier::BOLD))
+    });
+    let header = Row::new(header_cells).height(1).bottom_margin(1);
+
+    let rows = app.named_locations.iter().map(|loc| {
+        // Determine location type
+        let loc_type = if loc.location_type.contains("ipNamedLocation") {
+            "IP Range"
+        } else if loc.location_type.contains("countryNamedLocation") {
+            "Countries"
+        } else {
+            "Other"
+        };
+
+        // Format details based on type
+        let details = if !loc.ip_ranges.is_empty() {
+            loc.ip_ranges.join(", ")
+        } else if !loc.countries.is_empty() {
+            if loc.countries.len() > 5 {
+                format!(
+                    "{} (+{} more)",
+                    loc.countries[..5].join(", "),
+                    loc.countries.len() - 5
+                )
+            } else {
+                loc.countries.join(", ")
+            }
+        } else {
+            "-".to_string()
+        };
+
+        let trusted_text = if loc.is_trusted { "Yes" } else { "No" };
+        let trusted_color = if loc.is_trusted {
+            m365_green
+        } else {
+            Color::Rgb(150, 150, 150)
+        };
+
+        let cells = vec![
+            ratatui::widgets::Cell::from(truncate_string(&loc.name, 35)),
+            ratatui::widgets::Cell::from(loc_type).style(Style::default().fg(m365_gold)),
+            ratatui::widgets::Cell::from(truncate_string(&details, 40)),
+            ratatui::widgets::Cell::from(trusted_text).style(Style::default().fg(trusted_color)),
+        ];
+        Row::new(cells).height(1)
+    });
+
+    let title = format!(" Named Locations ({} entries) ", app.named_locations.len());
+    let table = Table::new(
+        rows,
+        [
+            Constraint::Percentage(30),
+            Constraint::Percentage(15),
+            Constraint::Percentage(45),
+            Constraint::Percentage(10),
+        ],
+    )
+    .header(header)
+    .block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(title)
+            .border_style(Style::default().fg(m365_blue)),
+    )
+    .row_highlight_style(
+        Style::default()
+            .bg(Color::Rgb(40, 40, 60))
+            .add_modifier(Modifier::BOLD),
+    );
+
+    f.render_widget(table, area);
+
+    // Show hint at bottom
+    if app.named_locations.is_empty() {
+        let hint = Paragraph::new("Press 'r' to refresh or use CLI: ctl365 ca location add --help")
+            .style(Style::default().fg(Color::Rgb(150, 150, 150)))
+            .alignment(Alignment::Center);
+        let hint_area = Rect {
+            x: area.x,
+            y: area.y + area.height / 2,
+            width: area.width,
+            height: 1,
+        };
+        f.render_widget(hint, hint_area);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -8949,6 +9174,8 @@ mod tests {
             // Autopilot
             autopilot_devices: Vec::new(),
             autopilot_profiles: Vec::new(),
+            // Named Locations
+            named_locations: Vec::new(),
         };
 
         app.refresh_menu();

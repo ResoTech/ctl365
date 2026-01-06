@@ -5,6 +5,63 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.9] - 2025-12-16
+
+### Added
+- **Named Locations Management** - Full CLI support for Conditional Access named locations
+  - `ctl365 ca location add --name "Office" --ip 203.0.113.50/32 --trusted`: Add IP-based location
+  - `ctl365 ca location add --name "Allowed Countries" --countries US,CA,GB`: Add country-based location
+  - `ctl365 ca location list [--detailed]`: List all named locations with type and trust status
+  - `ctl365 ca location remove --name "Location" --yes`: Remove a named location
+  - `ctl365 ca location block --except US,CA [--enable]`: Create GeoIP block policy for all countries except specified
+
+- **Named Locations in TUI** - View and refresh named locations from dashboard
+  - New "Named Locations" menu item on dashboard (shortcut: 'l')
+  - Table display with name, type (IP/Countries), details, and trusted status
+  - Async loading with progress indicator
+  - Press 'r' to refresh
+
+- **Live Tenant Comparison** - Compare policies between two live tenants
+  - `ctl365 export compare "Tenant A" "Tenant B"`: Compare by tenant name
+  - Compares Compliance Policies, Device Configurations, and CA Policies
+  - Shows policies unique to each tenant
+  - Optional JSON output with `--output report.json`
+
+- **Teams VOIP Baseline Templates** - Comprehensive Teams Phone configuration
+  - **Teams Calling Policy**: Call recording, transcription enabled by default, spam filtering, live captions
+  - **Cloud Voicemail Policy**: Transcription with profanity masking, shared voicemail for call queues
+  - **Call Queue Template**: Round-robin routing, presence-based routing, overflow to voicemail, 30s agent alert time
+  - **Auto Attendant Template**: Business hours routing, DTMF menu options, dial-by-name, holiday call flows
+  - **Federal Holidays Auto-Generation**: Calculates all US federal holidays for current + next year
+    - Fixed holidays with weekend observance rules (Friday if Saturday, Monday if Sunday)
+    - Floating holidays: MLK Day, Presidents Day, Memorial Day, Labor Day, Columbus Day, Thanksgiving
+    - Business closures: Christmas Eve (half day), New Year's Eve (half day), Day After Thanksgiving
+  - Includes PowerShell implementation commands for each configuration
+  - Graph API endpoints noted for future automation
+
+### Fixed
+- **TUI Export Policies** - Form-based export now delegates to actual export implementation
+  - Previously showed "not yet implemented" message
+  - Now correctly exports to JSON/CSV in ~/.ctl365/exports/
+
+### Improved
+- **Input Validation** - Named Locations commands now validate input before API calls
+  - CIDR format validation (e.g., `10.0.0.0/8`, detects invalid prefixes)
+  - IPv4 prefix range check (0-32), IPv6 prefix range check (0-128)
+  - Country code validation against ISO 3166-1 alpha-2 (249 codes)
+  - Clear error messages with examples when validation fails
+
+### Technical
+- New `Screen::NamedLocations` variant
+- New `TaskRequest::LoadNamedLocations` and `TaskResult::NamedLocationsLoaded` variants
+- New `NamedLocationInfo` data type with name, type, countries, IP ranges, trusted flag
+- `load_named_locations_async()` function for background data fetch
+- `render_named_locations_table()` function with Fluent Design styling
+- `compare_live_tenants()` and `compare_policy_lists()` for tenant diff
+- `VALID_COUNTRY_CODES` constant with all ISO 3166-1 alpha-2 codes
+- 155 tests passing
+- Zero clippy warnings
+
 ## [0.1.7] - 2025-12-16
 
 ### Fixed

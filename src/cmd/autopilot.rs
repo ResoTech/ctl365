@@ -210,7 +210,137 @@ struct AutopilotDevice {
     last_contacted_date_time: Option<String>,
 }
 
+/// Detect CSV format by examining headers
+fn detect_csv_format(content: &str) -> CsvFormat {
+    let first_line = content.lines().next().unwrap_or("");
+    let headers_lower = first_line.to_lowercase();
+
+    if headers_lower.contains("manufacturer name") || headers_lower.contains("device model") {
+        CsvFormat::OemPartner
+    } else {
+        CsvFormat::Standard
+    }
+}
+
+#[derive(Debug, PartialEq)]
+enum CsvFormat {
+    Standard,   // Device Serial Number,Windows Product ID,Hardware Hash,Group Tag,Assigned User
+    OemPartner, // Device Serial Number,Windows Product ID,Hardware Hash,Manufacturer name,Device model
+}
+
+/// Parse CSV content into unified DeviceRecords, auto-detecting format
+fn parse_csv_content(
+    content: &str,
+    cli_manufacturer: Option<&str>,
+    cli_model: Option<&str>,
+) -> (Vec<DeviceRecord>, Vec<(usize, String)>) {
+    let format = detect_csv_format(content);
+    let mut records = Vec::new();
+    let mut errors = Vec::new();
+
+    match format {
+        CsvFormat::Standard => {
+            println!(
+                "  {} Detected format: {}",
+                "→".cyan(),
+                "Microsoft Standard (Get-WindowsAutopilotInfo)".bold()
+            );
+            let mut rdr = csv::Reader::from_reader(content.as_bytes());
+
+            for (row_idx, result) in rdr.deserialize().enumerate() {
+                let row_num = row_idx + 2;
+                match result {
+                    Ok(record) => {
+                        let record: CsvRecord = record;
+                        if record.device_serial_number.trim().is_empty() {
+                            errors.push((row_num, "Missing Device Serial Number".to_string()));
+                        } else if record.hardware_hash.trim().is_empty() {
+                            errors.push((row_num, "Missing Hardware Hash".to_string()));
+                        } else {
+                            records.push(DeviceRecord {
+                                serial_number: record.device_serial_number,
+                                hardware_hash: Some(record.hardware_hash),
+                                manufacturer: cli_manufacturer.map(String::from),
+                                model: cli_model.map(String::from),
+                                group_tag: record.group_tag,
+                                assigned_user: record.assigned_user,
+                            });
+                        }
+                    }
+                    Err(e) => errors.push((row_num, format!("Parse error: {}", e))),
+                }
+            }
+        }
+        CsvFormat::OemPartner => {
+            println!(
+                "  {} Detected format: {}",
+                "→".cyan(),
+                "OEM Partner (Dell/Lenovo/HP)".bold()
+            );
+            let mut rdr = csv::Reader::from_reader(content.as_bytes());
+
+            for (row_idx, result) in rdr.deserialize().enumerate() {
+                let row_num = row_idx + 2;
+                match result {
+                    Ok(record) => {
+                        let record: OemCsvRecord = record;
+                        if record.device_serial_number.trim().is_empty() {
+                            errors.push((row_num, "Missing Device Serial Number".to_string()));
+                        } else {
+                            // OEM format may have either hardware hash OR manufacturer+model (tuple)
+                            let has_hash = record
+                                .hardware_hash
+                                .as_ref()
+                                .map(|h| !h.trim().is_empty())
+                                .unwrap_or(false);
+                            let has_tuple = record
+                                .manufacturer_name
+                                .as_ref()
+                                .map(|m| !m.trim().is_empty())
+                                .unwrap_or(false);
+
+                            if !has_hash && !has_tuple && cli_manufacturer.is_none() {
+                                errors.push((
+                                    row_num,
+                                    "Missing Hardware Hash and Manufacturer (need one or both)"
+                                        .to_string(),
+                                ));
+                            } else {
+                                records.push(DeviceRecord {
+                                    serial_number: record.device_serial_number,
+                                    hardware_hash: record
+                                        .hardware_hash
+                                        .filter(|h| !h.trim().is_empty()),
+                                    manufacturer: record
+                                        .manufacturer_name
+                                        .filter(|m| !m.trim().is_empty())
+                                        .or_else(|| cli_manufacturer.map(String::from)),
+                                    model: record
+                                        .device_model
+                                        .filter(|m| !m.trim().is_empty())
+                                        .or_else(|| cli_model.map(String::from)),
+                                    group_tag: record.group_tag,
+                                    assigned_user: None,
+                                });
+                            }
+                        }
+                    }
+                    Err(e) => errors.push((row_num, format!("Parse error: {}", e))),
+                }
+            }
+        }
+    }
+
+    (records, errors)
+}
+
 /// Import devices into Autopilot
+///
+/// Supports multiple CSV formats:
+/// - Microsoft Standard: Device Serial Number,Windows Product ID,Hardware Hash,Group Tag,Assigned User
+/// - OEM Partner (Dell/Lenovo/HP): Device Serial Number,Windows Product ID,Hardware Hash,Manufacturer name,Device model
+///
+/// Format is auto-detected based on CSV headers.
 pub async fn import(args: ImportArgs) -> Result<()> {
     println!("{} Autopilot devices...", "Importing".cyan().bold());
 
@@ -223,31 +353,13 @@ pub async fn import(args: ImportArgs) -> Result<()> {
 
     // Read CSV file
     let csv_content = std::fs::read_to_string(&args.file)?;
-    let mut rdr = csv::Reader::from_reader(csv_content.as_bytes());
 
-    // Parse all records, tracking errors
-    let mut records: Vec<CsvRecord> = Vec::new();
-    let mut errors: Vec<(usize, String)> = Vec::new();
-
-    for (row_idx, result) in rdr.deserialize().enumerate() {
-        let row_num = row_idx + 2; // +1 for 0-index, +1 for header row
-        match result {
-            Ok(record) => {
-                let record: CsvRecord = record;
-                // Validate required fields
-                if record.device_serial_number.trim().is_empty() {
-                    errors.push((row_num, "Missing or empty device_serial_number".to_string()));
-                } else if record.hardware_hash.trim().is_empty() {
-                    errors.push((row_num, "Missing or empty hardware_hash".to_string()));
-                } else {
-                    records.push(record);
-                }
-            }
-            Err(e) => {
-                errors.push((row_num, format!("Parse error: {}", e)));
-            }
-        }
-    }
+    // Parse CSV with auto-format detection
+    let (records, errors) = parse_csv_content(
+        &csv_content,
+        args.manufacturer.as_deref(),
+        args.model.as_deref(),
+    );
 
     // Report any errors found
     if !errors.is_empty() {
@@ -276,6 +388,25 @@ pub async fn import(args: ImportArgs) -> Result<()> {
         return Ok(());
     }
 
+    // Count devices with hardware hash vs tuple only
+    let with_hash = records.iter().filter(|r| r.hardware_hash.is_some()).count();
+    let tuple_only = records.len() - with_hash;
+
+    println!("\n{} Found {} devices:", "→".cyan(), records.len());
+    if with_hash > 0 {
+        println!("  • {} with hardware hash", with_hash.to_string().green());
+    }
+    if tuple_only > 0 {
+        println!(
+            "  • {} with tuple only (manufacturer+model+serial)",
+            tuple_only.to_string().yellow()
+        );
+        println!(
+            "    {} Tuple registration requires partner access",
+            "ℹ".blue()
+        );
+    }
+
     // Dry run mode
     if args.dry_run {
         println!("\n{}", "DRY RUN - No changes will be made".yellow().bold());
@@ -285,12 +416,23 @@ pub async fn import(args: ImportArgs) -> Result<()> {
             args.file.display()
         );
         for record in &records {
-            println!("  • Serial: {}", record.device_serial_number);
+            println!("  • Serial: {}", record.serial_number);
+            if let Some(mfr) = &record.manufacturer {
+                println!("    Manufacturer: {}", mfr);
+            }
+            if let Some(model) = &record.model {
+                println!("    Model: {}", model);
+            }
             if let Some(tag) = args.group_tag.as_ref().or(record.group_tag.as_ref()) {
                 println!("    Group Tag: {}", tag);
             }
             if let Some(user) = &record.assigned_user {
                 println!("    Assigned User: {}", user);
+            }
+            if record.hardware_hash.is_some() {
+                println!("    Hash: {}", "[present]".green());
+            } else {
+                println!("    Hash: {} (tuple registration)", "[none]".yellow());
             }
         }
         println!("\n{} Total: {} devices", "→".cyan(), records.len());
@@ -332,10 +474,10 @@ pub async fn import(args: ImportArgs) -> Result<()> {
     );
 
     for record in records {
-        let device_payload = json!({
+        // Build device payload - include manufacturer/model if available (for OEM devices)
+        let mut device_payload = json!({
             "@odata.type": "#microsoft.graph.importedWindowsAutopilotDeviceIdentity",
-            "serialNumber": record.device_serial_number,
-            "hardwareIdentifier": record.hardware_hash,
+            "serialNumber": record.serial_number,
             "groupTag": args.group_tag.as_ref().or(record.group_tag.as_ref()),
             "state": {
                 "@odata.type": "microsoft.graph.importedWindowsAutopilotDeviceIdentityState",
@@ -347,10 +489,30 @@ pub async fn import(args: ImportArgs) -> Result<()> {
             "assignedUserPrincipalName": record.assigned_user.as_deref().unwrap_or("")
         });
 
+        // Add hardware hash if present
+        if let Some(hash) = &record.hardware_hash {
+            device_payload["hardwareIdentifier"] = json!(hash);
+        }
+
+        // Add manufacturer metadata if present (for OEM imports)
+        if let Some(mfr) = &record.manufacturer {
+            device_payload["manufacturer"] = json!(mfr);
+        }
+        if let Some(model) = &record.model {
+            device_payload["model"] = json!(model);
+        }
+
+        let method_indicator = if record.hardware_hash.is_some() {
+            "hash".green()
+        } else {
+            "tuple".yellow()
+        };
+
         print!(
-            "  {} Importing device: {}... ",
+            "  {} Importing device: {} ({})... ",
             "→".cyan(),
-            record.device_serial_number
+            record.serial_number,
+            method_indicator
         );
 
         match graph
@@ -401,14 +563,49 @@ pub async fn import(args: ImportArgs) -> Result<()> {
     Ok(())
 }
 
+/// Standard Microsoft Autopilot CSV format
+/// Headers: Device Serial Number,Windows Product ID,Hardware Hash,Group Tag,Assigned User
 #[derive(Deserialize, Debug)]
-#[serde(rename_all = "PascalCase")]
 struct CsvRecord {
+    #[serde(rename = "Device Serial Number")]
     device_serial_number: String,
     #[serde(rename = "Windows Product ID")]
     #[allow(dead_code)]
     windows_product_id: Option<String>,
+    #[serde(rename = "Hardware Hash")]
     hardware_hash: String,
+    #[serde(rename = "Group Tag")]
+    group_tag: Option<String>,
+    #[serde(rename = "Assigned User")]
+    assigned_user: Option<String>,
+}
+
+/// Partner Center / OEM CSV format (Dell TechDirect, Lenovo, HP)
+/// Headers: Device Serial Number,Windows Product ID,Hardware Hash,Manufacturer name,Device model
+#[derive(Deserialize, Debug)]
+struct OemCsvRecord {
+    #[serde(rename = "Device Serial Number")]
+    device_serial_number: String,
+    #[serde(rename = "Windows Product ID")]
+    windows_product_id: Option<String>,
+    #[serde(rename = "Hardware Hash")]
+    hardware_hash: Option<String>,
+    #[serde(rename = "Manufacturer name")]
+    manufacturer_name: Option<String>,
+    #[serde(rename = "Device model")]
+    device_model: Option<String>,
+    // Some OEM exports include group tag
+    #[serde(rename = "Group Tag")]
+    group_tag: Option<String>,
+}
+
+/// Unified device record after parsing (supports both formats)
+#[derive(Debug)]
+struct DeviceRecord {
+    serial_number: String,
+    hardware_hash: Option<String>,
+    manufacturer: Option<String>,
+    model: Option<String>,
     group_tag: Option<String>,
     assigned_user: Option<String>,
 }
@@ -527,7 +724,7 @@ pub async fn profile(args: ProfileArgs) -> Result<()> {
     let graph = GraphClient::from_config(&config, &active_tenant.name).await?;
 
     let profile: Value = graph
-        .post(
+        .post_beta(
             "deviceManagement/windowsAutopilotDeploymentProfiles",
             &profile_payload,
         )
@@ -986,4 +1183,102 @@ pub async fn delete(args: DeleteArgs) -> Result<()> {
     println!("{} Device deleted successfully", "✓".green().bold());
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_detect_csv_format_standard() {
+        let content = "Device Serial Number,Windows Product ID,Hardware Hash,Group Tag,Assigned User\nABC123,,HASH123,Tag1,user@example.com";
+        assert_eq!(detect_csv_format(content), CsvFormat::Standard);
+    }
+
+    #[test]
+    fn test_detect_csv_format_oem() {
+        let content = "Device Serial Number,Windows Product ID,Hardware Hash,Manufacturer name,Device model\nABC123,,HASH123,Dell Inc.,Latitude 5540";
+        assert_eq!(detect_csv_format(content), CsvFormat::OemPartner);
+    }
+
+    #[test]
+    fn test_parse_standard_csv() {
+        let content = "Device Serial Number,Windows Product ID,Hardware Hash,Group Tag,Assigned User\nABC123,,HASH123ABC,Tag1,user@example.com";
+        let (records, errors) = parse_csv_content(content, None, None);
+
+        assert!(errors.is_empty(), "Expected no errors, got: {:?}", errors);
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].serial_number, "ABC123");
+        assert_eq!(records[0].hardware_hash.as_deref(), Some("HASH123ABC"));
+        assert_eq!(records[0].group_tag.as_deref(), Some("Tag1"));
+        assert_eq!(
+            records[0].assigned_user.as_deref(),
+            Some("user@example.com")
+        );
+    }
+
+    #[test]
+    fn test_parse_oem_csv_with_hash() {
+        let content = "Device Serial Number,Windows Product ID,Hardware Hash,Manufacturer name,Device model\nDEF456,PKID123,HASH456XYZ,Dell Inc.,Latitude 5540";
+        let (records, errors) = parse_csv_content(content, None, None);
+
+        assert!(errors.is_empty(), "Expected no errors, got: {:?}", errors);
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].serial_number, "DEF456");
+        assert_eq!(records[0].hardware_hash.as_deref(), Some("HASH456XYZ"));
+        assert_eq!(records[0].manufacturer.as_deref(), Some("Dell Inc."));
+        assert_eq!(records[0].model.as_deref(), Some("Latitude 5540"));
+    }
+
+    #[test]
+    fn test_parse_oem_csv_tuple_only() {
+        // OEM devices can be registered with tuple (manufacturer+model+serial) without hardware hash
+        let content = "Device Serial Number,Windows Product ID,Hardware Hash,Manufacturer name,Device model\nGHI789,,,LENOVO,ThinkPad T14";
+        let (records, errors) = parse_csv_content(content, None, None);
+
+        assert!(errors.is_empty(), "Expected no errors, got: {:?}", errors);
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].serial_number, "GHI789");
+        assert!(records[0].hardware_hash.is_none());
+        assert_eq!(records[0].manufacturer.as_deref(), Some("LENOVO"));
+        assert_eq!(records[0].model.as_deref(), Some("ThinkPad T14"));
+    }
+
+    #[test]
+    fn test_parse_with_cli_manufacturer_override() {
+        let content = "Device Serial Number,Windows Product ID,Hardware Hash,Group Tag,Assigned User\nJKL012,,HASH789,Tag2,";
+        let (records, errors) = parse_csv_content(content, Some("HP"), Some("EliteBook 850"));
+
+        assert!(errors.is_empty());
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].manufacturer.as_deref(), Some("HP"));
+        assert_eq!(records[0].model.as_deref(), Some("EliteBook 850"));
+    }
+
+    #[test]
+    fn test_parse_standard_csv_missing_hash_errors() {
+        let content = "Device Serial Number,Windows Product ID,Hardware Hash,Group Tag,Assigned User\nMNO345,,,Tag3,";
+        let (records, errors) = parse_csv_content(content, None, None);
+
+        // Standard format requires hardware hash
+        assert!(records.is_empty());
+        assert_eq!(errors.len(), 1);
+        assert!(errors[0].1.contains("Hardware Hash"));
+    }
+
+    #[test]
+    fn test_parse_multiple_devices() {
+        let content = r#"Device Serial Number,Windows Product ID,Hardware Hash,Manufacturer name,Device model
+SN001,,HASH001,Dell Inc.,Latitude 5540
+SN002,,HASH002,LENOVO,ThinkPad T14
+SN003,,,HP,EliteBook 850"#;
+        let (records, errors) = parse_csv_content(content, None, None);
+
+        assert!(errors.is_empty(), "Unexpected errors: {:?}", errors);
+        assert_eq!(records.len(), 3);
+        assert_eq!(records[0].manufacturer.as_deref(), Some("Dell Inc."));
+        assert_eq!(records[1].manufacturer.as_deref(), Some("LENOVO"));
+        assert_eq!(records[2].manufacturer.as_deref(), Some("HP"));
+        assert!(records[2].hardware_hash.is_none());
+    }
 }

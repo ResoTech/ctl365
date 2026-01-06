@@ -9,6 +9,7 @@ use serde_json::Value;
 use std::path::PathBuf;
 
 #[derive(Subcommand, Debug)]
+#[allow(clippy::large_enum_variant)]
 pub enum BaselineCommands {
     /// Generate a new baseline configuration
     New(NewArgs),
@@ -53,9 +54,42 @@ pub struct NewArgs {
     #[arg(long, default_value = "Baseline")]
     pub name: String,
 
-    /// Template to use (basic, oib, microsoft-baseline, cis)
+    /// Template to use (basic, oib, microsoft-baseline, cis, autopilot)
     #[arg(long, default_value = "basic")]
     pub template: String,
+
+    // === Autopilot-specific options ===
+    /// Name for Autopilot dynamic security group (default: "Windows Autopilot")
+    #[arg(long)]
+    pub autopilot_group_name: Option<String>,
+
+    /// Custom BitLocker policy name (e.g., "RESO BitLocker")
+    #[arg(long)]
+    pub bitlocker_policy_name: Option<String>,
+
+    /// Windows Update Ring name (default: "Ring1")
+    #[arg(long)]
+    pub update_ring_name: Option<String>,
+
+    /// Target Windows feature update version (default: "Windows 11, version 24H2")
+    #[arg(long)]
+    pub feature_update_version: Option<String>,
+
+    /// Skip BitLocker policy in autopilot baseline
+    #[arg(long)]
+    pub no_bitlocker: bool,
+
+    /// Skip Windows Update policies in autopilot baseline
+    #[arg(long)]
+    pub no_updates: bool,
+
+    /// Custom Firewall policy name (e.g., "RESO Defender Firewall")
+    #[arg(long)]
+    pub firewall_policy_name: Option<String>,
+
+    /// Skip Firewall policy in autopilot baseline
+    #[arg(long)]
+    pub no_firewall: bool,
 }
 
 #[derive(Args, Debug)]
@@ -98,6 +132,29 @@ pub async fn new(args: NewArgs) -> Result<()> {
         "windows" => match args.template.as_str() {
             "basic" => templates::windows::generate_baseline(&args)?,
             "oib" | "openintune" => templates::windows_oib::generate_oib_baseline(&args)?,
+            "autopilot" => {
+                let config = templates::windows_autopilot::AutopilotBaselineConfig {
+                    name_prefix: args.name.clone(),
+                    group_name: args
+                        .autopilot_group_name
+                        .clone()
+                        .unwrap_or_else(|| "Windows Autopilot".to_string()),
+                    bitlocker_policy_name: args.bitlocker_policy_name.clone(),
+                    firewall_policy_name: args.firewall_policy_name.clone(),
+                    update_ring_name: args
+                        .update_ring_name
+                        .clone()
+                        .unwrap_or_else(|| "Ring1".to_string()),
+                    feature_update_version: args
+                        .feature_update_version
+                        .clone()
+                        .unwrap_or_else(|| "Windows 11, version 24H2".to_string()),
+                    include_bitlocker: !args.no_bitlocker,
+                    include_firewall: !args.no_firewall,
+                    include_updates: !args.no_updates,
+                };
+                templates::windows_autopilot::generate_autopilot_baseline(&config)
+            }
             "cis" | "cis-l1" => {
                 let policies = templates::cis_benchmarks::generate_cis_level1(&args.name);
                 serde_json::json!({
@@ -120,7 +177,7 @@ pub async fn new(args: NewArgs) -> Result<()> {
             }
             _ => {
                 return Err(crate::error::Error::ConfigError(format!(
-                    "Unknown template: '{}'. Available: basic, oib, cis, cis-l1, cis-l2",
+                    "Unknown template: '{}'. Available: basic, oib, autopilot, cis, cis-l1, cis-l2",
                     args.template
                 )));
             }
@@ -438,6 +495,34 @@ pub async fn list() -> Result<()> {
     );
     println!();
 
+    println!(
+        "  {} {} - Windows Autopilot Baseline (PRODUCTION-READY)",
+        "•".green(),
+        "autopilot".bold()
+    );
+    println!("    {} Complete Autopilot deployment setup", "✓".green());
+    println!(
+        "    {} Dynamic security group for company-owned Windows devices",
+        "✓".green()
+    );
+    println!(
+        "    {} User-driven Autopilot profile (Microsoft Entra joined)",
+        "✓".green()
+    );
+    println!(
+        "    {} BitLocker full disk encryption (Endpoint Security)",
+        "✓".green()
+    );
+    println!(
+        "    {} Windows Defender Firewall (all profiles enabled)",
+        "✓".green()
+    );
+    println!(
+        "    {} Windows Update Ring + Feature Update (25H2)",
+        "✓".green()
+    );
+    println!();
+
     println!("{} {}", "Platform:".bold(), "macOS".cyan());
     println!();
     println!("  {} {} - Basic macOS baseline", "•".cyan(), "basic".bold());
@@ -512,6 +597,16 @@ pub async fn list() -> Result<()> {
         "ctl365".bold()
     );
     println!(
+        "  {} {} baseline new windows --template autopilot --name RESO",
+        "Autopilot:".cyan(),
+        "ctl365".bold()
+    );
+    println!(
+        "  {} {} baseline new windows --template autopilot --name RESO --bitlocker-policy-name \"RESO BitLocker\" --update-ring-name Ring1",
+        "Autopilot Custom:".cyan().dimmed(),
+        "ctl365".bold()
+    );
+    println!(
         "  {} {} baseline new macos --template oib --encryption",
         "macOS:".cyan().dimmed(),
         "ctl365".bold()
@@ -531,8 +626,20 @@ pub async fn list() -> Result<()> {
     println!("{}", "Templates:".bold());
     println!("  basic            - Simple, straightforward baseline (default)");
     println!("  oib/openintune   - OpenIntuneBaseline v3.6 (recommended for production)");
+    println!("  autopilot        - Windows Autopilot with BitLocker, Firewall, Updates");
     println!("  cis/cis-l1       - CIS Benchmark Level 1 (essential security)");
     println!("  cis-l2           - CIS Benchmark Level 2 (defense-in-depth)");
+    println!();
+
+    println!("{}", "Autopilot Template Options:".bold());
+    println!("  --autopilot-group-name     Custom name for dynamic security group");
+    println!("  --bitlocker-policy-name    Custom BitLocker policy name (e.g., 'RESO BitLocker')");
+    println!("  --firewall-policy-name     Custom Firewall policy name (e.g., 'RESO Defender')");
+    println!("  --update-ring-name         Update ring name (default: Ring1)");
+    println!("  --feature-update-version   Target Windows version (default: 24H2)");
+    println!("  --no-bitlocker             Skip BitLocker policy");
+    println!("  --no-firewall              Skip Firewall policy");
+    println!("  --no-updates               Skip Windows Update policies");
 
     Ok(())
 }

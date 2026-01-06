@@ -50,6 +50,7 @@ impl TaskEnvelope {
             TaskRequest::LoadAutopilotDevices { .. } => "load_autopilot_devices",
             TaskRequest::LoadAutopilotProfiles { .. } => "load_autopilot_profiles",
             TaskRequest::SyncAutopilot { .. } => "sync_autopilot",
+            TaskRequest::LoadNamedLocations { .. } => "load_named_locations",
             TaskRequest::Shutdown => "shutdown",
         };
         let id = format!("{}_{}", prefix, chrono::Utc::now().timestamp_millis());
@@ -109,6 +110,8 @@ pub enum TaskRequest {
     LoadAutopilotProfiles { tenant_name: String },
     /// Sync Autopilot devices
     SyncAutopilot { tenant_name: String },
+    /// Load Named Locations for CA
+    LoadNamedLocations { tenant_name: String },
     /// Shutdown the worker
     Shutdown,
 }
@@ -179,6 +182,8 @@ pub enum TaskResult {
     AutopilotProfilesLoaded { profiles: Vec<AutopilotProfileData> },
     /// Autopilot sync completed
     AutopilotSynced { message: String },
+    /// Named locations loaded
+    NamedLocationsLoaded { locations: Vec<NamedLocationInfo> },
     /// Task failed
     Error { message: String },
 }
@@ -847,6 +852,25 @@ pub fn spawn_task_worker(config: ConfigManager) -> (TaskSender, TaskReceiver) {
                         let result =
                             sync_autopilot_async(&config, &tenant_name, &response_tx, &task_id)
                                 .await;
+                        let _ = response_tx.send(TaskResponse::Completed {
+                            task_id,
+                            result: Box::new(result),
+                        });
+                    }
+                    TaskRequest::LoadNamedLocations { tenant_name } => {
+                        let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
+                            task_id: task_id.clone(),
+                            percent: 0,
+                            message: "Loading Named Locations...".into(),
+                            phase: "init".into(),
+                        }));
+                        let result = load_named_locations_async(
+                            &config,
+                            &tenant_name,
+                            &response_tx,
+                            &task_id,
+                        )
+                        .await;
                         let _ = response_tx.send(TaskResponse::Completed {
                             task_id,
                             result: Box::new(result),
@@ -3132,5 +3156,86 @@ async fn sync_autopilot_async(
                 }
             }
         }
+    }
+}
+
+async fn load_named_locations_async(
+    config: &ConfigManager,
+    tenant_name: &str,
+    response_tx: &Sender<TaskResponse>,
+    task_id: &str,
+) -> TaskResult {
+    use crate::graph::GraphClient;
+
+    let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
+        task_id: task_id.to_string(),
+        percent: 20,
+        message: "Connecting to Graph API...".into(),
+        phase: "auth".into(),
+    }));
+
+    let client = match GraphClient::from_config(config, tenant_name).await {
+        Ok(c) => c,
+        Err(e) => {
+            return TaskResult::Error {
+                message: format!("Failed to authenticate: {}", e),
+            };
+        }
+    };
+
+    let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
+        task_id: task_id.to_string(),
+        percent: 50,
+        message: "Fetching Named Locations...".into(),
+        phase: "fetch".into(),
+    }));
+
+    let locations =
+        match crate::graph::conditional_access::list_named_locations_typed(&client).await {
+            Ok(locs) => locs,
+            Err(e) => {
+                return TaskResult::Error {
+                    message: format!("Failed to fetch named locations: {}", e),
+                };
+            }
+        };
+
+    let _ = response_tx.send(TaskResponse::Progress(TaskProgress {
+        task_id: task_id.to_string(),
+        percent: 100,
+        message: "Complete".into(),
+        phase: "done".into(),
+    }));
+
+    let location_infos: Vec<NamedLocationInfo> = locations
+        .into_iter()
+        .map(|loc| {
+            let location_type = if loc.odata_type.contains("ipNamedLocation") {
+                "ip".to_string()
+            } else if loc.odata_type.contains("countryNamedLocation") {
+                "country".to_string()
+            } else {
+                "other".to_string()
+            };
+
+            let ip_ranges = loc
+                .ip_ranges
+                .unwrap_or_default()
+                .into_iter()
+                .map(|r| r.cidr_address)
+                .collect();
+
+            NamedLocationInfo {
+                name: loc.display_name,
+                location_type,
+                is_trusted: loc.is_trusted.unwrap_or(false),
+                countries: loc.countries_and_regions.unwrap_or_default(),
+                ip_ranges,
+            }
+        })
+        .collect();
+
+    TaskResult::NamedLocationsLoaded {
+        locations: location_infos,
     }
 }

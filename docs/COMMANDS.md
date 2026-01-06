@@ -75,6 +75,15 @@ ctl365 tenant configure          # Configure Exchange, SharePoint, Teams setting
 # Windows baselines
 ctl365 baseline new windows --template basic
 ctl365 baseline new windows --template oib --encryption --defender
+ctl365 baseline new windows --template cis      # CIS Level 1
+ctl365 baseline new windows --template cis-l2   # CIS Level 2
+
+# Windows Autopilot baseline (includes BitLocker, Firewall, Updates)
+ctl365 baseline new windows --template autopilot --name RESO
+ctl365 baseline new windows --template autopilot --name RESO \
+  --bitlocker-policy-name "RESO BitLocker" \
+  --firewall-policy-name "RESO Defender Firewall" \
+  --update-ring-name "RESO Ring1"
 
 # macOS baselines
 ctl365 baseline new macos --template basic
@@ -85,6 +94,26 @@ ctl365 baseline new ios --template basic --defender
 
 # Android baselines
 ctl365 baseline new android --template basic --defender
+```
+
+### Autopilot Baseline Options
+```bash
+# Full autopilot baseline
+ctl365 baseline new windows --template autopilot --name "Baseline"
+
+# Custom policy names
+ctl365 baseline new windows --template autopilot --name RESO \
+  --autopilot-group-name "RESO Autopilot Devices" \
+  --bitlocker-policy-name "RESO BitLocker" \
+  --firewall-policy-name "RESO Defender Firewall" \
+  --update-ring-name "Ring1" \
+  --feature-update-version "Windows 11, version 24H2"
+
+# Skip specific policies
+ctl365 baseline new windows --template autopilot --name RESO \
+  --no-bitlocker    # Skip BitLocker
+  --no-firewall     # Skip Firewall
+  --no-updates      # Skip Update Ring and Feature Update
 ```
 
 ### Apply Baseline
@@ -135,6 +164,27 @@ ctl365 ca deploy --all -y                  # Skip confirmation
 ctl365 ca list
 ```
 
+### Named Locations
+```bash
+# Add IP-based named location (e.g., office IP)
+ctl365 ca location add --name "Main Office" --ip 203.0.113.50/32 --trusted
+
+# Add country-based named location
+ctl365 ca location add --name "Allowed Countries" --countries US,CA,GB
+
+# List all named locations
+ctl365 ca location list
+ctl365 ca location list --detailed    # Show IDs and full details
+
+# Remove a named location
+ctl365 ca location remove --name "Old Location" --yes
+
+# Create GeoIP block policy (blocks all countries except specified)
+ctl365 ca location block --except US,CA,GB
+ctl365 ca location block --except US --enable    # Start enabled (not report-only)
+ctl365 ca location block --except US --dry-run   # Preview without creating
+```
+
 ---
 
 ## Application Deployment
@@ -176,13 +226,39 @@ ctl365 app remove <app-id> --assignments-only
 ## Windows Autopilot
 
 ### Import Devices
+
+Supports both Microsoft standard and OEM Partner CSV formats (auto-detected):
+
 ```bash
+# Standard import (Get-WindowsAutopilotInfo format)
 ctl365 autopilot import --file devices.csv
+
+# With group tag
 ctl365 autopilot import --file devices.csv --group-tag production
+
+# OEM imports (Dell TechDirect, Lenovo, HP) - format auto-detected
+ctl365 autopilot import --file dell-devices.csv
+ctl365 autopilot import --file lenovo-devices.csv --group-tag "Lenovo-Fleet"
+
+# Override manufacturer/model for standard CSV
+ctl365 autopilot import --file devices.csv --manufacturer "Dell Inc." --model "Latitude 5540"
+
+# Assign to profile after import
 ctl365 autopilot import --file devices.csv --profile-id <profile-id>
+
+# Preview import (dry run)
 ctl365 autopilot import --file devices.csv --dry-run
-ctl365 autopilot import --file devices.csv -y   # Skip confirmation
+
+# Skip confirmation
+ctl365 autopilot import --file devices.csv -y
 ```
+
+**Supported CSV Formats:**
+
+| Format | Headers | Source |
+|--------|---------|--------|
+| Microsoft Standard | `Device Serial Number,Windows Product ID,Hardware Hash,Group Tag,Assigned User` | Get-WindowsAutopilotInfo |
+| OEM Partner | `Device Serial Number,Windows Product ID,Hardware Hash,Manufacturer name,Device model` | Dell TechDirect, Lenovo, HP |
 
 ### Create Deployment Profiles
 ```bash
@@ -242,10 +318,17 @@ ctl365 export import --directory ./export/ --dry-run
 
 ### Compare Tenants
 ```bash
-ctl365 export compare --source ./tenant-a/ --target ./tenant-b/
+# Compare two export directories
+ctl365 export compare ./tenant-a-export/ ./tenant-b-export/
+
+# Compare two live tenants (fetches policies from Graph API)
+ctl365 export compare "ACME Corp" "Test Tenant"
+
+# Save comparison report to file
+ctl365 export compare "ACME Corp" "Test Tenant" --output diff-report.json
 ```
 
-**Types:** `compliance`, `configuration`, `settings-catalog`, `apps`, `all`
+Compares Compliance Policies, Device Configurations, and CA Policies.
 
 ---
 

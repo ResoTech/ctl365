@@ -1418,6 +1418,14 @@ mod tests {
             output: None,
             name: name.to_string(),
             template: "oib".to_string(),
+            autopilot_group_name: None,
+            bitlocker_policy_name: None,
+            update_ring_name: None,
+            feature_update_version: None,
+            no_bitlocker: false,
+            no_updates: false,
+            firewall_policy_name: None,
+            no_firewall: false,
         }
     }
 

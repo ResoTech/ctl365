@@ -7,4 +7,5 @@ pub mod macos;
 pub mod settings_catalog;
 pub mod tenant_baseline;
 pub mod windows;
+pub mod windows_autopilot;
 pub mod windows_oib;

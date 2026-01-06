@@ -30,6 +30,12 @@ pub fn generate_tenant_baseline(args: &NewArgs) -> Result<Value> {
     // Teams configurations
     configurations.push(generate_teams_external_access_config(args));
     configurations.push(generate_teams_meeting_policies(args));
+    configurations.push(generate_teams_calling_policies(args));
+
+    // Teams VOIP configurations
+    configurations.push(generate_teams_voicemail_config(args));
+    configurations.push(generate_teams_call_queue_template(args));
+    configurations.push(generate_teams_auto_attendant_template(args));
 
     Ok(json!({
         "version": "1.0",
@@ -381,4 +387,369 @@ fn generate_teams_meeting_policies(args: &NewArgs) -> Value {
             ]
         }
     })
+}
+
+/// Teams: Calling policies with transcription enabled
+fn generate_teams_calling_policies(args: &NewArgs) -> Value {
+    json!({
+        "type": "Teams.CallingPolicy",
+        "name": format!("{} - Teams Calling Policy", args.name),
+        "description": "Teams calling settings with transcription enabled for compliance",
+        "settings": {
+            "policyName": "Global",
+            "allowPrivateCalling": true,
+            "allowVoicemail": "UserOverride",
+            "allowCallGroups": true,
+            "allowDelegation": true,
+            "allowCallForwardingToUser": true,
+            "allowCallForwardingToPhone": true,
+            "preventTollBypass": false,
+            "busyOnBusyEnabledType": "Enabled",
+            "musicOnHoldEnabledType": "Enabled",
+            "allowWebPSTNCalling": true,
+            "allowCloudRecordingForCalls": true,
+            "allowTranscriptionForCalling": true, // Enable call transcription
+            "liveCaptionsEnabledTypeForCalling": "EnabledUserOverride",
+            "autoAnswerEnabledType": "Disabled",
+            "spamFilteringEnabledType": "Enabled",
+            "callRecordingExpirationDays": 60
+        },
+        "rationale": "Enables call transcription for compliance, audit trails, and accessibility. Recording retention set to 60 days.",
+        "implementation": {
+            "method": "PowerShell",
+            "commands": [
+                "Set-CsTeamsCallingPolicy -Identity Global -AllowCloudRecordingForCalls $true -AllowTranscriptionForCalling $true -LiveCaptionsEnabledTypeForCalling EnabledUserOverride -SpamFilteringEnabledType Enabled"
+            ]
+        }
+    })
+}
+
+/// Teams: Cloud voicemail configuration
+fn generate_teams_voicemail_config(args: &NewArgs) -> Value {
+    json!({
+        "type": "Teams.VoicemailPolicy",
+        "name": format!("{} - Teams Voicemail Policy", args.name),
+        "description": "Cloud voicemail settings for Teams Phone users",
+        "settings": {
+            "enableVoicemail": true,
+            "enableTranscription": true,
+            "enableTranscriptionProfanityMasking": true,
+            "enableTranscriptionTranslation": false,
+            "maxVoicemailDuration": 300, // 5 minutes
+            "shareDataForServiceImprovement": "Defer",
+            "postAmble": "Thank you for calling. Your message has been recorded.",
+            "enableEditingCallAnswerRulesSetting": true,
+            "defaultVoicemailGreeting": "default",
+            "sharedVoicemailEnabled": true // Enable shared voicemail for call queues
+        },
+        "prerequisites": [
+            "Users must have Teams Phone license",
+            "Create shared mailbox for shared voicemail (e.g., voicemail@domain.com)"
+        ],
+        "implementation": {
+            "method": "PowerShell",
+            "commands": [
+                "Set-CsOnlineVoicemailPolicy -Identity Global -EnableVoicemail $true -EnableTranscription $true -EnableTranscriptionProfanityMasking $true -MaximumRecordingLength 00:05:00",
+                "# Create shared mailbox for voicemail",
+                "New-Mailbox -Shared -Name 'Voicemail' -Alias 'voicemail' -DisplayName 'Company Voicemail'"
+            ]
+        }
+    })
+}
+
+/// Teams: Call Queue template for VOIP setup
+fn generate_teams_call_queue_template(args: &NewArgs) -> Value {
+    json!({
+        "type": "Teams.CallQueueTemplate",
+        "name": format!("{} - Call Queue Template", args.name),
+        "description": "Template for creating Teams Call Queues with best practices",
+        "settings": {
+            "templateName": "Standard Call Queue",
+            "routingMethod": "RoundRobin", // Attendant, Serial, RoundRobin, LongestIdle
+            "presenceBasedRouting": true,
+            "conferenceMode": true, // Faster call connections
+            "agentAlertTime": 30, // Seconds before routing to next agent
+            "callOverflowThreshold": 50,
+            "callOverflowAction": "Voicemail", // Disconnect, Voicemail, Forward, SharedVoicemail
+            "callTimeoutThreshold": 1200, // 20 minutes max hold time
+            "callTimeoutAction": "Voicemail",
+            "enableOverflowSharedVoicemailTranscription": true,
+            "enableTimeoutSharedVoicemailTranscription": true,
+            "musicOnHoldAudioFile": "default",
+            "welcomeMusicAudioFile": null,
+            "languageId": "en-US",
+            "greetingTextToSpeechPrompt": "Welcome to our company. Please hold while we connect you with the next available representative.",
+            "optOutOfGlobalDirectory": false
+        },
+        "sharedVoicemail": {
+            "enabled": true,
+            "groupId": "voicemail@{domain}",
+            "transcriptionEnabled": true,
+            "suppressSystemGreeting": false
+        },
+        "agentOptOut": {
+            "allowAgentOptOut": true
+        },
+        "implementation": {
+            "method": "PowerShell",
+            "commands": [
+                "# Create resource account for the call queue",
+                "New-CsOnlineApplicationInstance -UserPrincipalName mainline@domain.com -ApplicationId 11cd3e2e-fccb-42ad-ad00-878b93575e07 -DisplayName 'Main Line'",
+                "# Create the call queue",
+                "New-CsCallQueue -Name 'Main Line Queue' -RoutingMethod RoundRobin -AgentAlertTime 30 -AllowOptOut $true -ConferenceMode $true -PresenceBasedRouting $true -OverflowThreshold 50 -OverflowAction SharedVoicemail -TimeoutThreshold 1200 -TimeoutAction SharedVoicemail -OverflowSharedVoicemailTextToSpeechPrompt 'Please leave a message after the tone' -EnableOverflowSharedVoicemailTranscription $true",
+                "# Assign phone number to resource account",
+                "Set-CsPhoneNumberAssignment -Identity mainline@domain.com -PhoneNumber +1XXXXXXXXXX -PhoneNumberType DirectRouting"
+            ],
+            "graphApi": {
+                "endpoint": "/communications/callQueues",
+                "method": "POST"
+            }
+        }
+    })
+}
+
+/// Teams: Auto Attendant template for VOIP setup
+fn generate_teams_auto_attendant_template(args: &NewArgs) -> Value {
+    json!({
+        "type": "Teams.AutoAttendantTemplate",
+        "name": format!("{} - Auto Attendant Template", args.name),
+        "description": "Template for creating Teams Auto Attendants with business hours routing",
+        "settings": {
+            "templateName": "Standard Auto Attendant",
+            "languageId": "en-US",
+            "voiceId": "en-US-AriaNeural", // Neural TTS voice
+            "enableVoiceResponse": true, // Enable voice (DTMF) input
+            "enableTextToSpeech": true,
+            "operatorEnabled": true,
+            "operatorTarget": "CallQueue", // User, CallQueue, Voicemail
+            "defaultCallFlow": {
+                "greetingPromptType": "TextToSpeech",
+                "greetingText": "Thank you for calling. Please listen to the following options.",
+                "menuOptions": [
+                    { "key": "1", "action": "TransferToCallQueue", "target": "Sales Queue", "voicePrompt": "For sales, press 1" },
+                    { "key": "2", "action": "TransferToCallQueue", "target": "Support Queue", "voicePrompt": "For support, press 2" },
+                    { "key": "0", "action": "TransferToOperator", "voicePrompt": "To speak with an operator, press 0" }
+                ],
+                "enableDialByName": true,
+                "dialByNameScope": "InternalOnly"
+            },
+            "businessHours": {
+                "schedule": "MonToFri-9to5",
+                "timezone": "Eastern Standard Time",
+                "monday": { "start": "09:00", "end": "17:00" },
+                "tuesday": { "start": "09:00", "end": "17:00" },
+                "wednesday": { "start": "09:00", "end": "17:00" },
+                "thursday": { "start": "09:00", "end": "17:00" },
+                "friday": { "start": "09:00", "end": "17:00" },
+                "saturday": null,
+                "sunday": null
+            },
+            "afterHoursCallFlow": {
+                "greetingPromptType": "TextToSpeech",
+                "greetingText": "Thank you for calling. Our office is currently closed. Our business hours are Monday through Friday, 9 AM to 5 PM Eastern Time.",
+                "action": "Voicemail",
+                "voicemailTarget": "voicemail@{domain}",
+                "voicemailTranscription": true
+            },
+            "holidayCallFlow": {
+                "enabled": true,
+                "greetingText": "Thank you for calling. Our office is closed today for a holiday. Please leave a message and we will return your call on the next business day.",
+                "action": "Voicemail"
+            },
+            "federalHolidays": generate_federal_holidays()
+        },
+        "implementation": {
+            "method": "PowerShell",
+            "commands": [
+                "# Create resource account for auto attendant",
+                "New-CsOnlineApplicationInstance -UserPrincipalName reception@domain.com -ApplicationId ce933385-9390-45d1-9512-c8d228074e07 -DisplayName 'Main Reception'",
+                "# Create business hours schedule",
+                "$schedule = New-CsOnlineSchedule -Name 'Business Hours' -WeeklyRecurrentSchedule -MondayHours @{Start='09:00';End='17:00'} -TuesdayHours @{Start='09:00';End='17:00'} -WednesdayHours @{Start='09:00';End='17:00'} -ThursdayHours @{Start='09:00';End='17:00'} -FridayHours @{Start='09:00';End='17:00'}",
+                "# Create the auto attendant",
+                "New-CsAutoAttendant -Name 'Main Reception' -LanguageId en-US -TimeZoneId 'Eastern Standard Time' -EnableVoiceResponse $true -Operator @{Id=(Get-CsCallQueue -Name 'Main Line Queue').Identity; Type='CallQueue'}",
+                "# Assign phone number",
+                "Set-CsPhoneNumberAssignment -Identity reception@domain.com -PhoneNumber +1XXXXXXXXXX -PhoneNumberType DirectRouting"
+            ],
+            "graphApi": {
+                "endpoint": "/communications/autoAttendants",
+                "method": "POST"
+            }
+        }
+    })
+}
+
+/// Generate US Federal Holiday schedule for Auto Attendant
+/// Calculates holidays for current year and next year
+fn generate_federal_holidays() -> Value {
+    use chrono::{Datelike, NaiveDate, Weekday};
+
+    let current_year = chrono::Utc::now().year();
+    let years = [current_year, current_year + 1];
+
+    let mut holidays = Vec::new();
+
+    for year in years {
+        // New Year's Day - January 1 (observed on nearest weekday if weekend)
+        holidays.push(json!({
+            "name": format!("New Year's Day {}", year),
+            "date": observed_date(year, 1, 1),
+            "allDay": true
+        }));
+
+        // Martin Luther King Jr. Day - Third Monday of January
+        holidays.push(json!({
+            "name": format!("Martin Luther King Jr. Day {}", year),
+            "date": nth_weekday_of_month(year, 1, Weekday::Mon, 3),
+            "allDay": true
+        }));
+
+        // Presidents' Day - Third Monday of February
+        holidays.push(json!({
+            "name": format!("Presidents' Day {}", year),
+            "date": nth_weekday_of_month(year, 2, Weekday::Mon, 3),
+            "allDay": true
+        }));
+
+        // Memorial Day - Last Monday of May
+        holidays.push(json!({
+            "name": format!("Memorial Day {}", year),
+            "date": last_weekday_of_month(year, 5, Weekday::Mon),
+            "allDay": true
+        }));
+
+        // Juneteenth - June 19 (observed on nearest weekday if weekend)
+        holidays.push(json!({
+            "name": format!("Juneteenth {}", year),
+            "date": observed_date(year, 6, 19),
+            "allDay": true
+        }));
+
+        // Independence Day - July 4 (observed on nearest weekday if weekend)
+        holidays.push(json!({
+            "name": format!("Independence Day {}", year),
+            "date": observed_date(year, 7, 4),
+            "allDay": true
+        }));
+
+        // Labor Day - First Monday of September
+        holidays.push(json!({
+            "name": format!("Labor Day {}", year),
+            "date": nth_weekday_of_month(year, 9, Weekday::Mon, 1),
+            "allDay": true
+        }));
+
+        // Columbus Day - Second Monday of October
+        holidays.push(json!({
+            "name": format!("Columbus Day {}", year),
+            "date": nth_weekday_of_month(year, 10, Weekday::Mon, 2),
+            "allDay": true
+        }));
+
+        // Veterans Day - November 11 (observed on nearest weekday if weekend)
+        holidays.push(json!({
+            "name": format!("Veterans Day {}", year),
+            "date": observed_date(year, 11, 11),
+            "allDay": true
+        }));
+
+        // Thanksgiving Day - Fourth Thursday of November
+        holidays.push(json!({
+            "name": format!("Thanksgiving Day {}", year),
+            "date": nth_weekday_of_month(year, 11, Weekday::Thu, 4),
+            "allDay": true
+        }));
+
+        // Day After Thanksgiving (common business closure)
+        let thanksgiving = nth_weekday_of_month(year, 11, Weekday::Thu, 4);
+        if let Ok(tg_date) = NaiveDate::parse_from_str(&thanksgiving, "%Y-%m-%d") {
+            holidays.push(json!({
+                "name": format!("Day After Thanksgiving {}", year),
+                "date": tg_date.succ_opt().map(|d| d.format("%Y-%m-%d").to_string()).unwrap_or_default(),
+                "allDay": true
+            }));
+        }
+
+        // Christmas Eve (common business closure or early close)
+        holidays.push(json!({
+            "name": format!("Christmas Eve {}", year),
+            "date": format!("{}-12-24", year),
+            "allDay": false,
+            "closeTime": "12:00" // Half day
+        }));
+
+        // Christmas Day - December 25 (observed on nearest weekday if weekend)
+        holidays.push(json!({
+            "name": format!("Christmas Day {}", year),
+            "date": observed_date(year, 12, 25),
+            "allDay": true
+        }));
+
+        // New Year's Eve (common early close)
+        holidays.push(json!({
+            "name": format!("New Year's Eve {}", year),
+            "date": format!("{}-12-31", year),
+            "allDay": false,
+            "closeTime": "12:00" // Half day
+        }));
+    }
+
+    json!({
+        "schedule": holidays,
+        "implementation": {
+            "commands": [
+                "# Create holiday call handling schedule",
+                "$holidays = @()",
+                "# Add each holiday date range to the schedule",
+                "foreach ($holiday in $holidayList) { $holidays += New-CsOnlineDateTimeRange -Start $holiday.Start -End $holiday.End }",
+                "New-CsOnlineSchedule -Name 'Federal Holidays' -FixedSchedule -DateTimeRanges $holidays"
+            ]
+        }
+    })
+}
+
+/// Get the nth occurrence of a weekday in a month
+fn nth_weekday_of_month(year: i32, month: u32, weekday: chrono::Weekday, n: u32) -> String {
+    use chrono::{Datelike, NaiveDate};
+
+    let first_of_month = NaiveDate::from_ymd_opt(year, month, 1).unwrap();
+    let first_target_weekday = first_of_month
+        .iter_days()
+        .find(|d| d.weekday() == weekday)
+        .unwrap();
+
+    let target_date = first_target_weekday + chrono::Duration::weeks((n - 1) as i64);
+    target_date.format("%Y-%m-%d").to_string()
+}
+
+/// Get the last occurrence of a weekday in a month
+fn last_weekday_of_month(year: i32, month: u32, weekday: chrono::Weekday) -> String {
+    use chrono::{Datelike, NaiveDate};
+
+    // Get the last day of the month
+    let next_month = if month == 12 { 1 } else { month + 1 };
+    let next_year = if month == 12 { year + 1 } else { year };
+    let first_of_next = NaiveDate::from_ymd_opt(next_year, next_month, 1).unwrap();
+    let last_of_month = first_of_next.pred_opt().unwrap();
+
+    // Work backwards to find the last target weekday
+    let mut current = last_of_month;
+    while current.weekday() != weekday {
+        current = current.pred_opt().unwrap();
+    }
+
+    current.format("%Y-%m-%d").to_string()
+}
+
+/// Get the observed date for a fixed holiday (moves to Friday if Saturday, Monday if Sunday)
+fn observed_date(year: i32, month: u32, day: u32) -> String {
+    use chrono::{Datelike, NaiveDate, Weekday};
+
+    let date = NaiveDate::from_ymd_opt(year, month, day).unwrap();
+    let observed = match date.weekday() {
+        Weekday::Sat => date.pred_opt().unwrap(), // Friday
+        Weekday::Sun => date.succ_opt().unwrap(), // Monday
+        _ => date,
+    };
+
+    observed.format("%Y-%m-%d").to_string()
 }

@@ -156,6 +156,10 @@ enum CaCommands {
 
     /// Disable CA policies (move to disabled state)
     Disable(cmd::ca::DisableArgs),
+
+    /// Manage Named Locations (IP ranges, countries)
+    #[command(subcommand)]
+    Location(cmd::ca_location::LocationCommands),
 }
 
 #[derive(Subcommand, Debug)]
@@ -181,6 +185,7 @@ enum TenantCommands {
 }
 
 #[derive(Subcommand, Debug)]
+#[allow(clippy::large_enum_variant)]
 enum BaselineCommands {
     /// Generate a new baseline configuration
     New(cmd::baseline::NewArgs),
@@ -505,6 +510,7 @@ async fn run() -> error::Result<()> {
             CaCommands::List(args) => cmd::ca::list(args).await?,
             CaCommands::Enable(args) => cmd::ca::enable(args).await?,
             CaCommands::Disable(args) => cmd::ca::disable(args).await?,
+            CaCommands::Location(loc_cmd) => cmd::ca_location::run(loc_cmd).await?,
         },
         Commands::Export(export_cmd) => match export_cmd {
             ExportCommands::Export(args) => cmd::export_enhanced::export_enhanced(args).await?,

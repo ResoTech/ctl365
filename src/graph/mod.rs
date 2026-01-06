@@ -401,6 +401,70 @@ impl GraphClient {
         }))
     }
 
+    /// Make a PATCH request that expects no response body (204 No Content)
+    pub async fn patch_no_response<T: Serialize>(&self, endpoint: &str, body: &T) -> Result<()> {
+        let url = format!("{}/{}", GRAPH_API_BASE, endpoint.trim_start_matches('/'));
+        let mut last_error = None;
+
+        for attempt in 0..MAX_RETRIES {
+            let response = self
+                .client
+                .patch(&url)
+                .bearer_auth(&self.access_token)
+                .json(body)
+                .send()
+                .await;
+
+            match response {
+                Ok(resp) => {
+                    let status = resp.status();
+
+                    if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
+                        let retry_after = resp
+                            .headers()
+                            .get("Retry-After")
+                            .and_then(|v| v.to_str().ok())
+                            .and_then(|v| v.parse::<u64>().ok())
+                            .unwrap_or(INITIAL_BACKOFF_MS / 1000);
+                        tokio::time::sleep(Duration::from_secs(retry_after)).await;
+                        continue;
+                    }
+
+                    if status.is_server_error() && attempt < MAX_RETRIES - 1 {
+                        tokio::time::sleep(calculate_backoff_with_jitter(attempt)).await;
+                        continue;
+                    }
+
+                    if !status.is_success() {
+                        let error_text = resp.text().await.unwrap_or_default();
+                        let enhanced_error = crate::error::enhance_graph_error(&error_text);
+                        return Err(Ctl365Error::GraphApiError(format!(
+                            "HTTP {}: {}",
+                            status, enhanced_error
+                        )));
+                    }
+
+                    return Ok(());
+                }
+                Err(e) => {
+                    if attempt < MAX_RETRIES - 1 {
+                        tokio::time::sleep(calculate_backoff_with_jitter(attempt)).await;
+                        last_error = Some(e);
+                        continue;
+                    }
+                    return Err(e.into());
+                }
+            }
+        }
+
+        Err(last_error.map(|e| e.into()).unwrap_or_else(|| {
+            Ctl365Error::GraphApiError(format!(
+                "PATCH {} failed after {} retries",
+                url, MAX_RETRIES
+            ))
+        }))
+    }
+
     /// Make a DELETE request to Graph API with retry
     pub async fn delete(&self, endpoint: &str) -> Result<()> {
         self.delete_with_retry(endpoint, GRAPH_API_BASE).await
