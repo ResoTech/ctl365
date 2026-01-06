@@ -6,16 +6,10 @@ on:
   pull_request:
     branches: [main]
 
-env:
-  CARGO: ~/.cargo/bin/cargo
-  CARGO_NIGHTLY: ~/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo
-  RUSTC: ~/.cargo/bin/rustc
-  RUSTFMT: ~/.cargo/bin/rustfmt
-
 jobs:
   build-and-test:
     runs-on: self-hosted
-    name: Build & Test (nv-osmium)
+    name: Build & Test
     timeout-minutes: 20
     steps:
       - name: Checkout
@@ -23,9 +17,10 @@ jobs:
 
       - name: Verify Environment
         run: |
+          source $HOME/.cargo/env
           echo "=== Rust Toolchain ==="
-          $RUSTC --version
-          $CARGO --version
+          rustc --version
+          cargo --version
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
@@ -33,16 +28,24 @@ jobs:
           key: ctl365-ci
 
       - name: Build Release
-        run: $CARGO build --release
+        run: |
+          source $HOME/.cargo/env
+          cargo build --release
 
       - name: Clippy (zero warnings)
-        run: $CARGO clippy --release -- -D warnings
+        run: |
+          source $HOME/.cargo/env
+          cargo clippy --release -- -D warnings
 
       - name: Format Check
-        run: $CARGO fmt --check
+        run: |
+          source $HOME/.cargo/env
+          cargo fmt --check
 
-      - name: Unit Tests (nightly for wiremock)
-        run: $CARGO_NIGHTLY test
+      - name: Unit Tests (nightly)
+        run: |
+          source $HOME/.cargo/env
+          cargo +nightly test
 
       - name: CLI Smoke Test
         run: |
@@ -111,10 +114,11 @@ jobs:
 
       - name: Build Summary
         run: |
+          source $HOME/.cargo/env
           echo "### Build Complete ✅" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Item | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|------|-------|" >> $GITHUB_STEP_SUMMARY
           echo "| Binary | $(find target -path '*/release/ctl365' -type f -executable -exec ls -lh {} \; | awk '{print $5}' | head -1) |" >> $GITHUB_STEP_SUMMARY
-          echo "| Rust | $($RUSTC --version | cut -d' ' -f2) |" >> $GITHUB_STEP_SUMMARY
+          echo "| Rust | $(rustc --version | cut -d' ' -f2) |" >> $GITHUB_STEP_SUMMARY
           echo "| Tests | Passed |" >> $GITHUB_STEP_SUMMARY

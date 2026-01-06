@@ -8,11 +8,6 @@ on:
 permissions:
   contents: write
 
-env:
-  CARGO: ~/.cargo/bin/cargo
-  CARGO_NIGHTLY: ~/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo
-  RUSTC: ~/.cargo/bin/rustc
-
 jobs:
   release-windows:
     runs-on: self-hosted
@@ -24,10 +19,11 @@ jobs:
 
       - name: Verify Environment
         run: |
+          source $HOME/.cargo/env
           echo "=== Windows Cross-Compile Build ==="
           echo "Tag: ${{ github.ref_name }}"
-          $RUSTC --version
-          $CARGO --version
+          rustc --version
+          cargo --version
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
@@ -35,10 +31,14 @@ jobs:
           key: ctl365-release-windows
 
       - name: Run Tests (nightly)
-        run: $CARGO_NIGHTLY test
+        run: |
+          source $HOME/.cargo/env
+          cargo +nightly test
 
       - name: Build Windows Release
-        run: $CARGO build --release --target x86_64-pc-windows-gnu
+        run: |
+          source $HOME/.cargo/env
+          cargo build --release --target x86_64-pc-windows-gnu
 
       - name: Create Windows Archive
         run: |
