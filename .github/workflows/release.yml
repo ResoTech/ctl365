@@ -19,7 +19,7 @@ jobs:
 
       - name: Verify Environment
         run: |
-          source $HOME/.cargo/env
+          export PATH="$HOME/.cargo/bin:$PATH"
           echo "=== Windows Cross-Compile Build ==="
           echo "Tag: ${{ github.ref_name }}"
           rustc --version
@@ -32,12 +32,12 @@ jobs:
 
       - name: Run Tests (nightly)
         run: |
-          source $HOME/.cargo/env
+          export PATH="$HOME/.cargo/bin:$PATH"
           cargo +nightly test
 
       - name: Build Windows Release
         run: |
-          source $HOME/.cargo/env
+          export PATH="$HOME/.cargo/bin:$PATH"
           cargo build --release --target x86_64-pc-windows-gnu
 
       - name: Create Windows Archive

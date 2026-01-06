@@ -17,7 +17,7 @@ jobs:
 
       - name: Verify Environment
         run: |
-          source $HOME/.cargo/env
+          export PATH="$HOME/.cargo/bin:$PATH"
           echo "=== Rust Toolchain ==="
           rustc --version
           cargo --version
@@ -29,22 +29,22 @@ jobs:
 
       - name: Build Release
         run: |
-          source $HOME/.cargo/env
+          export PATH="$HOME/.cargo/bin:$PATH"
           cargo build --release
 
       - name: Clippy (zero warnings)
         run: |
-          source $HOME/.cargo/env
+          export PATH="$HOME/.cargo/bin:$PATH"
           cargo clippy --release -- -D warnings
 
       - name: Format Check
         run: |
-          source $HOME/.cargo/env
+          export PATH="$HOME/.cargo/bin:$PATH"
           cargo fmt --check
 
       - name: Unit Tests (nightly)
         run: |
-          source $HOME/.cargo/env
+          export PATH="$HOME/.cargo/bin:$PATH"
           cargo +nightly test
 
       - name: CLI Smoke Test
@@ -114,7 +114,7 @@ jobs:
 
       - name: Build Summary
         run: |
-          source $HOME/.cargo/env
+          export PATH="$HOME/.cargo/bin:$PATH"
           echo "### Build Complete ✅" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Item | Value |" >> $GITHUB_STEP_SUMMARY
