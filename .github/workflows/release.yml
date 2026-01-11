@@ -19,7 +19,6 @@ jobs:
 
       - name: Verify Environment
         run: |
-          export PATH="$HOME/.cargo/bin:$PATH"
           echo "=== Windows Cross-Compile Build ==="
           echo "Tag: ${{ github.ref_name }}"
           rustc --version
@@ -31,14 +30,10 @@ jobs:
           key: ctl365-release-windows
 
       - name: Run Tests (nightly)
-        run: |
-          export PATH="$HOME/.cargo/bin:$PATH"
-          cargo +nightly test
+        run: cargo +nightly test
 
       - name: Build Windows Release
-        run: |
-          export PATH="$HOME/.cargo/bin:$PATH"
-          cargo build --release --target x86_64-pc-windows-gnu
+        run: cargo build --release --target x86_64-pc-windows-gnu
 
       - name: Create Windows Archive
         run: |

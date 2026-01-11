@@ -17,7 +17,6 @@ jobs:
 
       - name: Verify Environment
         run: |
-          export PATH="$HOME/.cargo/bin:$PATH"
           echo "=== Rust Toolchain ==="
           rustc --version
           cargo --version
@@ -28,24 +27,16 @@ jobs:
           key: ctl365-ci
 
       - name: Build Release
-        run: |
-          export PATH="$HOME/.cargo/bin:$PATH"
-          cargo build --release
+        run: cargo build --release
 
       - name: Clippy (zero warnings)
-        run: |
-          export PATH="$HOME/.cargo/bin:$PATH"
-          cargo clippy --release -- -D warnings
+        run: cargo clippy --release -- -D warnings
 
       - name: Format Check
-        run: |
-          export PATH="$HOME/.cargo/bin:$PATH"
-          cargo fmt --check
+        run: cargo fmt --check
 
       - name: Unit Tests (nightly)
-        run: |
-          export PATH="$HOME/.cargo/bin:$PATH"
-          cargo +nightly test
+        run: cargo +nightly test
 
       - name: CLI Smoke Test
         run: |
@@ -114,7 +105,6 @@ jobs:
 
       - name: Build Summary
         run: |
-          export PATH="$HOME/.cargo/bin:$PATH"
           echo "### Build Complete ✅" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Item | Value |" >> $GITHUB_STEP_SUMMARY
