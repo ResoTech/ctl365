@@ -10,13 +10,15 @@ jobs:
     name: "Nightly validation"
     runs-on: self-hosted
     timeout-minutes: 30
+    env:
+      PATH: /home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Verify Environment
         run: |
-          export PATH="$HOME/.cargo/bin:$PATH"
+          set -euo pipefail
           echo "=== Nightly Build $(date -u +%Y-%m-%d) ==="
           rustc --version
           cargo --version
@@ -27,18 +29,13 @@ jobs:
           key: ctl365-nightly
 
       - name: Full build
-        run: |
-          export PATH="$HOME/.cargo/bin:$PATH"
-          cargo build --release
+        run: cargo build --release
 
       - name: Full test sweep
-        run: |
-          export PATH="$HOME/.cargo/bin:$PATH"
-          cargo test
+        run: cargo test
 
       - name: Clippy strict
         run: |
-          export PATH="$HOME/.cargo/bin:$PATH"
           cargo clippy --release -- \
             -W clippy::all \
             -W clippy::pedantic \
@@ -53,9 +50,7 @@ jobs:
             -A clippy::struct-excessive-bools
 
       - name: Format check
-        run: |
-          export PATH="$HOME/.cargo/bin:$PATH"
-          cargo fmt --check
+        run: cargo fmt --check
 
       - name: Extended CLI Tests
         run: |
@@ -96,7 +91,6 @@ jobs:
 
       - name: Nightly Summary
         run: |
-          export PATH="$HOME/.cargo/bin:$PATH"
           echo "### Nightly Build $(date -u +%Y-%m-%d) ✅" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
