@@ -10,20 +10,14 @@ jobs:
     name: "Nightly validation"
     runs-on: self-hosted
     timeout-minutes: 30
-    env:
-      CARGO_HOME: ${{ github.workspace }}/.cargo
-    defaults:
-      run:
-        shell: bash -l -c 'source $HOME/.cargo/env 2>/dev/null || true; exec bash -euo pipefail "$@"' -- {0}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Verify Environment
         run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
           echo "=== Nightly Build $(date -u +%Y-%m-%d) ==="
-          echo "User: $(whoami)"
-          echo "Cargo: $(which cargo)"
           rustc --version
           cargo --version
 
@@ -33,13 +27,18 @@ jobs:
           key: ctl365-nightly
 
       - name: Full build
-        run: cargo build --release
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          cargo build --release
 
       - name: Full test sweep
-        run: cargo test
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          cargo test
 
       - name: Clippy strict
         run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
           cargo clippy --release -- \
             -W clippy::all \
             -W clippy::pedantic \
@@ -54,10 +53,13 @@ jobs:
             -A clippy::struct-excessive-bools
 
       - name: Format check
-        run: cargo fmt --check
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          cargo fmt --check
 
       - name: Extended CLI Tests
         run: |
+          set -euo pipefail
           CTL365=$(find target -path "*/release/ctl365" -type f -executable | head -1)
 
           echo "=== Extended CLI Tests ==="
@@ -83,6 +85,7 @@ jobs:
 
       - name: Binary size check
         run: |
+          set -euo pipefail
           CTL365=$(find target -path "*/release/ctl365" -type f -executable | head -1)
           SIZE=$(stat -c%s "$CTL365" 2>/dev/null || stat -f%z "$CTL365")
           SIZE_MB=$((SIZE / 1024 / 1024))
@@ -93,6 +96,7 @@ jobs:
 
       - name: Nightly Summary
         run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
           echo "### Nightly Build $(date -u +%Y-%m-%d) ✅" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
