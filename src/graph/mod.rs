@@ -5,46 +5,17 @@ pub mod defender;
 pub mod exchange_online;
 pub mod identity_protection;
 pub mod intune;
+pub mod retry;
 pub mod sharepoint;
 pub mod viva;
 
 use crate::config::ConfigManager;
-use crate::error::{Ctl365Error, Result};
+use crate::error::Result;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use std::time::Duration;
 
 pub const GRAPH_API_BASE: &str = "https://graph.microsoft.com/v1.0";
 pub const GRAPH_API_BETA: &str = "https://graph.microsoft.com/beta";
-
-/// Default retry configuration
-const MAX_RETRIES: u32 = 3;
-const INITIAL_BACKOFF_MS: u64 = 1000;
-const MAX_BACKOFF_MS: u64 = 30000;
-const JITTER_FACTOR: f64 = 0.3; // +/- 30% jitter
-
-/// Calculate backoff with jitter for exponential backoff
-fn calculate_backoff_with_jitter(attempt: u32) -> Duration {
-    use rand::Rng;
-    use std::time::Duration;
-
-    // Base exponential backoff
-    let base_backoff = INITIAL_BACKOFF_MS * 2u64.pow(attempt);
-
-    // Cap the backoff
-    let capped_backoff = base_backoff.min(MAX_BACKOFF_MS);
-
-    // Add jitter (+/- JITTER_FACTOR) using proper RNG
-    let jitter_range = (capped_backoff as f64 * JITTER_FACTOR) as i64;
-    let jitter = if jitter_range > 0 {
-        rand::thread_rng().gen_range(-jitter_range..=jitter_range)
-    } else {
-        0
-    };
-
-    let final_backoff = (capped_backoff as i64 + jitter).max(100) as u64;
-    Duration::from_millis(final_backoff)
-}
 
 /// Rate limit configuration for Viva Engage (10 requests per 30 seconds)
 #[allow(dead_code)]
@@ -87,89 +58,10 @@ impl GraphClient {
         base_url: &str,
     ) -> Result<T> {
         let url = format!("{}/{}", base_url, endpoint.trim_start_matches('/'));
-        let mut last_error = None;
+        let client = &self.client;
+        let token = &self.access_token;
 
-        for attempt in 0..MAX_RETRIES {
-            let response = self
-                .client
-                .get(&url)
-                .bearer_auth(&self.access_token)
-                .send()
-                .await;
-
-            match response {
-                Ok(resp) => {
-                    let status = resp.status();
-
-                    // Retry on 429 (rate limit) or 5xx (server errors)
-                    if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
-                        let retry_after = resp
-                            .headers()
-                            .get("Retry-After")
-                            .and_then(|v| v.to_str().ok())
-                            .and_then(|v| v.parse::<u64>().ok())
-                            .unwrap_or(INITIAL_BACKOFF_MS / 1000);
-
-                        let wait_time = Duration::from_secs(retry_after);
-                        eprintln!(
-                            "Rate limited (429). Retrying in {} seconds... (attempt {}/{})",
-                            retry_after,
-                            attempt + 1,
-                            MAX_RETRIES
-                        );
-                        tokio::time::sleep(wait_time).await;
-                        continue;
-                    }
-
-                    if status.is_server_error() && attempt < MAX_RETRIES - 1 {
-                        let wait_time = calculate_backoff_with_jitter(attempt);
-                        eprintln!(
-                            "Server error ({}). Retrying in {:?}... (attempt {}/{})",
-                            status,
-                            wait_time,
-                            attempt + 1,
-                            MAX_RETRIES
-                        );
-                        tokio::time::sleep(wait_time).await;
-                        continue;
-                    }
-
-                    if !status.is_success() {
-                        let error_text = resp.text().await.unwrap_or_default();
-                        let enhanced_error = crate::error::enhance_graph_error(&error_text);
-                        return Err(Ctl365Error::GraphApiError(format!(
-                            "HTTP {}: {}",
-                            status, enhanced_error
-                        )));
-                    }
-
-                    let data = resp.json::<T>().await?;
-                    return Ok(data);
-                }
-                Err(e) => {
-                    // Retry on connection errors
-                    if attempt < MAX_RETRIES - 1 {
-                        let wait_time = calculate_backoff_with_jitter(attempt);
-                        eprintln!(
-                            "Connection error: {}. Retrying in {:?}... (attempt {}/{})",
-                            e,
-                            wait_time,
-                            attempt + 1,
-                            MAX_RETRIES
-                        );
-                        tokio::time::sleep(wait_time).await;
-                        last_error = Some(e);
-                        continue;
-                    }
-                    return Err(e.into());
-                }
-            }
-        }
-
-        // If we get here, all retries failed
-        Err(last_error.map(|e| e.into()).unwrap_or_else(|| {
-            Ctl365Error::GraphApiError(format!("GET {} failed after {} retries", url, MAX_RETRIES))
-        }))
+        retry::execute_json("GET", &url, || client.get(&url).bearer_auth(token).send(), true).await
     }
 
     /// Make a POST request to Graph API with retry for transient failures
@@ -189,88 +81,17 @@ impl GraphClient {
         base_url: &str,
     ) -> Result<R> {
         let url = format!("{}/{}", base_url, endpoint.trim_start_matches('/'));
-        let mut last_error = None;
+        let body_json = serde_json::to_value(body).unwrap_or_default();
+        let client = &self.client;
+        let token = &self.access_token;
 
-        for attempt in 0..MAX_RETRIES {
-            let response = self
-                .client
-                .post(&url)
-                .bearer_auth(&self.access_token)
-                .json(body)
-                .send()
-                .await;
-
-            match response {
-                Ok(resp) => {
-                    let status = resp.status();
-
-                    // Retry on 429 (rate limit) or 5xx (server errors)
-                    if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
-                        let retry_after = resp
-                            .headers()
-                            .get("Retry-After")
-                            .and_then(|v| v.to_str().ok())
-                            .and_then(|v| v.parse::<u64>().ok())
-                            .unwrap_or(INITIAL_BACKOFF_MS / 1000);
-
-                        let wait_time = Duration::from_secs(retry_after);
-                        eprintln!(
-                            "Rate limited (429). Retrying in {} seconds... (attempt {}/{})",
-                            retry_after,
-                            attempt + 1,
-                            MAX_RETRIES
-                        );
-                        tokio::time::sleep(wait_time).await;
-                        continue;
-                    }
-
-                    if status.is_server_error() && attempt < MAX_RETRIES - 1 {
-                        let wait_time = calculate_backoff_with_jitter(attempt);
-                        eprintln!(
-                            "Server error ({}). Retrying in {:?}... (attempt {}/{})",
-                            status,
-                            wait_time,
-                            attempt + 1,
-                            MAX_RETRIES
-                        );
-                        tokio::time::sleep(wait_time).await;
-                        continue;
-                    }
-
-                    if !status.is_success() {
-                        let error_text = resp.text().await.unwrap_or_default();
-                        let enhanced_error = crate::error::enhance_graph_error(&error_text);
-                        return Err(Ctl365Error::GraphApiError(format!(
-                            "HTTP {}: {}",
-                            status, enhanced_error
-                        )));
-                    }
-
-                    let data = resp.json::<R>().await?;
-                    return Ok(data);
-                }
-                Err(e) => {
-                    if attempt < MAX_RETRIES - 1 {
-                        let wait_time = calculate_backoff_with_jitter(attempt);
-                        eprintln!(
-                            "Connection error: {}. Retrying in {:?}... (attempt {}/{})",
-                            e,
-                            wait_time,
-                            attempt + 1,
-                            MAX_RETRIES
-                        );
-                        tokio::time::sleep(wait_time).await;
-                        last_error = Some(e);
-                        continue;
-                    }
-                    return Err(e.into());
-                }
-            }
-        }
-
-        Err(last_error.map(|e| e.into()).unwrap_or_else(|| {
-            Ctl365Error::GraphApiError(format!("POST {} failed after {} retries", url, MAX_RETRIES))
-        }))
+        retry::execute_json(
+            "POST",
+            &url,
+            || client.post(&url).bearer_auth(token).json(&body_json).send(),
+            true,
+        )
+        .await
     }
 
     /// Make a GET request to Graph API (beta endpoint) with retry
@@ -313,154 +134,33 @@ impl GraphClient {
         base_url: &str,
     ) -> Result<R> {
         let url = format!("{}/{}", base_url, endpoint.trim_start_matches('/'));
-        let mut last_error = None;
+        let body_json = serde_json::to_value(body).unwrap_or_default();
+        let client = &self.client;
+        let token = &self.access_token;
 
-        for attempt in 0..MAX_RETRIES {
-            let response = self
-                .client
-                .patch(&url)
-                .bearer_auth(&self.access_token)
-                .json(body)
-                .send()
-                .await;
-
-            match response {
-                Ok(resp) => {
-                    let status = resp.status();
-
-                    if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
-                        let retry_after = resp
-                            .headers()
-                            .get("Retry-After")
-                            .and_then(|v| v.to_str().ok())
-                            .and_then(|v| v.parse::<u64>().ok())
-                            .unwrap_or(INITIAL_BACKOFF_MS / 1000);
-
-                        let wait_time = Duration::from_secs(retry_after);
-                        eprintln!(
-                            "Rate limited (429). Retrying in {} seconds... (attempt {}/{})",
-                            retry_after,
-                            attempt + 1,
-                            MAX_RETRIES
-                        );
-                        tokio::time::sleep(wait_time).await;
-                        continue;
-                    }
-
-                    if status.is_server_error() && attempt < MAX_RETRIES - 1 {
-                        let wait_time = calculate_backoff_with_jitter(attempt);
-                        eprintln!(
-                            "Server error ({}). Retrying in {:?}... (attempt {}/{})",
-                            status,
-                            wait_time,
-                            attempt + 1,
-                            MAX_RETRIES
-                        );
-                        tokio::time::sleep(wait_time).await;
-                        continue;
-                    }
-
-                    if !status.is_success() {
-                        let error_text = resp.text().await.unwrap_or_default();
-                        let enhanced_error = crate::error::enhance_graph_error(&error_text);
-                        return Err(Ctl365Error::GraphApiError(format!(
-                            "HTTP {}: {}",
-                            status, enhanced_error
-                        )));
-                    }
-
-                    let data = resp.json::<R>().await?;
-                    return Ok(data);
-                }
-                Err(e) => {
-                    if attempt < MAX_RETRIES - 1 {
-                        let wait_time = calculate_backoff_with_jitter(attempt);
-                        eprintln!(
-                            "Connection error: {}. Retrying in {:?}... (attempt {}/{})",
-                            e,
-                            wait_time,
-                            attempt + 1,
-                            MAX_RETRIES
-                        );
-                        tokio::time::sleep(wait_time).await;
-                        last_error = Some(e);
-                        continue;
-                    }
-                    return Err(e.into());
-                }
-            }
-        }
-
-        Err(last_error.map(|e| e.into()).unwrap_or_else(|| {
-            Ctl365Error::GraphApiError(format!(
-                "PATCH {} failed after {} retries",
-                url, MAX_RETRIES
-            ))
-        }))
+        retry::execute_json(
+            "PATCH",
+            &url,
+            || client.patch(&url).bearer_auth(token).json(&body_json).send(),
+            true,
+        )
+        .await
     }
 
     /// Make a PATCH request that expects no response body (204 No Content)
     pub async fn patch_no_response<T: Serialize>(&self, endpoint: &str, body: &T) -> Result<()> {
         let url = format!("{}/{}", GRAPH_API_BASE, endpoint.trim_start_matches('/'));
-        let mut last_error = None;
+        let body_json = serde_json::to_value(body).unwrap_or_default();
+        let client = &self.client;
+        let token = &self.access_token;
 
-        for attempt in 0..MAX_RETRIES {
-            let response = self
-                .client
-                .patch(&url)
-                .bearer_auth(&self.access_token)
-                .json(body)
-                .send()
-                .await;
-
-            match response {
-                Ok(resp) => {
-                    let status = resp.status();
-
-                    if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
-                        let retry_after = resp
-                            .headers()
-                            .get("Retry-After")
-                            .and_then(|v| v.to_str().ok())
-                            .and_then(|v| v.parse::<u64>().ok())
-                            .unwrap_or(INITIAL_BACKOFF_MS / 1000);
-                        tokio::time::sleep(Duration::from_secs(retry_after)).await;
-                        continue;
-                    }
-
-                    if status.is_server_error() && attempt < MAX_RETRIES - 1 {
-                        tokio::time::sleep(calculate_backoff_with_jitter(attempt)).await;
-                        continue;
-                    }
-
-                    if !status.is_success() {
-                        let error_text = resp.text().await.unwrap_or_default();
-                        let enhanced_error = crate::error::enhance_graph_error(&error_text);
-                        return Err(Ctl365Error::GraphApiError(format!(
-                            "HTTP {}: {}",
-                            status, enhanced_error
-                        )));
-                    }
-
-                    return Ok(());
-                }
-                Err(e) => {
-                    if attempt < MAX_RETRIES - 1 {
-                        tokio::time::sleep(calculate_backoff_with_jitter(attempt)).await;
-                        last_error = Some(e);
-                        continue;
-                    }
-                    return Err(e.into());
-                }
-            }
-        }
-
-        Err(last_error.map(|e| e.into()).unwrap_or_else(|| {
-            Ctl365Error::GraphApiError(format!(
-                "PATCH {} failed after {} retries",
-                url, MAX_RETRIES
-            ))
-        }))
+        retry::execute_no_content(
+            "PATCH",
+            &url,
+            || client.patch(&url).bearer_auth(token).json(&body_json).send(),
+            false, // Quiet mode for no-response operations
+        )
+        .await
     }
 
     /// Make a DELETE request to Graph API with retry
@@ -476,88 +176,16 @@ impl GraphClient {
     /// Internal DELETE with retry and configurable base URL
     async fn delete_with_retry(&self, endpoint: &str, base_url: &str) -> Result<()> {
         let url = format!("{}/{}", base_url, endpoint.trim_start_matches('/'));
-        let mut last_error = None;
+        let client = &self.client;
+        let token = &self.access_token;
 
-        for attempt in 0..MAX_RETRIES {
-            let response = self
-                .client
-                .delete(&url)
-                .bearer_auth(&self.access_token)
-                .send()
-                .await;
-
-            match response {
-                Ok(resp) => {
-                    let status = resp.status();
-
-                    if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
-                        let retry_after = resp
-                            .headers()
-                            .get("Retry-After")
-                            .and_then(|v| v.to_str().ok())
-                            .and_then(|v| v.parse::<u64>().ok())
-                            .unwrap_or(INITIAL_BACKOFF_MS / 1000);
-
-                        let wait_time = Duration::from_secs(retry_after);
-                        eprintln!(
-                            "Rate limited (429). Retrying in {} seconds... (attempt {}/{})",
-                            retry_after,
-                            attempt + 1,
-                            MAX_RETRIES
-                        );
-                        tokio::time::sleep(wait_time).await;
-                        continue;
-                    }
-
-                    if status.is_server_error() && attempt < MAX_RETRIES - 1 {
-                        let wait_time = calculate_backoff_with_jitter(attempt);
-                        eprintln!(
-                            "Server error ({}). Retrying in {:?}... (attempt {}/{})",
-                            status,
-                            wait_time,
-                            attempt + 1,
-                            MAX_RETRIES
-                        );
-                        tokio::time::sleep(wait_time).await;
-                        continue;
-                    }
-
-                    if !status.is_success() {
-                        let error_text = resp.text().await.unwrap_or_default();
-                        let enhanced_error = crate::error::enhance_graph_error(&error_text);
-                        return Err(Ctl365Error::GraphApiError(format!(
-                            "HTTP {}: {}",
-                            status, enhanced_error
-                        )));
-                    }
-
-                    return Ok(());
-                }
-                Err(e) => {
-                    if attempt < MAX_RETRIES - 1 {
-                        let wait_time = calculate_backoff_with_jitter(attempt);
-                        eprintln!(
-                            "Connection error: {}. Retrying in {:?}... (attempt {}/{})",
-                            e,
-                            wait_time,
-                            attempt + 1,
-                            MAX_RETRIES
-                        );
-                        tokio::time::sleep(wait_time).await;
-                        last_error = Some(e);
-                        continue;
-                    }
-                    return Err(e.into());
-                }
-            }
-        }
-
-        Err(last_error.map(|e| e.into()).unwrap_or_else(|| {
-            Ctl365Error::GraphApiError(format!(
-                "DELETE {} failed after {} retries",
-                url, MAX_RETRIES
-            ))
-        }))
+        retry::execute_no_content(
+            "DELETE",
+            &url,
+            || client.delete(&url).bearer_auth(token).send(),
+            true,
+        )
+        .await
     }
 
     /// Get raw response with headers (useful for long-running operations)
@@ -707,65 +335,16 @@ impl GraphClient {
 
     /// Make a GET request to a raw URL (for following nextLink)
     async fn get_raw_url<T: for<'de> Deserialize<'de>>(&self, url: &str) -> Result<T> {
-        let mut last_error = None;
+        let client = &self.client;
+        let token = &self.access_token;
+        let url_owned = url.to_string();
 
-        for attempt in 0..MAX_RETRIES {
-            let response = self
-                .client
-                .get(url)
-                .bearer_auth(&self.access_token)
-                .send()
-                .await;
-
-            match response {
-                Ok(resp) => {
-                    let status = resp.status();
-
-                    if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
-                        let retry_after = resp
-                            .headers()
-                            .get("Retry-After")
-                            .and_then(|v| v.to_str().ok())
-                            .and_then(|v| v.parse::<u64>().ok())
-                            .unwrap_or(INITIAL_BACKOFF_MS / 1000);
-
-                        let wait_time = Duration::from_secs(retry_after);
-                        tokio::time::sleep(wait_time).await;
-                        continue;
-                    }
-
-                    if status.is_server_error() && attempt < MAX_RETRIES - 1 {
-                        let wait_time = calculate_backoff_with_jitter(attempt);
-                        tokio::time::sleep(wait_time).await;
-                        continue;
-                    }
-
-                    if !status.is_success() {
-                        let error_text = resp.text().await.unwrap_or_default();
-                        let enhanced_error = crate::error::enhance_graph_error(&error_text);
-                        return Err(Ctl365Error::GraphApiError(format!(
-                            "HTTP {}: {}",
-                            status, enhanced_error
-                        )));
-                    }
-
-                    let data = resp.json::<T>().await?;
-                    return Ok(data);
-                }
-                Err(e) => {
-                    if attempt < MAX_RETRIES - 1 {
-                        let wait_time = calculate_backoff_with_jitter(attempt);
-                        tokio::time::sleep(wait_time).await;
-                        last_error = Some(e);
-                        continue;
-                    }
-                    return Err(e.into());
-                }
-            }
-        }
-
-        Err(last_error.map(|e| e.into()).unwrap_or_else(|| {
-            Ctl365Error::GraphApiError(format!("GET {} failed after {} retries", url, MAX_RETRIES))
-        }))
+        retry::execute_json(
+            "GET",
+            url,
+            || client.get(&url_owned).bearer_auth(token).send(),
+            false, // Quiet mode for pagination
+        )
+        .await
     }
 }
