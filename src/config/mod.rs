@@ -706,7 +706,7 @@ impl ConfigManager {
     /// Load tenant from .env file in config directory
     ///
     /// Supports format:
-    /// ```
+    /// ```text
     /// # Client: RESO - Resolve M365 Baseline
     /// TENANT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
     /// CLIENT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
@@ -808,7 +808,7 @@ impl ConfigManager {
     /// Load all tenants from a multi-tenant .env file
     ///
     /// Format:
-    /// ```
+    /// ```text
     /// # ~/.ctl365/tenants.env
     /// [RESO]
     /// NAME=Resolve Technology

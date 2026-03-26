@@ -9,6 +9,10 @@ repository = "https://github.com/resotech/ctl365"
 keywords = ["microsoft", "m365", "intune", "automation", "msp"]
 categories = ["command-line-utilities"]
 
+[lib]
+name = "ctl365"
+path = "src/lib.rs"
+
 [[bin]]
 name = "ctl365"
 path = "src/main.rs"
