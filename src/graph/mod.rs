@@ -25,6 +25,7 @@ const JITTER_FACTOR: f64 = 0.3; // +/- 30% jitter
 
 /// Calculate backoff with jitter for exponential backoff
 fn calculate_backoff_with_jitter(attempt: u32) -> Duration {
+    use rand::Rng;
     use std::time::Duration;
 
     // Base exponential backoff
@@ -33,13 +34,10 @@ fn calculate_backoff_with_jitter(attempt: u32) -> Duration {
     // Cap the backoff
     let capped_backoff = base_backoff.min(MAX_BACKOFF_MS);
 
-    // Add jitter (+/- JITTER_FACTOR)
-    let jitter_range = (capped_backoff as f64 * JITTER_FACTOR) as u64;
+    // Add jitter (+/- JITTER_FACTOR) using proper RNG
+    let jitter_range = (capped_backoff as f64 * JITTER_FACTOR) as i64;
     let jitter = if jitter_range > 0 {
-        use std::hash::{Hash, Hasher};
-        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        std::time::SystemTime::now().hash(&mut hasher);
-        (hasher.finish() % (jitter_range * 2)) as i64 - jitter_range as i64
+        rand::thread_rng().gen_range(-jitter_range..=jitter_range)
     } else {
         0
     };
