@@ -386,6 +386,18 @@ pub fn sharepoint_settings() -> Vec<TenantSetting> {
             cis_control: Some("7.3.1".into()),
             scuba_control: None,
         },
+        TenantSetting {
+            id: "disable_add_shortcuts_to_onedrive".into(),
+            name: "Disable Add Shortcut to OneDrive".into(),
+            description: "Remove the 'Add shortcut to OneDrive' option from SharePoint document libraries. Users should sync sites via the OneDrive sync client instead.".into(),
+            category: "SharePoint & OneDrive".into(),
+            setting_type: SettingType::Boolean,
+            default_value: SettingValue::Boolean(true),
+            current_value: None,
+            recommended: true,
+            cis_control: None,
+            scuba_control: None,
+        },
     ]
 }
 
@@ -526,6 +538,7 @@ pub struct TenantConfiguration {
     pub default_sharing_link: String,
     pub prevent_external_resharing: bool,
     pub sync_client_restriction: bool,
+    pub disable_add_shortcuts_to_onedrive: bool,
 
     // Teams
     pub external_access: bool,
@@ -566,6 +579,7 @@ impl TenantConfiguration {
             default_sharing_link: "Internal".into(),
             prevent_external_resharing: true,
             sync_client_restriction: true,
+            disable_add_shortcuts_to_onedrive: true,
 
             // Teams - balanced
             external_access: true,

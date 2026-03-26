@@ -26,6 +26,7 @@ pub fn generate_tenant_baseline(args: &NewArgs) -> Result<Value> {
     // SharePoint/OneDrive configurations
     configurations.push(generate_sharepoint_sharing_config(args));
     configurations.push(generate_onedrive_sync_restrictions(args));
+    configurations.push(generate_onedrive_shortcut_restriction(args));
 
     // Teams configurations
     configurations.push(generate_teams_external_access_config(args));
@@ -330,6 +331,24 @@ fn generate_onedrive_sync_restrictions(args: &NewArgs) -> Value {
             "method": "PowerShell",
             "commands": [
                 "Set-SPOTenantSyncClientRestriction -Enable -DomainGuids $TenantId"
+            ]
+        }
+    })
+}
+
+/// OneDrive: Disable "Add shortcut to OneDrive" for SharePoint sites
+fn generate_onedrive_shortcut_restriction(args: &NewArgs) -> Value {
+    json!({
+        "type": "OneDrive.ShortcutRestriction",
+        "name": format!("{} - Disable Add Shortcut to OneDrive", args.name),
+        "description": "Disable 'Add shortcut to OneDrive' button on SharePoint document libraries. Users should sync sites via OneDrive sync client instead.",
+        "settings": {
+            "disableAddShortcutsToOneDrive": true
+        },
+        "implementation": {
+            "method": "PowerShell",
+            "commands": [
+                "Set-SPOTenant -DisableAddShortCutsToOneDrive $true"
             ]
         }
     })

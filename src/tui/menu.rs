@@ -386,6 +386,12 @@ pub async fn configure_sharepoint_interactive(
         true,
     )?;
 
+    tenant_config.disable_add_shortcuts_to_onedrive = prompts::confirm_with_help(
+        "Disable 'Add shortcut to OneDrive' on SharePoint sites?",
+        "Removes shortcut button from SharePoint libraries. Users should sync sites via OneDrive sync client instead.",
+        true,
+    )?;
+
     // Apply changes?
     println!();
     if prompts::confirm("Apply these SharePoint settings now?", true)? {
@@ -648,6 +654,10 @@ async fn apply_sharepoint_settings(
 
     if settings.sync_client_restriction {
         prompts::info("OneDrive sync restricted to managed devices");
+    }
+
+    if settings.disable_add_shortcuts_to_onedrive {
+        prompts::info("'Add shortcut to OneDrive' disabled on SharePoint sites");
     }
 
     prompts::warning(
