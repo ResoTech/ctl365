@@ -22,10 +22,7 @@ mod sanitize_tenant_name_tests {
 
     #[test]
     fn sanitize_already_clean() {
-        assert_eq!(
-            sanitize_tenant_name("acme"),
-            Some("acme".to_string())
-        );
+        assert_eq!(sanitize_tenant_name("acme"), Some("acme".to_string()));
     }
 
     #[test]
@@ -99,10 +96,7 @@ mod sanitize_tenant_name_tests {
 
     #[test]
     fn sanitize_mixed_case() {
-        assert_eq!(
-            sanitize_tenant_name("AbCdEf"),
-            Some("abcdef".to_string())
-        );
+        assert_eq!(sanitize_tenant_name("AbCdEf"), Some("abcdef".to_string()));
     }
 
     #[test]

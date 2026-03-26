@@ -61,7 +61,13 @@ impl GraphClient {
         let client = &self.client;
         let token = &self.access_token;
 
-        retry::execute_json("GET", &url, || client.get(&url).bearer_auth(token).send(), true).await
+        retry::execute_json(
+            "GET",
+            &url,
+            || client.get(&url).bearer_auth(token).send(),
+            true,
+        )
+        .await
     }
 
     /// Make a POST request to Graph API with retry for transient failures
@@ -141,7 +147,13 @@ impl GraphClient {
         retry::execute_json(
             "PATCH",
             &url,
-            || client.patch(&url).bearer_auth(token).json(&body_json).send(),
+            || {
+                client
+                    .patch(&url)
+                    .bearer_auth(token)
+                    .json(&body_json)
+                    .send()
+            },
             true,
         )
         .await
@@ -157,7 +169,13 @@ impl GraphClient {
         retry::execute_no_content(
             "PATCH",
             &url,
-            || client.patch(&url).bearer_auth(token).json(&body_json).send(),
+            || {
+                client
+                    .patch(&url)
+                    .bearer_auth(token)
+                    .json(&body_json)
+                    .send()
+            },
             false, // Quiet mode for no-response operations
         )
         .await

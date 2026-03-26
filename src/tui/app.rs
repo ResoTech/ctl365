@@ -3529,17 +3529,18 @@ impl App {
         // Security grade from settings
         let security_controls_enabled = self.setting_toggles.values().filter(|&&v| v).count();
         let security_controls_total = self.setting_toggles.len();
-        let security_grade = match (security_controls_enabled * 100).checked_div(security_controls_total) {
-            None => "N/A",
-            Some(pct) => match pct {
-                90..=100 => "A",
-                80..=89 => "B+",
-                70..=79 => "B",
-                60..=69 => "C+",
-                50..=59 => "C",
-                _ => "D",
-            },
-        };
+        let security_grade =
+            match (security_controls_enabled * 100).checked_div(security_controls_total) {
+                None => "N/A",
+                Some(pct) => match pct {
+                    90..=100 => "A",
+                    80..=89 => "B+",
+                    70..=79 => "B",
+                    60..=69 => "C+",
+                    50..=59 => "C",
+                    _ => "D",
+                },
+            };
 
         // Risk assessment
         let risk_level = if compliance_score >= 80
