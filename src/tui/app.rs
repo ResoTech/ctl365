@@ -293,10 +293,11 @@ impl ProgressState {
     pub fn percent(&self) -> u16 {
         if self.indeterminate {
             0
-        } else if self.total == 0 {
-            100
         } else {
-            (self.current * 100 / self.total).min(100)
+            (self.current * 100)
+                .checked_div(self.total)
+                .map(|v| v.min(100))
+                .unwrap_or(100)
         }
     }
 }
@@ -3169,9 +3170,9 @@ impl App {
             type_counts.iter()
                 .map(|(category, (deployed, report, disabled))| {
                     let total = deployed + report + disabled;
-                    let cat_score = if total > 0 {
-                        (deployed * 100 + report * 50) / total
-                    } else { 0 };
+                    let cat_score = (deployed * 100 + report * 50)
+                        .checked_div(total)
+                        .unwrap_or(0);
                     let status_class = if cat_score >= 80 { "deployed" } else if cat_score >= 50 { "reportonly" } else { "disabled" };
                     let status_text = if cat_score >= 80 { "Good" } else if cat_score >= 50 { "Partial" } else { "Needs Attention" };
                     format!(
@@ -3528,18 +3529,16 @@ impl App {
         // Security grade from settings
         let security_controls_enabled = self.setting_toggles.values().filter(|&&v| v).count();
         let security_controls_total = self.setting_toggles.len();
-        let security_grade = if security_controls_total == 0 {
-            "N/A"
-        } else {
-            let pct = (security_controls_enabled * 100) / security_controls_total;
-            match pct {
+        let security_grade = match (security_controls_enabled * 100).checked_div(security_controls_total) {
+            None => "N/A",
+            Some(pct) => match pct {
                 90..=100 => "A",
                 80..=89 => "B+",
                 70..=79 => "B",
                 60..=69 => "C+",
                 50..=59 => "C",
                 _ => "D",
-            }
+            },
         };
 
         // Risk assessment
@@ -6640,25 +6639,17 @@ fn run_app<B: ratatui::backend::Backend>(
                                 app.select_next();
                             }
                         }
-                        KeyCode::PageUp => {
-                            if is_policy_screen {
-                                app.table_prev_page();
-                            }
+                        KeyCode::PageUp if is_policy_screen => {
+                            app.table_prev_page();
                         }
-                        KeyCode::PageDown => {
-                            if is_policy_screen {
-                                app.table_next_page();
-                            }
+                        KeyCode::PageDown if is_policy_screen => {
+                            app.table_next_page();
                         }
-                        KeyCode::Home => {
-                            if is_policy_screen {
-                                app.table_first_page();
-                            }
+                        KeyCode::Home if is_policy_screen => {
+                            app.table_first_page();
                         }
-                        KeyCode::End => {
-                            if is_policy_screen {
-                                app.table_last_page();
-                            }
+                        KeyCode::End if is_policy_screen => {
+                            app.table_last_page();
                         }
                         KeyCode::Enter | KeyCode::Char(' ') => app.select_current(),
                         KeyCode::Char(c) if c.is_ascii_digit() => {
