@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.10] - 2026-06-21
+
+### Changed
+- Upgraded dependencies to latest versions: `colored` 3.1, `indicatif` 0.18,
+  `dialoguer` 0.12, `ratatui` 0.30, `crossterm` 0.29, `oauth2` 5.0, `toml` 1,
+  `thiserror` 2, `directories` 6, `zip` 8, `rand` 0.10.
+- Migrated `oauth2` to the 5.0 typestate builder API and a shared,
+  redirect-disabled `reqwest::Client` for token requests.
+- Restructured `docs/` into categorized subdirectories (getting-started,
+  reference, guides, testing, internals, advisories) with a `docs/README.md`
+  navigation hub and lowercase, descriptive file names.
+
+### Added
+- Dependabot configuration for weekly grouped `cargo` and `github-actions`
+  dependency updates.
+
+### Removed
+- Dropped unused dependencies `console` and `tui-scrollview`.
+- Replaced unmaintained crates with the standard library: `lazy_static` →
+  `std::sync::LazyLock`, `dirs-next` → `directories::UserDirs`.
+
+### Notes
+- `reqwest` is intentionally held at 0.12: `oauth2` 5.0 requires `reqwest ^0.12`,
+  and `reqwest` 0.13's rustls backend defaults to `aws-lc-rs`, which breaks the
+  `x86_64-pc-windows-gnu` cross-compile used by the release workflow.
+
 ## [0.1.9] - 2025-12-16
 
 ### Added

@@ -52,7 +52,7 @@ ctl365 ca deploy --baseline 2025 --report-only
 ctl365 autopilot import --file devices.csv --group-tag production
 ```
 
-**📚 Documentation:** [Getting Started](GETTING_STARTED.md) | [Testing Guide](TESTING_GUIDE.md) | [App Registration](docs/APP_REGISTRATION.md)
+**📚 Documentation:** [Getting Started](docs/getting-started/getting-started.md) | [Testing Guide](docs/testing/testing-guide.md) | [App Registration](docs/getting-started/app-registration.md)
 
 ---
 
@@ -332,7 +332,7 @@ Exchange.ManageAsApp  (optional, for Exchange Online config)
 
 **✅ Admin consent must be granted** for all permissions.
 
-📖 **Setup Guide**: [docs/APP_REGISTRATION.md](docs/APP_REGISTRATION.md)
+📖 **Setup Guide**: [docs/getting-started/app-registration.md](docs/getting-started/app-registration.md)
 
 ---
 

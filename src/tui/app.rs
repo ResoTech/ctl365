@@ -6230,7 +6230,10 @@ fn restore_terminal() {
 }
 
 /// Show the Resolve Technology splash screen on startup
-fn show_splash_screen<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>) -> io::Result<()> {
+fn show_splash_screen<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>) -> io::Result<()>
+where
+    std::io::Error: From<<B as ratatui::backend::Backend>::Error>,
+{
     use ratatui::layout::{Alignment, Rect};
     use ratatui::style::{Color, Modifier, Style};
     use ratatui::widgets::{Block, Paragraph};
@@ -6389,7 +6392,10 @@ pub fn run_tui() -> Result<()> {
 fn run_app<B: ratatui::backend::Backend>(
     terminal: &mut Terminal<B>,
     app: &mut App,
-) -> io::Result<()> {
+) -> io::Result<()>
+where
+    std::io::Error: From<<B as ratatui::backend::Backend>::Error>,
+{
     // Track last resize for debouncing (Phase 3)
     let mut last_resize: Option<Instant> = None;
     const RESIZE_DEBOUNCE: Duration = Duration::from_millis(50);

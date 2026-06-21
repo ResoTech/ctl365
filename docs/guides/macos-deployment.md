@@ -8,7 +8,7 @@ Complete guide for deploying production-ready macOS management with Intune.
 
 ### 1. ✅ Apple MDM Push Certificate
 **Status**: ⚠️ MANUAL REQUIREMENT
-- See **[APPLE_MDM_PUSH_CERTIFICATE.md](APPLE_MDM_PUSH_CERTIFICATE.md)** for setup
+- See **[Apple MDM Push Certificate](apple-mdm-push-certificate.md)** for setup
 - This MUST be completed before macOS devices can be managed
 - Takes 15-20 minutes
 

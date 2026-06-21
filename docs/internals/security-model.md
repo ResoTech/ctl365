@@ -159,7 +159,7 @@ Same as delegated, plus:
 - Actions logged as application, not user
 - Broader scope (all resources, not just user's)
 
-See [APP_REGISTRATION.md](APP_REGISTRATION.md) for detailed setup instructions.
+See [App Registration](../getting-started/app-registration.md) for detailed setup instructions.
 
 ## Compliance Considerations
 

@@ -57,7 +57,7 @@ irm https://raw.githubusercontent.com/ResoTech/ctl365/main/release/windows/boots
 
 ### Linux / Build from Source
 
-See [INSTALL.md](../INSTALL.md) for detailed installation instructions.
+See [INSTALL.md](../../INSTALL.md) for detailed installation instructions.
 
 ### Verify Installation
 

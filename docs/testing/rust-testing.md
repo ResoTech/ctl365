@@ -408,6 +408,6 @@ async fn test_async() {
 
 ## See Also
 
-- [DEPENDENCIES.md](DEPENDENCIES.md) - wiremock and nightly requirements
+- [Dependencies](../internals/dependencies.md) - wiremock and nightly requirements
 - [Cargo.toml](/Cargo.toml) - Test dependencies
 - [wiremock docs](https://docs.rs/wiremock) - HTTP mocking library

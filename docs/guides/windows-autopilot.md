@@ -600,9 +600,9 @@ ctl365 baseline new windows --template autopilot \
 
 ## Related Documentation
 
-- [Autopilot Device Import](./COMMANDS.md#autopilot)
-- [Windows Baseline Templates](./COMMANDS.md#baseline-management)
-- [Tenant Configuration](./TENANT_BASELINE.md)
+- [Autopilot Device Import](../reference/commands.md#autopilot)
+- [Windows Baseline Templates](../reference/commands.md#baseline-management)
+- [Tenant Configuration](tenant-baseline.md)
 
 ---
 

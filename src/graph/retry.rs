@@ -8,7 +8,7 @@
 //! - Jitter to prevent thundering herd
 
 use crate::error::{Ctl365Error, Result};
-use rand::Rng;
+use rand::RngExt;
 use reqwest::{Response, StatusCode};
 use serde::Deserialize;
 use std::future::Future;
@@ -34,7 +34,7 @@ pub fn calculate_backoff_with_jitter(attempt: u32) -> Duration {
     // Add jitter (+/- JITTER_FACTOR) using proper RNG
     let jitter_range = (capped_backoff as f64 * JITTER_FACTOR) as i64;
     let jitter = if jitter_range > 0 {
-        rand::thread_rng().gen_range(-jitter_range..=jitter_range)
+        rand::rng().random_range(-jitter_range..=jitter_range)
     } else {
         0
     };

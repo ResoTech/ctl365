@@ -15,14 +15,12 @@
 use crate::error::Result;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{LazyLock, Mutex};
 
-lazy_static::lazy_static! {
-    /// Global session changes tracker
-    static ref SESSION_CHANGES: Mutex<Vec<AuditEntry>> = Mutex::new(Vec::new());
-    /// Current session ID
-    static ref SESSION_ID: Mutex<String> = Mutex::new(generate_session_id());
-}
+/// Global session changes tracker
+static SESSION_CHANGES: LazyLock<Mutex<Vec<AuditEntry>>> = LazyLock::new(|| Mutex::new(Vec::new()));
+/// Current session ID
+static SESSION_ID: LazyLock<Mutex<String>> = LazyLock::new(|| Mutex::new(generate_session_id()));
 
 fn generate_session_id() -> String {
     format!("session-{}", chrono::Local::now().format("%Y%m%d-%H%M%S"))

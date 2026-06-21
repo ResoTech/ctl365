@@ -73,7 +73,8 @@ fn default_primary_color() -> String {
 impl ClientConfig {
     /// Get the base config directory (~/.ctl365)
     pub fn base_dir() -> Result<PathBuf> {
-        let home = dirs_next::home_dir()
+        let home = directories::UserDirs::new()
+            .map(|dirs| dirs.home_dir().to_path_buf())
             .ok_or_else(|| Ctl365Error::ConfigError("Could not determine home directory".into()))?;
         Ok(home.join(".ctl365"))
     }

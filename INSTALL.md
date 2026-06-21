@@ -49,5 +49,5 @@ ctl365 --help
 
 ## Next Steps
 
-1. [Register an Azure AD App](docs/APP_REGISTRATION.md)
-2. [Getting Started Guide](GETTING_STARTED.md)
+1. [Register an Azure AD App](docs/getting-started/app-registration.md)
+2. [Getting Started Guide](docs/getting-started/getting-started.md)

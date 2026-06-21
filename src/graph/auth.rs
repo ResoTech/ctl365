@@ -2,9 +2,20 @@ use crate::config::{ConfigManager, TenantConfig, TokenCache};
 use crate::error::{Ctl365Error, Result};
 use oauth2::{
     AuthUrl, ClientId, ClientSecret, DeviceAuthorizationUrl, EmptyExtraDeviceAuthorizationFields,
-    Scope, TokenResponse, TokenUrl, basic::BasicClient, reqwest::async_http_client,
+    Scope, TokenResponse, TokenUrl, basic::BasicClient,
 };
 use std::time::Duration;
+
+/// Build an HTTP client for OAuth2 requests.
+///
+/// Redirects are disabled per the oauth2 crate's security guidance (a redirect
+/// during a token exchange can leak credentials).
+fn oauth_http_client() -> Result<reqwest::Client> {
+    reqwest::ClientBuilder::new()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .map_err(|e| Ctl365Error::AuthError(format!("Failed to build HTTP client: {}", e)))
+}
 
 const MICROSOFT_AUTHORITY: &str = "https://login.microsoftonline.com";
 const GRAPH_SCOPE: &str = "https://graph.microsoft.com/.default";
@@ -56,15 +67,18 @@ impl GraphAuth {
         ))
         .map_err(|e| Ctl365Error::AuthError(format!("Invalid device auth URL: {}", e)))?;
 
-        let client = BasicClient::new(client_id, None, auth_url, Some(token_url))
+        let http_client = oauth_http_client()?;
+
+        let client = BasicClient::new(client_id)
+            .set_auth_uri(auth_url)
+            .set_token_uri(token_url)
             .set_device_authorization_url(device_auth_url);
 
         let details: oauth2::DeviceAuthorizationResponse<EmptyExtraDeviceAuthorizationFields> =
             client
                 .exchange_device_code()
-                .map_err(|e| Ctl365Error::AuthError(format!("Device code exchange failed: {}", e)))?
                 .add_scope(Scope::new(GRAPH_SCOPE.to_string()))
-                .request_async(async_http_client)
+                .request_async(&http_client)
                 .await
                 .map_err(|e| {
                     Ctl365Error::AuthError(format!("Device authorization request failed: {}", e))
@@ -76,7 +90,7 @@ impl GraphAuth {
         // Poll for token
         let token = client
             .exchange_device_access_token(&details)
-            .request_async(async_http_client, tokio::time::sleep, None)
+            .request_async(&http_client, tokio::time::sleep, None)
             .await
             .map_err(|e| Ctl365Error::AuthError(format!("Token exchange failed: {}", e)))?;
 
@@ -134,12 +148,17 @@ impl GraphAuth {
         ))
         .map_err(|e| Ctl365Error::AuthError(format!("Invalid token URL: {}", e)))?;
 
-        let client = BasicClient::new(client_id, Some(client_secret), auth_url, Some(token_url));
+        let http_client = oauth_http_client()?;
+
+        let client = BasicClient::new(client_id)
+            .set_client_secret(client_secret)
+            .set_auth_uri(auth_url)
+            .set_token_uri(token_url);
 
         let token = client
             .exchange_client_credentials()
             .add_scope(Scope::new(GRAPH_SCOPE.to_string()))
-            .request_async(async_http_client)
+            .request_async(&http_client)
             .await
             .map_err(|e| {
                 Ctl365Error::AuthError(format!("Client credentials exchange failed: {}", e))

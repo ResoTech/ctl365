@@ -193,7 +193,7 @@ Set these reminders:
 ## 🔗 Related Documentation
 
 After completing this setup, proceed with:
-- **[macOS Baseline Deployment](MACOS_DEPLOYMENT.md)**
+- **[macOS Baseline Deployment](macos-deployment.md)**
 - **[Apple Business Manager Setup](APPLE_BUSINESS_MANAGER.md)** (for ADE)
 - **[macOS Autopilot Configuration](MACOS_AUTOPILOT.md)**
 

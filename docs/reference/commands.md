@@ -743,10 +743,10 @@ export CTL365_CONFIG_DIR="~/.ctl365"
 
 ## See Also
 
-- [GETTING_STARTED.md](GETTING_STARTED.md) - First-time setup
-- [docs/APP_REGISTRATION.md](docs/APP_REGISTRATION.md) - Azure AD setup
-- [TESTING_GUIDE.md](TESTING_GUIDE.md) - Feature testing
-- [docs/rust/](docs/rust/) - Rust development documentation
+- [Getting Started](../getting-started/getting-started.md) - First-time setup
+- [App Registration](../getting-started/app-registration.md) - Azure AD setup
+- [Testing Guide](../testing/testing-guide.md) - Feature testing
+- [Rust Development](../internals/dependencies.md) - Rust development documentation
 
 ---
 

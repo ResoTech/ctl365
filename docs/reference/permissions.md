@@ -289,6 +289,6 @@ Error: AADSTS65001 - User has not consented
 
 ## See Also
 
-- [App Registration Setup](APP_REGISTRATION.md)
-- [Troubleshooting](TROUBLESHOOTING.md)
+- [App Registration Setup](../getting-started/app-registration.md)
+- [Troubleshooting](../guides/troubleshooting.md)
 - [Microsoft Graph Permissions Reference](https://learn.microsoft.com/en-us/graph/permissions-reference)

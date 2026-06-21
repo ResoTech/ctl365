@@ -16,7 +16,7 @@
 
 **Time: 5 minutes**
 
-Follow our detailed guide: **[APP_REGISTRATION.md](APP_REGISTRATION.md)**
+Follow our detailed guide: **[App Registration](app-registration.md)**
 
 **Quick Summary:**
 1. Go to https://portal.azure.com
@@ -319,11 +319,11 @@ mkdir -p ~/.config/ctl365/cache
 
 ## Full Documentation
 
-- **[APP_REGISTRATION.md](APP_REGISTRATION.md)** - Detailed Azure AD setup
-- **[COMMANDS.md](COMMANDS.md)** - Complete command reference
-- **[PERMISSIONS.md](PERMISSIONS.md)** - Required Graph API permissions
-- **[QUICKSTART.md](QUICKSTART.md)** - Feature walkthrough
-- **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Common issues
+- **[App Registration](app-registration.md)** - Detailed Azure AD setup
+- **[Commands](../reference/commands.md)** - Complete command reference
+- **[Permissions](../reference/permissions.md)** - Required Graph API permissions
+- **[Quickstart](quickstart.md)** - Feature walkthrough
+- **[Troubleshooting](../guides/troubleshooting.md)** - Common issues
 
 ---
 

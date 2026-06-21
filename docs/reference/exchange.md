@@ -29,7 +29,7 @@ These settings are based on:
 - **CISA ScubaGear** Exchange baseline
 - **NCSC Cloud Security Guidance** for email security
 
-See: [REFERENCE_ANALYSIS.md](../REFERENCE_ANALYSIS.md) for full baseline details.
+See: [REFERENCE_ANALYSIS.md](../../REFERENCE_ANALYSIS.md) for full baseline details.
 
 ---
 

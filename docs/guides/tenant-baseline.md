@@ -567,8 +567,8 @@ Contact IT Support: support@example.com
 
 ## 🔗 Related Documentation
 
-- [Windows Baseline Deployment](WINDOWS_DEPLOYMENT.md)
-- [macOS Baseline Deployment](MACOS_DEPLOYMENT.md)
+- [Windows Autopilot Deployment](windows-autopilot.md)
+- [macOS Baseline Deployment](macos-deployment.md)
 - [Conditional Access Deployment](CONDITIONAL_ACCESS.md)
 
 ---

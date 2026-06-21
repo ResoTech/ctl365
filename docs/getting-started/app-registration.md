@@ -329,8 +329,8 @@ ctl365 tenant add RESO \
 - [Device code flow](https://learn.microsoft.com/en-us/azure/active-directory/develop/v2-oauth2-device-code)
 
 ### ctl365 Documentation
-- [Quickstart Guide](../QUICKSTART.md)
-- [Authentication Testing](../TEST_AUTHENTICATION.md)
+- [Quickstart Guide](quickstart.md)
+- [Authentication Testing](../testing/authentication-testing.md)
 - [Multi-Tenant Setup](./MULTI_TENANT.md)
 
 ---

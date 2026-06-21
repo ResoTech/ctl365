@@ -69,7 +69,7 @@ Error: Authorization_RequestDenied - Insufficient privileges to complete the ope
    ctl365 login ACME
    ```
 
-See: [APP_REGISTRATION.md](APP_REGISTRATION.md)
+See: [App Registration](../getting-started/app-registration.md)
 
 ---
 
@@ -346,7 +346,7 @@ rustup install nightly
 cargo +nightly test
 ```
 
-See: [docs/rust/DEPENDENCIES.md](rust/DEPENDENCIES.md)
+See: [Dependencies](../internals/dependencies.md)
 
 ---
 
@@ -471,7 +471,7 @@ ctl365 --version
 
 ## See Also
 
-- [APP_REGISTRATION.md](APP_REGISTRATION.md) - Azure AD setup
-- [QUICKSTART.md](QUICKSTART.md) - Getting started
-- [rust/DEPENDENCIES.md](rust/DEPENDENCIES.md) - Build requirements
-- [rust/TESTING.md](rust/TESTING.md) - Running tests
+- [App Registration](../getting-started/app-registration.md) - Azure AD setup
+- [Quickstart](../getting-started/quickstart.md) - Getting started
+- [Dependencies](../internals/dependencies.md) - Build requirements
+- [Rust Testing](../testing/rust-testing.md) - Running tests

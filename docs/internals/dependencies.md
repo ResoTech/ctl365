@@ -43,18 +43,16 @@ rustup install nightly
 | Crate | Version | Purpose |
 |-------|---------|---------|
 | **clap** | 4.5 | Command-line argument parsing with derive macros |
-| **colored** | 2.1 | Terminal colored output |
-| **indicatif** | 0.17 | Progress bars and spinners |
-| **dialoguer** | 0.11 | Interactive prompts and menus |
-| **console** | 0.15 | Terminal manipulation |
+| **colored** | 3.1 | Terminal colored output |
+| **indicatif** | 0.18 | Progress bars and spinners |
+| **dialoguer** | 0.12 | Interactive prompts and menus |
 
 ### TUI Framework
 
 | Crate | Version | Purpose |
 |-------|---------|---------|
-| **ratatui** | 0.29 | Terminal UI framework (successor to tui-rs) |
-| **crossterm** | 0.28 | Cross-platform terminal handling |
-| **tui-input** | 0.11 | Text input widget for ratatui |
+| **ratatui** | 0.30 | Terminal UI framework (successor to tui-rs) |
+| **crossterm** | 0.29 | Cross-platform terminal handling |
 | **crossbeam-channel** | 0.5 | Multi-producer multi-consumer channels |
 
 ### Async Runtime
@@ -71,11 +69,15 @@ rustup install nightly
 
 **Note:** We use `rustls-tls` instead of native TLS for better cross-compilation support.
 
+**Held at 0.12 (intentional):** reqwest is not upgraded to 0.13 because (1) oauth2 5.0 depends on `reqwest ^0.12` and the auth code shares a `&reqwest::Client` with it, and (2) reqwest 0.13's rustls feature defaults to the `aws-lc-rs` backend, which breaks the `x86_64-pc-windows-gnu` cross-compile used by the release workflow.
+
 ### Authentication
 
 | Crate | Version | Purpose |
 |-------|---------|---------|
-| **oauth2** | 4.4 | OAuth2 device code and client credentials flows |
+| **oauth2** | 5.0 | OAuth2 device code and client credentials flows |
+
+**Note:** oauth2 5.0 uses a typestate builder (`BasicClient::new(id).set_auth_uri(..).set_token_uri(..)`) and takes a shared `&reqwest::Client` per request. It depends on `reqwest ^0.12`, which is one reason reqwest is held at 0.12 (see HTTP Client below).
 
 ### Serialization
 
@@ -83,7 +85,7 @@ rustup install nightly
 |-------|---------|---------|
 | **serde** | 1.0 | Serialization/deserialization framework |
 | **serde_json** | 1.0 | JSON support |
-| **toml** | 0.8 | TOML config file support |
+| **toml** | 1 | TOML config file support |
 | **csv** | 1.3 | CSV parsing for Autopilot imports |
 
 ### Error Handling
@@ -91,7 +93,7 @@ rustup install nightly
 | Crate | Version | Purpose |
 |-------|---------|---------|
 | **anyhow** | 1.0 | Flexible error handling for applications |
-| **thiserror** | 1.0 | Derive macros for custom error types |
+| **thiserror** | 2.0 | Derive macros for custom error types |
 
 ### Utilities
 
@@ -101,11 +103,11 @@ rustup install nightly
 | **uuid** | 1.10 | UUID generation and parsing |
 | **url** | 2.5 | URL parsing |
 | **urlencoding** | 2.1 | URL encoding/decoding |
-| **zip** | 2.2 | ZIP file handling for .intunewin packages |
+| **zip** | 8 | ZIP file handling for .intunewin packages |
 | **walkdir** | 2.5 | Directory traversal |
 | **base64** | 0.22 | Base64 encoding/decoding |
-| **directories** | 5.0 | Platform-specific config directories |
-| **lazy_static** | 1.5 | Lazy initialization of statics |
+| **rand** | 0.10 | Jitter for retry backoff |
+| **directories** | 6.0 | Platform-specific config and home directories |
 
 ### Logging
 
@@ -113,6 +115,13 @@ rustup install nightly
 |-------|---------|---------|
 | **tracing** | 0.1 | Application-level tracing |
 | **tracing-subscriber** | 0.3 | Subscriber for tracing with env-filter |
+
+### Standard Library Replacements
+
+Two previously used helper crates have been dropped in favour of the standard library:
+
+- **lazy_static** → `std::sync::LazyLock` (stable since Rust 1.80) for global statics in `src/tui/change_tracker.rs`.
+- **dirs-next** → `directories::UserDirs` for resolving the home directory in `src/config/mod.rs`.
 
 ---
 
@@ -190,7 +199,7 @@ uuid = { version = "1.10", features = ["serde", "v4"] }
 ### dialoguer
 
 ```toml
-dialoguer = { version = "0.11", features = ["fuzzy-select"] }
+dialoguer = { version = "0.12", features = ["fuzzy-select"] }
 ```
 
 - **fuzzy-select**: Fuzzy search in selection menus
@@ -223,8 +232,10 @@ cargo build --release --target x86_64-pc-windows-gnu
 
 ## Updating Dependencies
 
+Routine minor/patch bumps are handled automatically by [Dependabot](../../.github/dependabot.yml), which opens grouped weekly PRs for the `cargo` and `github-actions` ecosystems. Manual updates:
+
 ```bash
-# Check for outdated dependencies
+# Check for outdated dependencies (requires: cargo install cargo-outdated)
 cargo outdated
 
 # Update Cargo.lock
@@ -277,6 +288,6 @@ git commit -m "Lock dependency versions"
 
 ## See Also
 
-- [TESTING.md](TESTING.md) - Test infrastructure documentation
+- [Rust Testing](../testing/rust-testing.md) - Test infrastructure documentation
 - [Cargo.toml](/Cargo.toml) - Full dependency list
 - [Rust Edition Guide](https://doc.rust-lang.org/edition-guide/)
