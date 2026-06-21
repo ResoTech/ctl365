@@ -12,6 +12,12 @@ updates:
         update-types:
           - "minor"
           - "patch"
+    ignore:
+      # reqwest is pinned to 0.12: oauth2 5.0 requires reqwest ^0.12 and
+      # reqwest 0.13 drops the rustls-tls feature (rustls defaults to aws-lc-rs),
+      # which breaks the x86_64-pc-windows-gnu release cross-compile.
+      - dependency-name: "reqwest"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
