@@ -31,6 +31,9 @@ jobs:
         with:
           key: ctl365-release-windows
 
+      - name: Ensure Windows target
+        run: rustup target add x86_64-pc-windows-gnu
+
       - name: Run Tests (nightly)
         run: cargo +nightly test
 
